@@ -92,7 +92,7 @@ export function LeadDealPicker({
       <RadioGroup
         value={entityType}
         onValueChange={(v) => handleEntityTypeChange(v as EntityType)}
-        className="flex gap-4"
+        className="flex flex-wrap gap-4"
         disabled={disabled}
       >
         <div className="flex items-center space-x-2">
@@ -115,7 +115,7 @@ export function LeadDealPicker({
         options={options}
         placeholder={`Select a ${entityType}...`}
         searchPlaceholder={`Search ${entityType}s...`}
-        emptyText={`No ${entityType}s found.`}
+        emptyText={`No active ${entityType}s found. Check filters or create the record first.`}
         isLoading={isLoading}
         disabled={disabled}
         onSearchChange={setSearchQuery}
@@ -124,6 +124,10 @@ export function LeadDealPicker({
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+      <p className="text-xs text-muted-foreground">
+        This connection controls where the activity appears in timelines,
+        dashboard metrics, and manager views.
+      </p>
     </div>
   );
 }

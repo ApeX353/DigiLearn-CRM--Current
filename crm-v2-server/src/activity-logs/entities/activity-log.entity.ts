@@ -21,7 +21,7 @@ export class ActivityLog {
   @Column({ type: 'varchar', length: 100 })
   entity: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   entity_id: string;
 
   @Column({ type: 'varchar', length: 50 })
@@ -34,7 +34,7 @@ export class ActivityLog {
   @JoinColumn({ name: 'actioned_by' })
   user: User;
 
-  @Column({ name: 'actioned_by', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'actioned_by', type: 'uuid', nullable: true })
   actioned_by: string;
 
   @Column({ type: 'json', nullable: true })

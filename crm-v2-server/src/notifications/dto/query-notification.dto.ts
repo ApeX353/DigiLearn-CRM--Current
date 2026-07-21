@@ -7,7 +7,8 @@ import {
   IsUUID,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { NOTIFICATION_CHANNELS, NOTIFICATION_SEVERITIES } from '../entities';
 import type { NotificationChannel, NotificationSeverity } from '../entities';
 
@@ -54,13 +55,15 @@ export class QueryNotificationDto {
 
   @ApiPropertyOptional({ description: 'Filter by read status' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   isRead?: boolean;
 
   @ApiPropertyOptional({ description: 'Show only unread notifications' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   unreadOnly?: boolean;
 }

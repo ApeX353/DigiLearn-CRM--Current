@@ -13,22 +13,43 @@ import type {
   LeadActivityStats,
 } from "./types";
 import { leadsKeys } from "../leads";
+import { useFollowUpPromptStore } from "~/stores/use-follow-up-prompt-store";
+import { shouldRequireFollowUp } from "~/lib/follow-up-policy";
+
+/**
+ * Extra query knobs surfaced by the activities page redesign. They map
+ * 1:1 onto the additive QueryActivityDto fields on the backend, so the
+ * existing /activities endpoint stays the only entry point.
+ *
+ * - due_from / due_to: filter on COALESCE(due_at, scheduled_at) — used
+ *   by the date-context tabs (Overdue, Today, This week, …).
+ * - open_only: hides completed + cancelled — used by the "To-do" tab.
+ */
+export type ActivityListQuery = PaginationParams & {
+  type?: ActivityType;
+  status?: ActivityStatus;
+  lead_id?: string;
+  deal_id?: string;
+  contact_id?: string;
+  /**
+   * Indirect filter — backend joins on lead.school_id so every
+   * activity tied to any of the school's leads surfaces in one query.
+   */
+  school_id?: string;
+  assigned_to_id?: string;
+  is_pinned?: boolean;
+  search?: string;
+  due_from?: string;
+  due_to?: string;
+  open_only?: boolean;
+  include_details?: boolean;
+};
 
 export const activitiesKeys = {
   all: ["activities"] as const,
   lists: () => [...activitiesKeys.all, "list"] as const,
-  list: (
-    params: PaginationParams & {
-      type?: ActivityType;
-      status?: ActivityStatus;
-      lead_id?: string;
-      deal_id?: string;
-      contact_id?: string;
-      assigned_to_id?: string;
-      is_pinned?: boolean;
-      search?: string;
-    },
-  ) => [...activitiesKeys.lists(), params] as const,
+  list: (params: ActivityListQuery) =>
+    [...activitiesKeys.lists(), params] as const,
   byId: (id: string) => [...activitiesKeys.all, "detail", id] as const,
   leadStatsRoot: () => [...activitiesKeys.all, "lead-stats"] as const,
   leadStats: (leadId: string) =>
@@ -47,26 +68,35 @@ function unwrapData<T>(payload: unknown): T {
   return payload as T;
 }
 
+// The API returns the WhatsApp subtype under `whatsapp_message`, but the
+// Activity type and every view read `whatsapp`. Without this mapping the
+// "WhatsApp Details" section (incl. the full message) never renders and only
+// the 40-char subject preview shows. Map it so the full message is displayed.
+function normalizeActivity<T extends Activity | null | undefined>(activity: T): T {
+  const a = activity as
+    | (Activity & { whatsapp_message?: Activity["whatsapp"] })
+    | null
+    | undefined;
+  if (a && !a.whatsapp && a.whatsapp_message) {
+    a.whatsapp = a.whatsapp_message;
+  }
+  return activity;
+}
+
 const api = {
   getAll: (
-    params: PaginationParams & {
-      type?: ActivityType;
-      status?: ActivityStatus;
-      lead_id?: string;
-      deal_id?: string;
-      contact_id?: string;
-      assigned_to_id?: string;
-      is_pinned?: boolean;
-      search?: string;
-      include_details?: boolean;
-    },
+    params: ActivityListQuery,
   ): Promise<Paginated<Activity[]>> =>
-    apiClientAuth.get("/activities", { params }).then((r) => r.data),
+    apiClientAuth.get("/activities", { params }).then((r) => {
+      const page = r.data as Paginated<Activity[]>;
+      page.data?.forEach(normalizeActivity);
+      return page;
+    }),
 
   getById: (id: string): Promise<Activity> =>
     apiClientAuth
       .get(`/activities/${id}`)
-      .then((r) => unwrapData<Activity>(r.data)),
+      .then((r) => normalizeActivity(unwrapData<Activity>(r.data))),
 
   create: (data: CreateActivityDto): Promise<Activity> =>
     apiClientAuth
@@ -103,25 +133,57 @@ const api = {
       .post(`/activities/${id}/comments`, data)
       .then((r) => unwrapData<ActivityComment>(r.data)),
 
+  updateStatus: (
+    id: string,
+    status: ActivityStatus,
+    outcome?: import("./types").ActivityOutcome,
+    completionNote?: string,
+  ): Promise<Activity> =>
+    apiClientAuth
+      .patch(`/activities/${id}/status`, {
+        status,
+        outcome,
+        completion_note: completionNote,
+      })
+      .then((r) => unwrapData<Activity>(r.data)),
+
+  bulkUpdateStatus: (
+    ids: string[],
+    status: ActivityStatus,
+    outcome?: import("./types").ActivityOutcome,
+    completionNote?: string,
+  ): Promise<BulkStatusResult> =>
+    apiClientAuth
+      .patch(`/activities/bulk-status`, {
+        ids,
+        status,
+        outcome,
+        completion_note: completionNote,
+      })
+      .then((r) => ({
+        updated: (r.data?.data ?? []) as Activity[],
+        followUpCandidates: (r.data?.followUpCandidates ?? []) as Activity[],
+      })),
+
   getLeadStats: (leadId: string): Promise<LeadActivityStats> =>
     apiClientAuth
       .get(`/activities/leads/${leadId}/stats`)
       .then((r) => unwrapData<LeadActivityStats>(r.data)),
 };
 
+export interface BulkStatusResult {
+  updated: Activity[];
+  /**
+   * The subset of `updated` activities that qualify for a follow-up
+   * prompt — currently meetings, calls, and tasks that were just
+   * marked completed. The frontend uses this to decide whether to
+   * surface the follow-up prompt dialog.
+   */
+  followUpCandidates: Activity[];
+}
+
 export function useActivityList(
-  params: PaginationParams & {
-    type?: ActivityType;
-    status?: ActivityStatus;
-    lead_id?: string;
-    deal_id?: string;
-    contact_id?: string;
-    assigned_to_id?: string;
-    is_pinned?: boolean;
-    search?: string;
-    enabled?: boolean;
-    include_details?: boolean;
-  },
+  params: ActivityListQuery & { enabled?: boolean },
 ) {
   const { enabled, ...queryParams } = params;
   return useQuery({
@@ -156,6 +218,7 @@ export function useCreateActivity() {
 
 export function useUpdateActivity() {
   const qc = useQueryClient();
+  const enqueue = useFollowUpPromptStore((s) => s.enqueue);
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateActivityDto }) =>
       api.update(id, data),
@@ -167,6 +230,18 @@ export function useUpdateActivity() {
       });
       qc.invalidateQueries({ queryKey: activitiesKeys.lists() });
       qc.invalidateQueries({ queryKey: activitiesKeys.leadStatsRoot() });
+      // A generic update can also flip an activity to completed —
+      // e.g. editing a task and setting task.status = "done" in the
+      // sheet. Apply the same auto-enqueue as the dedicated status
+      // mutation so no completion site can skip the discipline rule.
+      if (
+        updatedActivity.status === "completed" ||
+        updatedActivity.completed_at
+      ) {
+        enqueue(updatedActivity, {
+          required: shouldRequireFollowUp(updatedActivity),
+        });
+      }
     },
   });
 }
@@ -215,5 +290,85 @@ export function useLeadActivityStats(leadId: string) {
     queryFn: () => api.getLeadStats(leadId),
     staleTime: 5 * 60 * 1000,
     enabled: !!leadId,
+  });
+}
+
+/**
+ * Single-item status update. Kept next to the bulk hook so consumers
+ * can import both from one place.
+ *
+ * Centralised CRM-discipline hook-point: when the updated activity
+ * resolves to status === "completed" (or carries a `completed_at`),
+ * we auto-enqueue it into the follow-up prompt store with a
+ * `required` flag decided by `shouldRequireFollowUp`. Every
+ * completion site (list row, inspector sheet, planned card, bulk
+ * bar) therefore gets the exact same "log the next step" behaviour
+ * without having to remember to wire it in locally.
+ */
+export function useUpdateActivityStatus() {
+  const qc = useQueryClient();
+  const enqueue = useFollowUpPromptStore((s) => s.enqueue);
+  return useMutation({
+    mutationFn: ({
+      id,
+      status,
+      outcome,
+      completionNote,
+    }: {
+      id: string;
+      status: ActivityStatus;
+      outcome?: import("./types").ActivityOutcome;
+      completionNote?: string;
+    }) => api.updateStatus(id, status, outcome, completionNote),
+    onSuccess: (updated) => {
+      qc.setQueryData(activitiesKeys.byId(updated.id), updated);
+      qc.invalidateQueries({ queryKey: activitiesKeys.lists() });
+      qc.invalidateQueries({ queryKey: activitiesKeys.leadStatsRoot() });
+      if (updated.status === "completed" || updated.completed_at) {
+        enqueue(updated, { required: shouldRequireFollowUp(updated) });
+      }
+    },
+  });
+}
+
+/**
+ * Bulk status update. The response's `followUpCandidates` array is what
+ * drives the Section 1 "capture next step" prompt — the mutation itself
+ * is status-agnostic, the UI layer decides whether to show the dialog.
+ */
+export function useBulkUpdateActivityStatus() {
+  const qc = useQueryClient();
+  const enqueueMany = useFollowUpPromptStore((s) => s.enqueueMany);
+  return useMutation({
+    mutationFn: ({
+      ids,
+      status,
+      outcome,
+      completionNote,
+    }: {
+      ids: string[];
+      status: ActivityStatus;
+      outcome?: import("./types").ActivityOutcome;
+      completionNote?: string;
+    }) => api.bulkUpdateStatus(ids, status, outcome, completionNote),
+    onSuccess: (result) => {
+      for (const activity of result.updated) {
+        qc.setQueryData(activitiesKeys.byId(activity.id), activity);
+      }
+      qc.invalidateQueries({ queryKey: activitiesKeys.lists() });
+      qc.invalidateQueries({ queryKey: activitiesKeys.leadStatsRoot() });
+      // Bulk-done: enqueue every follow-up candidate with its own
+      // required flag. A bulk action that spans both active and
+      // terminal records therefore queues required prompts for the
+      // active ones and skippable prompts for the terminal ones.
+      if (result.followUpCandidates.length > 0) {
+        enqueueMany(
+          result.followUpCandidates.map((activity) => ({
+            activity,
+            required: shouldRequireFollowUp(activity),
+          })),
+        );
+      }
+    },
   });
 }

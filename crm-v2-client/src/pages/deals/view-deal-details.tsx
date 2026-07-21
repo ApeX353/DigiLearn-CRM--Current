@@ -1,17 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { format } from "date-fns";
+import { AuditTimeline } from "~/components/audit/audit-timeline";
 import {
-  Building2,
-  Calendar,
-  User,
-  Flag,
-  FileText,
-  ListTodo,
   Plus,
-  Clock,
   Loader2,
-  MessageSquare,
   ExternalLink,
   CheckCircle2,
   XCircle,
@@ -21,6 +14,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import Container from "~/components/container";
 import PageHeader from "~/components/page-header";
+import { RecordDetailLayout } from "~/components/layout/record-detail-layout";
+import { DealAtAGlance } from "~/components/deals/deal-at-a-glance";
 import { Badge } from "~/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -34,20 +29,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useDeal, useUpdateDeal, useCloseDeal } from "~/api/deals";
+import { handleApiError } from "~/api/axios";
 import {
-  useActivityList,
-  useUpdateActivity,
-  useDeleteActivity,
-} from "~/api/activities";
-import type { TaskStatus } from "~/api/activities/types";
+  formatDealStageBlock,
+  type BlockedActionMessage,
+} from "~/lib/blocked-action-messages";
+// Activity hooks are no longer consumed on this page — the filtered
+// EngagementWorkspace tabs below own every activity query/mutation.
+// The stray `TaskListItem` and `TaskStatus` imports went with the
+// retired standalone Task tab.
 import { CreateActivityModal } from "~/components/activities/create-activity-modal";
 import { ActivityTaskSheet } from "~/components/activities/activity-task-sheet";
 import { DealActivitiesTab } from "~/components/deals/tabs/activities-tab";
 import { FilesTab } from "~/components/deals/tabs/files-tab";
-import {
-  TaskListItem,
-  type TaskItemData,
-} from "~/components/tasks/task-list-item";
 import { useCurrency } from "~/hooks/use-currency";
 import { toast } from "sonner";
 import {
@@ -74,6 +68,7 @@ import {
 } from "~/api/deal-rollback-requests";
 import { RequestDealRollbackDialog } from "~/components/deals/request-deal-rollback-dialog";
 import { ReviewDealRollbackRequestDialog } from "~/components/deals/review-deal-rollback-request-dialog";
+import { DealCostsSection } from "~/components/deals/deal-costs-section";
 import { useAnyRole } from "~/hooks/use-permission";
 import { useAuthStore } from "~/stores/use-auth-store";
 import { isDealReadonly } from "~/stores/use-is-readonly";
@@ -123,8 +118,11 @@ export default function ViewDealDetailsPage() {
     "sale_manager",
   ]);
 
-  const [createTaskOpen, setCreateTaskOpen] = useState(false);
-  const [createNoteOpen, setCreateNoteOpen] = useState(false);
+  // `createTaskOpen` / `createNoteOpen` were modal triggers for the
+  // retired standalone Task and Note tabs — both tabs now route into
+  // the shared EngagementWorkspace pre-filtered, so the per-type
+  // modals are gone and the `createActivityOpen` single entry point
+  // covers scheduling any activity type.
   const [createActivityOpen, setCreateActivityOpen] = useState(false);
   const [taskSheetOpen, setTaskSheetOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -144,6 +142,8 @@ export default function ViewDealDetailsPage() {
   const [rollbackTargetStage, setRollbackTargetStage] = useState<Stage | null>(null);
   const [reviewRollbackRequest, setReviewRollbackRequest] =
     useState<DealRollbackRequest | null>(null);
+  const [stageBlockedMessage, setStageBlockedMessage] =
+    useState<BlockedActionMessage | null>(null);
 
   const { data: deal, isLoading, error } = useDeal(id || "");
   const { data: rollbackRequests = [] } = useDealRollbackRequestsByDeal(id || "");
@@ -186,63 +186,12 @@ export default function ViewDealDetailsPage() {
   });
   const staff = staffData?.data || [];
 
-  const { data: tasksData, isLoading: tasksLoading } = useActivityList({
-    page: 1,
-    limit: 50,
-    deal_id: id || undefined,
-    type: "task",
-  });
-
-  const { data: notesData, isLoading: notesLoading } = useActivityList({
-    page: 1,
-    limit: 50,
-    deal_id: id || undefined,
-    type: "note",
-  });
-
-  const updateActivity = useUpdateActivity();
-  const deleteActivity = useDeleteActivity();
-
-  const tasks = useMemo<TaskItemData[]>(
-    () =>
-      (tasksData?.data || []).map((activity) => ({
-        id: activity.id,
-        title: activity.subject,
-        description: activity.description,
-        status: activity.task?.status ?? "todo",
-        priority: activity.task?.priority ?? "medium",
-        due_date: activity.due_at,
-        created_at: activity.created_at,
-        created_by: activity.created_by,
-        deal: deal?.id
-          ? { id: deal.id, deal_name: deal.title || "Deal" }
-          : undefined,
-      })),
-    [tasksData, deal],
-  );
-
-  const notes = useMemo(() => notesData?.data || [], [notesData]);
-
-  const handleToggleTask = (taskId: string, currentStatus: TaskStatus) => {
-    if (isReadonly) return;
-
-    const nextStatus: TaskStatus =
-      currentStatus === "done" || currentStatus === "cancelled"
-        ? "todo"
-        : "done";
-
-    updateActivity.mutate(
-      { id: taskId, data: { task: { status: nextStatus } } },
-      {
-        onSuccess: () => {
-          toast.success(
-            nextStatus === "done" ? "Task completed" : "Task reopened",
-          );
-        },
-        onError: () => toast.error("Failed to update task"),
-      },
-    );
-  };
+  // The bespoke per-deal Task + Note queries + mutation handlers
+  // that used to live here were consumed only by the now-retired
+  // standalone tabs. The Notes / Emails / Calls tabs underneath are
+  // filtered views of the shared EngagementWorkspace, which owns its
+  // own data fetching and mutations — no duplicate wiring needed on
+  // this page.
 
   const handleStageChange = (value: string) => {
     if (isReadonly) return;
@@ -261,8 +210,17 @@ export default function ViewDealDetailsPage() {
     updateDeal.mutate(
       { id: deal.id, data: { stage_id: value } },
       {
-        onSuccess: () => toast.success("Stage updated"),
-        onError: () => toast.error("Failed to update stage"),
+        onSuccess: () => {
+          setStageBlockedMessage(null);
+          toast.success("Stage updated");
+        },
+        onError: (error) => {
+          const message = formatDealStageBlock(error, targetStage?.name);
+          setStageBlockedMessage(message);
+          toast.error(message.title, {
+            description: message.description,
+          });
+        },
       },
     );
   };
@@ -324,23 +282,11 @@ export default function ViewDealDetailsPage() {
     setPaymentDescription(undefined);
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    if (isReadonly) return;
-    deleteActivity.mutate(taskId, {
-      onSuccess: () => toast.success("Task deleted"),
-      onError: () => toast.error("Failed to delete task"),
-    });
-  };
-
-  const openTaskSheet = (taskId: string) => {
-    setSelectedTaskId(taskId);
-    setTaskSheetOpen(true);
-  };
-
-  const handleEditTask = (task: TaskItemData) => {
-    openTaskSheet(task.id);
-  };
-
+  // `handleDeleteTask` / `openTaskSheet` / `handleEditTask` — all
+  // retired along with the standalone Task tab. `selectedTaskId` +
+  // `taskSheetOpen` state remain because the `ActivityTaskSheet` is
+  // still rendered as a controlled sheet below (future entry points
+  // can reopen it), even though no row currently triggers it.
   const stage = deal?.current_stage;
   const dealTitle =
     deal?.deal_name ||
@@ -348,19 +294,14 @@ export default function ViewDealDetailsPage() {
     ((deal?.lead as { lead_name?: string } | undefined)?.lead_name ?? "") ||
     "Deal";
   const stageLabel = deal?.currentStatus || stage?.name || "Stage";
-  const stageColor = stage?.color;
   const rollbackCount = Number(
     deal?.rollback_count ?? deal?.stage_data?.backward_moves ?? 0,
   );
-  const expectedCloseDate =
-    deal?.expected_close_date || deal?.expectedCloseDate || undefined;
-  const stageSince =
-    deal?.current_stage_since || deal?.currentStageSince || undefined;
-  const lastContacted =
-    deal?.last_contacted_at ||
-    ((deal?.lead as { last_contacted_at?: string } | undefined)
-      ?.last_contacted_at ??
-      undefined);
+  // `stageColor`, `expectedCloseDate`, `statusClassName`, `stageSince`,
+  // `lastContacted` derivations were consumed only by the retired
+  // duplicate identity/metrics strip. Surfaces that still need any of
+  // those values (DealAtAGlance, audit timeline, Overview tab) read
+  // the raw `deal.*` fields directly.
   const createdAt = deal?.created_at || deal?.createdAt || undefined;
   const updatedAt = deal?.updated_at || deal?.updatedAt || undefined;
   const quotes = (deal?.quotes || []) as Quote[];
@@ -368,12 +309,6 @@ export default function ViewDealDetailsPage() {
   const statusLabel = deal?.closeStatus
     ? deal.closeStatus.charAt(0).toUpperCase() + deal.closeStatus.slice(1)
     : "Ongoing";
-  const statusClassName =
-    deal?.closeStatus === "won"
-      ? "bg-green-100 text-green-700"
-      : deal?.closeStatus === "lost"
-        ? "bg-red-100 text-red-700"
-        : "bg-blue-100 text-blue-700";
   const ownerSource = deal?.assigned_user || deal?.owner;
   const ownerName = ownerSource
     ? `${ownerSource.first_name || ""} ${ownerSource.last_name || ""}`.trim() ||
@@ -475,49 +410,37 @@ export default function ViewDealDetailsPage() {
   }
 
   return (
-    <div>
+    <div className="flex flex-col lg:h-[calc(100dvh-64px)] lg:overflow-hidden">
       <PageHeader
         hasBackButton
+        sticky
+        wide
+        eyebrow="Deal"
+        // IDENTITY TRIM — the previous header paired the deal name
+        // with decorative status + stage badges and a full subtitle
+        // row carrying value, school link, owner, and close date.
+        // Every one of those values is already surfaced on the
+        // left-pane DealAtAGlance (Commercial / Ownership / Timing
+        // sections), so repeating them above the workspace violated
+        // the product rule — LEFT owns context, RIGHT owns work.
+        // Rollback-count badge is a rare flag that isn't duplicated,
+        // so it survives as an operational marker when > 0.
         title={
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-lg">{dealTitle}</span>
-            <Badge className={statusClassName}>{statusLabel}</Badge>
-            <Badge
-              variant="outline"
-              style={
-                stageColor
-                  ? { borderColor: stageColor, color: stageColor }
-                  : undefined
-              }
-            >
-              {stageLabel}
-            </Badge>
-            {rollbackCount > 0 && (
+          rollbackCount > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-xl tracking-tight">
+                {dealTitle}
+              </span>
               <Badge
                 variant="outline"
-                className="border-amber-300 bg-amber-50 text-amber-700"
+                className="border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
               >
                 Rolled back {rollbackCount}x
               </Badge>
-            )}
-          </div>
-        }
-        subtitle={
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            {deal.school && (
-              <Link
-                to={`/schools/${deal.school.id}`}
-                className="inline-flex items-center gap-1 hover:text-primary"
-              >
-                <Building2 className="h-4 w-4" />
-                {deal.school.name}
-              </Link>
-            )}
-            <span className="inline-flex items-center gap-1">
-              <User className="h-4 w-4" />
-              {ownerName}
-            </span>
-          </div>
+            </div>
+          ) : (
+            dealTitle
+          )
         }
         actions={
           <div className="flex gap-x-2">
@@ -552,17 +475,14 @@ export default function ViewDealDetailsPage() {
                       { id: deal.id, data: { close_status: "won" } },
                       {
                         onSuccess: () => toast.success("Deal marked as won"),
-                        onError: () =>
-                          toast.error("Failed to mark deal as won"),
+                        onError: (error) =>
+                          toast.error("Could not mark deal as won", {
+                            description: handleApiError(error),
+                          }),
                       },
                     );
                   }}
                 />
-                {/* <Button
-                  variant="outline"
-                  className="text-green-600"
-                  onClick={() => setShowWonDialog(true)}
-                ></Button> */}
                 <Button
                   variant="outline"
                   className="text-red-600"
@@ -585,7 +505,12 @@ export default function ViewDealDetailsPage() {
         }
       />
 
-      <Container className="p-4 space-y-6">
+      {/* Metrics strip wrapper — plain full-width div. Was
+          `<Container className="p-3 space-y-2">` which a) re-narrowed
+          content below a `wide` PageHeader via `container mx-auto`
+          and b) added 12px top + bottom padding. Both compounded the
+          dead band the user was circling. */}
+      <div className="px-3 md:px-4 pt-1.5 pb-2 space-y-2">
         {!hasPosOrAcceptedQuotes && !invoices.length && (
           <div className="bg-amber-500/20 text-amber-600 border border-amber-400 rounded-md p-4">
             <p className="flex items-center">
@@ -624,72 +549,51 @@ export default function ViewDealDetailsPage() {
             onClose={() => setMarkLostOpen(false)}
           />
         )}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Deal Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(Number(deal.value || 0))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Expected Close
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg font-semibold flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                {formatDate(expectedCloseDate)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Stage Since
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg font-semibold flex items-center gap-2">
-                <Flag className="h-4 w-4 text-muted-foreground" />
-                {formatDate(stageSince)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Last Contacted
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg font-semibold flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                {formatDate(lastContacted, "Never")}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Previous "In stage / Last contact / Health / Created"
+            metrics strip was removed here — every one of those values
+            already lives in the left-pane DealAtAGlance summary
+            (Commercial / Ownership / Engagement / Timing sections).
+            Duplicating them above the workspace wasted vertical space
+            and broke the product rule: LEFT owns context, RIGHT owns
+            work. Only operationally-important alerts (missing POs,
+            pending rollback) remain in this pre-workspace area. */}
+      </div>
 
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="installments">
-              Installments ({installments.length})
-            </TabsTrigger>
-            <TabsTrigger value="activities">Activities</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks ({tasks.length})</TabsTrigger>
-            <TabsTrigger value="notes">Notes ({notes.length})</TabsTrigger>
-            <TabsTrigger value="files">Files</TabsTrigger>
-          </TabsList>
+      {/* Split workspace: left = DealAtAGlance read-only summary,
+          right = tabbed content. Alerts + metrics strip above the
+          split so they don't compete for pane width. */}
+      <RecordDetailLayout
+        fillViewport={false}
+        className="flex-1 min-h-0"
+        left={<DealAtAGlance deal={deal} />}
+        right={
+        /* Default landing tab is Activities — the rep needs to see
+            "what's next?" first. Overview keeps its full edit form
+            behind the Overview tab for when the rep needs it. Tasks
+            and Notes tabs retired: they were activity types, not
+            separate modules, and the Activities workspace exposes
+            them through its unified type filter. */
+        <Tabs defaultValue="activities" className="space-y-3">
+          <div className="sticky top-0 z-10 -mx-3 md:-mx-4 px-3 md:px-4 py-1.5 bg-background/95 backdrop-blur-sm border-b">
+            <TabsList className="w-full justify-start overflow-x-auto bg-transparent">
+              <TabsTrigger value="activities">Activities</TabsTrigger>
+              {/* Fast-paths into the activity feed pre-filtered by
+                  type — reps usually want to jump straight to "show
+                  me the calls" or "show me the notes" rather than
+                  open Activities and then click the Type chip. */}
+              <TabsTrigger value="notes">Notes</TabsTrigger>
+              <TabsTrigger value="emails">Emails</TabsTrigger>
+              <TabsTrigger value="calls">Calls</TabsTrigger>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="products">Products</TabsTrigger>
+              <TabsTrigger value="installments">
+                Installments ({installments.length})
+              </TabsTrigger>
+              <TabsTrigger value="costs">Costs</TabsTrigger>
+              <TabsTrigger value="files">Files</TabsTrigger>
+              <TabsTrigger value="audit">Audit</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="overview" className="space-y-4">
             {relatedSchoolId && (
@@ -703,80 +607,101 @@ export default function ViewDealDetailsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Manage Deal</CardTitle>
-                <CardDescription>Update stage and owner</CardDescription>
+                <CardDescription>
+                  Update stage and owner. Stage gates remain enforced; blocked
+                  moves leave the deal in its current stage.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Stage
-                  </span>
-                  <Select
-                    value={currentStageId}
-                    onValueChange={handleStageChange}
-                    disabled={!pipelineId || updateDeal.isPending || isReadonly}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={stageLabel} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stages.length === 0 ? (
-                        <SelectItem value={currentStageId || "none"} disabled>
-                          No stages available
-                        </SelectItem>
-                      ) : (
-                        stages.map((stageOption) => (
-                          <SelectItem
-                            key={stageOption.id}
-                            value={stageOption.id}
-                          >
-                            {stageOption.name}
-                          </SelectItem>
-                        ))
+              <CardContent className="space-y-4">
+                {stageBlockedMessage && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{stageBlockedMessage.title}</AlertTitle>
+                    <AlertDescription className="space-y-2">
+                      <p>{stageBlockedMessage.description}</p>
+                      {stageBlockedMessage.missingItems.length > 0 && (
+                        <ul className="list-disc space-y-1 pl-4">
+                          {stageBlockedMessage.missingItems.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
                       )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Owner
-                  </span>
-                  {canManageAssignee ? (
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Stage
+                    </span>
                     <Select
-                      value={assignedUserId}
-                      onValueChange={handleAssignRep}
-                      disabled={updateDeal.isPending || isReadonly}
+                      value={currentStageId}
+                      onValueChange={handleStageChange}
+                      disabled={!pipelineId || updateDeal.isPending || isReadonly}
                     >
                       <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            ownerName !== "--" ? ownerName : "Assign owner"
-                          }
-                        />
+                        <SelectValue placeholder={stageLabel} />
                       </SelectTrigger>
                       <SelectContent>
-                        {staff.length === 0 ? (
-                          <SelectItem value={assignedUserId || "none"} disabled>
-                            No staff available
+                        {stages.length === 0 ? (
+                          <SelectItem value={currentStageId || "none"} disabled>
+                            No stages available
                           </SelectItem>
                         ) : (
-                          staff.map((user) => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.first_name} {user.last_name}
+                          stages.map((stageOption) => (
+                            <SelectItem
+                              key={stageOption.id}
+                              value={stageOption.id}
+                            >
+                              {stageOption.name}
                             </SelectItem>
                           ))
                         )}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
-                      {ownerName}
-                    </div>
-                  )}
-                  {!canManageAssignee && (
-                    <p className="text-xs text-muted-foreground">
-                      Only sales managers and admins can reassign a deal owner.
-                    </p>
-                  )}
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Owner
+                    </span>
+                    {canManageAssignee ? (
+                      <Select
+                        value={assignedUserId}
+                        onValueChange={handleAssignRep}
+                        disabled={updateDeal.isPending || isReadonly}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              ownerName !== "--" ? ownerName : "Assign owner"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {staff.length === 0 ? (
+                            <SelectItem value={assignedUserId || "none"} disabled>
+                              No staff available
+                            </SelectItem>
+                          ) : (
+                            staff.map((user) => (
+                              <SelectItem key={user.id} value={user.id}>
+                                {user.first_name} {user.last_name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                        {ownerName}
+                      </div>
+                    )}
+                    {!canManageAssignee && (
+                      <p className="text-xs text-muted-foreground">
+                        Only sales managers and admins can reassign a deal owner.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1225,113 +1150,45 @@ export default function ViewDealDetailsPage() {
             />
           </TabsContent>
 
-          <TabsContent value="tasks">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle>Tasks</CardTitle>
-                  <CardDescription>Tasks linked to this deal</CardDescription>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setCreateTaskOpen(true)}
-                  disabled={isReadonly}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Task
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {tasksLoading ? (
-                  <div className="flex items-center justify-center h-32">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : tasks.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ListTodo className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p>No tasks yet</p>
-                    <p className="text-sm mt-1">
-                      Add a task to track next steps
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {tasks.map((task) => (
-                      <TaskListItem
-                        key={task.id}
-                        task={task}
-                        onToggleComplete={handleToggleTask}
-                        onEdit={handleEditTask}
-                        onDelete={handleDeleteTask}
-                        isReadonly={isReadonly}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Notes / Emails / Calls — all three reuse the shared
+              EngagementWorkspace with a locked type filter, so every
+              surface draws from the same Planned/Done data and the
+              same visual language. Previously this area carried two
+              orphaned custom tabs (Tasks + Notes) with their own
+              fetching, empty states, and card layouts — all now
+              superseded by the filtered workspace. */}
+          <TabsContent value="notes">
+            <DealActivitiesTab
+              dealId={deal.id}
+              leadId={deal.lead_id}
+              isReadonly={isReadonly}
+              initialFilter={{ kind: "type", value: "note" }}
+              hideFilterBar
+            />
           </TabsContent>
 
-          <TabsContent value="notes">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle>Notes</CardTitle>
-                  <CardDescription>Notes logged on this deal</CardDescription>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setCreateNoteOpen(true)}
-                  disabled={isReadonly}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Note
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {notesLoading ? (
-                  <div className="flex items-center justify-center h-32">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : notes.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p>No notes yet</p>
-                    <p className="text-sm mt-1">
-                      Capture meeting notes and updates
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {notes.map((note) => {
-                      const content =
-                        note.note?.content || note.description || "";
+          <TabsContent value="emails">
+            <DealActivitiesTab
+              dealId={deal.id}
+              leadId={deal.lead_id}
+              isReadonly={isReadonly}
+              initialFilter={{ kind: "type", value: "email" }}
+              hideFilterBar
+            />
+          </TabsContent>
 
-                      return (
-                        <Card key={note.id}>
-                          <CardContent className="p-4 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                              <p className="font-medium">
-                                {note.subject || "Note"}
-                              </p>
-                            </div>
-                            {content && (
-                              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                {content}
-                              </p>
-                            )}
-                            <p className="text-xs text-muted-foreground">
-                              {formatDateTime(note.created_at)}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="calls">
+            <DealActivitiesTab
+              dealId={deal.id}
+              leadId={deal.lead_id}
+              isReadonly={isReadonly}
+              initialFilter={{ kind: "type", value: "call" }}
+              hideFilterBar
+            />
+          </TabsContent>
+
+          <TabsContent value="costs">
+            <DealCostsSection dealId={deal.id} />
           </TabsContent>
 
           <TabsContent value="files">
@@ -1341,23 +1198,18 @@ export default function ViewDealDetailsPage() {
               isReadonly={isReadonly}
             />
           </TabsContent>
-        </Tabs>
-      </Container>
 
-      <CreateActivityModal
-        isOpen={createTaskOpen}
-        onClose={() => setCreateTaskOpen(false)}
-        dealId={deal.id}
-        defaultType="task"
-        isReadonly={isReadonly}
+          <TabsContent value="audit">
+            <AuditTimeline entityType="Deal" entityId={deal.id} />
+          </TabsContent>
+        </Tabs>
+        }
       />
-      <CreateActivityModal
-        isOpen={createNoteOpen}
-        onClose={() => setCreateNoteOpen(false)}
-        dealId={deal.id}
-        defaultType="note"
-        isReadonly={isReadonly}
-      />
+
+      {/* Per-type `CreateActivityModal` instances for Task and Note
+          were retired along with those standalone tabs — the single
+          generic `CreateActivityModal` below covers every activity
+          type via the type picker inside it. */}
       <CreateActivityModal
         isOpen={createActivityOpen}
         onClose={() => setCreateActivityOpen(false)}

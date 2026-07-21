@@ -175,6 +175,13 @@ export class SlaBreachService {
 
       if (now <= deadline) continue;
 
+      if (!deal.sla_breached) {
+        await this.dealRepository.update(deal.id, {
+          sla_breached: true,
+          last_breached_at: now,
+        });
+      }
+
       // Build target user IDs: assignee + admins + sales_managers
       const targetUserIds = new Set<string>(adminManagerIds);
       if (deal.assigned_to) {

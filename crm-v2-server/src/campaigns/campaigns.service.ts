@@ -1,0 +1,234 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Campaign } from './entities/campaign.entity';
+import { Lead } from '../leads/entities/lead.entity';
+import { Deal } from '../deals/entities/deal.entity';
+import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
+import { CreateCampaignDto } from './dto/campaign.dto';
+
+export interface CurrencyBucket {
+  currency: string;
+  in_approval: string;
+  paid: string;
+  total: string;
+}
+
+export interface CampaignRoiPerCurrency {
+  currency: string;
+  spend_paid: string;
+  spend_committed: string;
+  /** spend ÷ leads sourced — null when no leads yet (never divide by 0) */
+  cost_per_lead: string | null;
+  /** spend ÷ won deals — null when no won deals yet */
+  cost_per_won_deal: string | null;
+}
+
+export interface CampaignWonDealCost {
+  deal_id: string;
+  title: string;
+  deal_value: string;
+  deal_currency: string;
+  currency: string;
+  campaign_share: string;
+  direct_cost: string;
+  true_cost: string;
+}
+
+@Injectable()
+export class CampaignsService {
+  constructor(
+    @InjectRepository(Campaign)
+    private readonly campaignRepo: Repository<Campaign>,
+    @InjectRepository(Lead)
+    private readonly leadRepo: Repository<Lead>,
+    @InjectRepository(Deal)
+    private readonly dealRepo: Repository<Deal>,
+    @InjectRepository(CashRequisition)
+    private readonly requisitionRepo: Repository<CashRequisition>,
+  ) {}
+
+  create(dto: CreateCampaignDto, userId: string): Promise<Campaign> {
+    const campaign = this.campaignRepo.create({
+      ...dto,
+      currency: dto.currency ?? 'USD',
+      created_by_id: userId,
+    });
+    return this.campaignRepo.save(campaign);
+  }
+
+  findAll(): Promise<Campaign[]> {
+    return this.campaignRepo.find({
+      relations: ['created_by'],
+      order: { start_date: 'DESC' },
+    });
+  }
+
+  async findOne(id: string): Promise<Campaign> {
+    const campaign = await this.campaignRepo.findOne({
+      where: { id },
+      relations: ['created_by'],
+    });
+    if (!campaign) throw new NotFoundException(`Campaign ${id} not found`);
+    return campaign;
+  }
+
+  /** Leads sourced from this campaign (tag survives conversion). */
+  async findLeads(id: string): Promise<Lead[]> {
+    await this.findOne(id);
+    return this.leadRepo.find({
+      where: { source_campaign_id: id },
+      relations: ['school', 'assignee'],
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  /** Campaign-level spend, one bucket per currency — never merged. */
+  async getSpend(id: string): Promise<CurrencyBucket[]> {
+    await this.findOne(id);
+    const rows: Array<{
+      currency: string;
+      in_approval: string | null;
+      paid: string | null;
+    }> = await this.requisitionRepo
+      .createQueryBuilder('req')
+      .select('req.currency', 'currency')
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN req.status IN ('SUBMITTED','MANAGER_APPROVED','FINANCE_APPROVED') THEN req.total_amount ELSE 0 END), 0)`,
+        'in_approval',
+      )
+      .addSelect(
+        `COALESCE(SUM(CASE WHEN req.status = 'PAID' THEN req.total_amount ELSE 0 END), 0)`,
+        'paid',
+      )
+      .where('req.campaign_id = :id', { id })
+      .andWhere(`req.status NOT IN ('DRAFT','REJECTED')`)
+      .groupBy('req.currency')
+      .getRawMany();
+
+    return rows.map((r) => {
+      const inApproval = Number(r.in_approval ?? 0);
+      const paid = Number(r.paid ?? 0);
+      return {
+        currency: r.currency,
+        in_approval: inApproval.toFixed(2),
+        paid: paid.toFixed(2),
+        total: (inApproval + paid).toFixed(2),
+      };
+    });
+  }
+
+  /**
+   * Campaign ROI:
+   *  - spend per currency (paid + committed)
+   *  - leads sourced; cost per lead = spend ÷ leads
+   *  - won deals among them; cost per won deal = spend ÷ won deals
+   *  - per won deal: true cost = EVEN-SPLIT share of campaign spend
+   *    (spend ÷ total leads sourced) + the deal's own direct costs.
+   *    Value-weighting the split was considered and deliberately
+   *    deferred: even split keeps every deal's number stable as other
+   *    leads close, and matches the precision of the underlying data.
+   *  - zero-lead / zero-won cases return null rates — never divide by 0.
+   */
+  async getRoi(id: string) {
+    const campaign = await this.findOne(id);
+    const spend = await this.getSpend(id);
+
+    const leadCount = await this.leadRepo.count({
+      where: { source_campaign_id: id },
+    });
+
+    const wonDeals = await this.dealRepo
+      .createQueryBuilder('deal')
+      .where('deal.source_campaign_id = :id', { id })
+      .andWhere(`deal.close_status = 'won'`)
+      .getMany();
+
+    const perCurrency: CampaignRoiPerCurrency[] = spend.map((bucket) => {
+      const committed = Number(bucket.total);
+      return {
+        currency: bucket.currency,
+        spend_paid: bucket.paid,
+        spend_committed: bucket.total,
+        cost_per_lead:
+          leadCount > 0 ? (committed / leadCount).toFixed(2) : null,
+        cost_per_won_deal:
+          wonDeals.length > 0
+            ? (committed / wonDeals.length).toFixed(2)
+            : null,
+      };
+    });
+
+    // Per-won-deal true cost, one row per (deal, currency): the deal's
+    // even-split share of campaign spend in that currency plus the
+    // deal's own direct requisition spend in that currency.
+    const wonDealCosts: CampaignWonDealCost[] = [];
+    if (wonDeals.length > 0) {
+      const directRows: Array<{
+        deal_id: string;
+        currency: string;
+        direct: string;
+      }> = await this.requisitionRepo
+        .createQueryBuilder('req')
+        .select('req.deal_id', 'deal_id')
+        .addSelect('req.currency', 'currency')
+        .addSelect(
+          `COALESCE(SUM(CASE WHEN req.status NOT IN ('DRAFT','REJECTED') THEN req.total_amount ELSE 0 END), 0)`,
+          'direct',
+        )
+        .where('req.deal_id IN (:...ids)', {
+          ids: wonDeals.map((d) => d.id),
+        })
+        .groupBy('req.deal_id')
+        .addGroupBy('req.currency')
+        .getRawMany();
+
+      for (const deal of wonDeals) {
+        // Currencies relevant to this deal: campaign spend currencies +
+        // any currency the deal has direct costs in.
+        const currencies = new Set<string>([
+          ...spend.map((s) => s.currency),
+          ...directRows
+            .filter((r) => r.deal_id === deal.id)
+            .map((r) => r.currency),
+        ]);
+        for (const currency of currencies) {
+          const bucket = spend.find((s) => s.currency === currency);
+          const share =
+            bucket && leadCount > 0 ? Number(bucket.total) / leadCount : 0;
+          const direct = Number(
+            directRows.find(
+              (r) => r.deal_id === deal.id && r.currency === currency,
+            )?.direct ?? 0,
+          );
+          if (share === 0 && direct === 0) continue;
+          wonDealCosts.push({
+            deal_id: deal.id,
+            title: deal.title,
+            deal_value: Number(deal.value).toFixed(2),
+            deal_currency: deal.currency,
+            currency,
+            campaign_share: share.toFixed(2),
+            direct_cost: direct.toFixed(2),
+            true_cost: (share + direct).toFixed(2),
+          });
+        }
+      }
+    }
+
+    return {
+      campaign: {
+        id: campaign.id,
+        name: campaign.name,
+        type: campaign.type,
+        start_date: campaign.start_date,
+        end_date: campaign.end_date,
+      },
+      spend,
+      leads_sourced: leadCount,
+      won_deals: wonDeals.length,
+      per_currency: perCurrency,
+      won_deal_costs: wonDealCosts,
+    };
+  }
+}

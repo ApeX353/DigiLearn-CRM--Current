@@ -32,10 +32,10 @@ export enum WhatsAppMessageStatus {
 }
 
 @Entity('whatsapp_messages')
-@Index('idx_activity', ['activity_id'])
-@Index('idx_thread', ['thread_id'])
-@Index('idx_phone', ['phone_number'])
-@Index('idx_direction', ['direction'])
+@Index('idx_whats_app_activity', ['activity_id'])
+@Index('idx_whats_app_thread', ['thread_id'])
+@Index('idx_whats_app_phone', ['phone_number'])
+@Index('idx_whats_app_direction', ['direction'])
 export class WhatsAppMessage {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useParams, Link } from "react-router";
 import Container from "~/components/container";
 import PageHeader from "~/components/page-header";
+import { RecordDetailLayout } from "~/components/layout/record-detail-layout";
+import { KpiPill } from "~/components/layout/kpi-pill";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -23,9 +25,9 @@ import {
 import {
   Loader2,
   AlertCircle,
+  Activity,
   Paperclip,
   Plus,
-  Map,
   Pencil,
   Briefcase,
   Users,
@@ -36,6 +38,7 @@ import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import { useQuotes } from "~/api/quotes";
 import { useInvoices } from "~/api/invoices";
 import { FilesTab } from "~/components/deals/tabs/files-tab";
+import { RelatedLeadsSection } from "~/components/leads/related-leads";
 import { formatCurrency } from "~/lib/utils";
 import { EditSchoolModal } from "~/components/schools/edit-school-modal";
 import { QuotePreviewModal } from "~/components/quotes/quote-preview-modal";
@@ -121,25 +124,17 @@ const ViewSchool = ({ id }: { id: string }) => {
   }
 
   return (
-    <div>
+    <div className="flex flex-col lg:h-[calc(100dvh-64px)] lg:overflow-hidden">
       <PageHeader
         hasBackButton
+        eyebrow="School"
         title={school.name}
-        subtitle={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center text-muted-foreground">
-              <Map className="h-4 w-4" />
-              <p className="text-sm">
-                {school.district}, {school.province}
-              </p>
-            </div>
-            {school.is_active ? (
-              <Badge variant="default">Active</Badge>
-            ) : (
-              <Badge variant="secondary">Inactive</Badge>
-            )}
-          </div>
-        }
+        // IDENTITY TRIM — same product rule as Deal + Lead detail.
+        // District/province and the Active/Inactive badge used to
+        // sit as a subtitle under the title; both live verbatim on
+        // the left-pane OverviewTab (Location card + Status row) and
+        // the active/inactive state also gates KPI pills above it.
+        // Duplicating them here violated LEFT=context / RIGHT=work.
         actions={
           <Button variant="outline" onClick={() => setEditOpen(true)}>
             <Pencil className="mr-2 h-4 w-4" />
@@ -147,111 +142,149 @@ const ViewSchool = ({ id }: { id: string }) => {
           </Button>
         }
       />
-      <Container className="p-4 space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Active Deals
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-muted-foreground" />
-                {stats?.activeDeals.count ?? 0}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {formatCurrency(stats?.activeDeals.totalValue ?? 0)} total value
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Enrollment
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold flex items-center gap-2">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                {school?.student_count
-                  ? school.student_count.toLocaleString()
-                  : "—"}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Open Quotes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold flex items-center gap-2">
-                <FileCheck className="h-5 w-5 text-muted-foreground" />
-                {stats?.openQuotes.count ?? 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Outstanding
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-muted-foreground" />
-                {formatCurrency(stats?.outstandingInvoices.totalValue ?? 0)}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {stats?.outstandingInvoices.count ?? 0} pending invoices
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="deals">
-              Deals ({stats?.deals?.count || 0})
-            </TabsTrigger>
-            <TabsTrigger value="contacts">
-              Contacts ({school?.contacts?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="quotes">
-              Quotes ({quotes?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="invoices">
-              Invoices ({invoices?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="installments">Installments</TabsTrigger>
-            <TabsTrigger value="files">
-              <Paperclip className="h-4 w-4 mr-1" />
-              Files
-            </TabsTrigger>
-            {/* <TabsTrigger value="activity">
-            <Activity className="h-4 w-4 mr-1" />
-            Activity
-          </TabsTrigger> */}
-          </TabsList>
+      <RecordDetailLayout
+        fillViewport={false}
+        className="flex-1 min-h-0"
+        left={
+          <>
+            {/* Slim KPI pills — was a 2x2 grid of full `Card` tiles
+                (default `p-6` + `text-xl font-bold` values). In the
+                ~398px left rail the currency values overflowed on
+                "Outstanding" and "Active deals value". The shared
+                KpiPill gives each metric a one-row layout with an
+                icon chip, label overline, truncatable tabular value,
+                and optional muted sub-line — fits cleanly in any
+                split-layout side pane. */}
+            <div className="grid grid-cols-1 gap-2">
+              <KpiPill
+                label="Active deals"
+                value={String(stats?.activeDeals.count ?? 0)}
+                icon={<Briefcase className="h-3.5 w-3.5 text-muted-foreground" />}
+                sub={`${formatCurrency(stats?.activeDeals.totalValue ?? 0)} value`}
+              />
+              <KpiPill
+                label="Enrollment"
+                value={
+                  school?.student_count
+                    ? school.student_count.toLocaleString()
+                    : "—"
+                }
+                icon={<Users className="h-3.5 w-3.5 text-muted-foreground" />}
+              />
+              <KpiPill
+                label="Open quotes"
+                value={String(stats?.openQuotes.count ?? 0)}
+                icon={<FileCheck className="h-3.5 w-3.5 text-muted-foreground" />}
+              />
+              <KpiPill
+                label="Outstanding"
+                value={formatCurrency(
+                  stats?.outstandingInvoices.totalValue ?? 0,
+                )}
+                icon={<DollarSign className="h-3.5 w-3.5 text-muted-foreground" />}
+                sub={`${stats?.outstandingInvoices.count ?? 0} pending`}
+              />
+            </div>
 
-          <div className="mt-6">
-            <TabsContent value="overview">
-              <OverviewTab school={school} />
-            </TabsContent>
+            {/* School overview — structural info that used to live
+                inside the Overview tab is now the primary left-pane
+                content. The tab has been retired. */}
+            <OverviewTab school={school} />
+          </>
+        }
+        right={
+          <Tabs defaultValue="activities" className="w-full">
+            {/* Activities default; Overview retired (now in left pane).
+                Sticky tab strip keeps the content-type switch visible
+                while the workspace feed scrolls. */}
+            <div className="sticky top-0 z-10 -mx-3 md:-mx-4 px-3 md:px-4 py-1.5 bg-background/95 backdrop-blur-sm border-b">
+              <TabsList className="w-full justify-start overflow-x-auto bg-transparent">
+                <TabsTrigger value="activities">
+                  <Activity className="h-4 w-4 mr-1" />
+                  Activities
+                </TabsTrigger>
+                {/* Fast-paths into the shared engagement workspace
+                    pre-filtered by activity type — same Notes/Emails
+                    /Calls triple we added to Lead and Deal detail. */}
+                <TabsTrigger value="notes">Notes</TabsTrigger>
+                <TabsTrigger value="emails">Emails</TabsTrigger>
+                <TabsTrigger value="calls">Calls</TabsTrigger>
+                {/* Leads tab sits BEFORE Deals by product rule —
+                    every deal originates from a lead, so the lead
+                    list is the upstream inventory the rep browses
+                    first. Reuses the existing RelatedLeadsSection
+                    (already fed the school id + school name) so no
+                    new data plumbing is needed. */}
+                <TabsTrigger value="leads">Leads</TabsTrigger>
+                <TabsTrigger value="deals">
+                  {/* Tab badge reflects the ACTIVE (ongoing) deals the
+                      list below actually renders — the `deals.count`
+                      stat counts every deal including won/lost, which
+                      caused a "(3)" badge over a list that only showed
+                      1 ongoing deal. Using `activeDeals.count` keeps
+                      the header and the body telling the same story. */}
+                  Deals ({stats?.activeDeals?.count || 0})
+                </TabsTrigger>
+                <TabsTrigger value="contacts">
+                  Contacts ({school?.contacts?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="quotes">
+                  Quotes ({quotes?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="invoices">
+                  Invoices ({invoices?.length || 0})
+                </TabsTrigger>
+                <TabsTrigger value="installments">Installments</TabsTrigger>
+                <TabsTrigger value="files">
+                  <Paperclip className="h-4 w-4 mr-1" />
+                  Files
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            <TabsContent value="deals">
-              <SchoolDealsTab schoolId={id} />
-            </TabsContent>
+            <div className="mt-3">
+              <TabsContent value="activities">
+                <ActivitiesTab school={school} />
+              </TabsContent>
 
-            <TabsContent value="contacts">
-              <ContactsTab school={school} />
-            </TabsContent>
+              <TabsContent value="notes">
+                <ActivitiesTab
+                  school={school}
+                  initialFilter={{ kind: "type", value: "note" }}
+                  hideFilterBar
+                />
+              </TabsContent>
 
-            <TabsContent value="activities">
-              <ActivitiesTab school={school} />
-            </TabsContent>
+              <TabsContent value="emails">
+                <ActivitiesTab
+                  school={school}
+                  initialFilter={{ kind: "type", value: "email" }}
+                  hideFilterBar
+                />
+              </TabsContent>
+
+              <TabsContent value="calls">
+                <ActivitiesTab
+                  school={school}
+                  initialFilter={{ kind: "type", value: "call" }}
+                  hideFilterBar
+                />
+              </TabsContent>
+
+              <TabsContent value="leads">
+                <RelatedLeadsSection
+                  schoolId={school.id}
+                  schoolName={school.name}
+                />
+              </TabsContent>
+
+              <TabsContent value="deals">
+                <SchoolDealsTab schoolId={id} />
+              </TabsContent>
+
+              <TabsContent value="contacts">
+                <ContactsTab school={school} />
+              </TabsContent>
 
             <TabsContent value="installments">
               <SchoolInstallmentsTab
@@ -395,9 +428,10 @@ const ViewSchool = ({ id }: { id: string }) => {
                 </CardContent>
               </Card>
             </TabsContent>
-          </div>
-        </Tabs>
-      </Container>
+            </div>
+          </Tabs>
+        }
+      />
 
       <EditSchoolModal
         isOpen={editOpen}

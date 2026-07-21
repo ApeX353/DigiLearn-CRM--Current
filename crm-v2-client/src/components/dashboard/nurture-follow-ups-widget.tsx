@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { Calendar, Clock, ArrowRight } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, ArrowRight } from "lucide-react";
 import { useNurtureFollowUps } from "~/api/dashboard";
 import type { DashboardFilters } from "~/api/dashboard";
 import { useNavigate } from "react-router";
@@ -16,7 +16,7 @@ export function NurtureFollowUpsWidget({
   filters,
 }: NurtureFollowUpsWidgetProps) {
   const navigate = useNavigate();
-  const { data: responseData, isLoading } = useNurtureFollowUps(filters);
+  const { data: responseData, isLoading, error } = useNurtureFollowUps(filters);
   const data = responseData?.data;
 
   if (isLoading) {
@@ -32,7 +32,43 @@ export function NurtureFollowUpsWidget({
     );
   }
 
-  if (!data) return null;
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Nurture Follow-ups
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm font-medium text-destructive">
+            Follow-up data unavailable
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Could not load upcoming actionable follow-ups for the selected
+            filters.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Nurture Follow-ups
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+          No follow-up data returned for the selected filters.
+        </CardContent>
+      </Card>
+    );
+  }
 
   const activities = Array.isArray(data?.overdueActivities) ? data.overdueActivities : [];
   const totalOverdue = data?.overdueCount || 0;
@@ -73,19 +109,19 @@ export function NurtureFollowUpsWidget({
         {activities.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No upcoming follow-ups</p>
+            <p className="font-medium">No overdue follow-ups</p>
+            <p className="mt-1 text-xs">
+              This list only includes actionable tasks, calls, emails,
+              meetings, or WhatsApp follow-ups. Notes do not count as next
+              actions.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
             {activities.slice(0, 5).map((activity) => (
               <div
                 key={activity.id}
-                className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
-                onClick={() => {
-                  // Navigate to activities or related entity if available
-                  // Since we don't have leadId in the activity, we'll show a placeholder
-                  // You may need to add leadId to the API response
-                }}
+                className="flex items-center justify-between p-2 rounded-lg"
               >
                 <div className="min-w-0 flex-1">
                   <p className="font-medium truncate">

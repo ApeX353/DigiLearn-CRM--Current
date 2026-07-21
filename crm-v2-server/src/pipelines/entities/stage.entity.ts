@@ -27,7 +27,7 @@ export class Stage {
   @JoinColumn({ name: 'pipeline_id' })
   pipeline: Pipeline;
 
-  @Column({ name: 'pipeline_id', type: 'varchar', length: 36 })
+  @Column({ name: 'pipeline_id', type: 'uuid' })
   pipeline_id: string;
 
   @Column({ type: 'varchar', length: 100 })

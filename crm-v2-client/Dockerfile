@@ -27,4 +27,8 @@ FROM nginx:alpine
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-RUN chmod -R 777 /usr/share/nginx/html
+# SPA routing — without the try_files fallback any refresh or deep
+# link (/leads, /deals/<id>, ...) returns a 404 from nginx.
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+RUN chmod -R 755 /usr/share/nginx/html

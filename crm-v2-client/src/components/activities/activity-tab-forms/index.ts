@@ -4,6 +4,7 @@ export { CallTabForm } from "./call-tab-form";
 export { EmailTabForm } from "./email-tab-form";
 export { MeetingTabForm } from "./meeting-tab-form";
 export { WhatsAppTabForm } from "./whatsapp-tab-form";
+export { DemoTabForm } from "./demo-tab-form";
 export type {
   TabFormHandle,
   TabFormPayload,

@@ -18,7 +18,7 @@ export class PaymentTermPeriod {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   payment_term_id: string;
 
   @Column({ type: 'int' })

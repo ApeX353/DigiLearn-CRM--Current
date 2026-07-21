@@ -74,9 +74,14 @@ export interface SalesMetrics {
 
 // Demo Stats
 export interface DemoStats {
+  /** Future meeting activities with 'demo' in subject, not yet completed. */
   upcomingDemos: number;
+  /** Meeting activities with 'demo' in subject that completed in period. */
   completedDemos: number;
+  /** Of deals whose demo completed in period, % that moved past demo stage. */
   demoToProposalRate: number;
+  /** Count of deals currently sitting in a demo-named stage. */
+  dealsInDemoStage?: number;
   demoDeals: {
     id: string;
     dealName: string;
@@ -187,6 +192,65 @@ export interface NurtureFollowUpsData {
         dueAt: string | null;
         daysOverdue: number;
     }[];
+}
+
+// Activity Discipline — one bundled payload so the manager dashboard
+// renders the whole section in a single round-trip.
+export interface DisciplineKpi {
+  key: string;
+  label: string;
+  value: number;
+  denom?: number;
+  pct?: number;
+  target?: number;
+  tone: "higher-better" | "lower-better";
+  hint?: string;
+}
+
+export interface ProgressionKpi {
+  key: string;
+  label: string;
+  value: number;
+  hint?: string;
+}
+
+export interface AtRiskItem {
+  key: string;
+  label: string;
+  value: number;
+  hint?: string;
+}
+
+export interface RepDisciplineRow {
+  user_id: string;
+  name: string;
+  email: string | null;
+  contacts: number;
+  completed: number;
+  outcome_pct: number;
+  outcome_missing: number;
+  next_step_pct: number;
+  overdue: number;
+  no_next_step_records: number;
+  deals_advanced: number;
+  stale_records: number;
+}
+
+export interface ActivityDisciplineData {
+  window: { start: string; end: string; range: DateRangeType };
+  kpis: {
+    /**
+     * Prospecting Discipline — first-contact metrics. Separate from
+     * Volume so "Leads Contacted vs Target" can never be confused
+     * with general outreach activity.
+     */
+    prospecting: DisciplineKpi[];
+    volume: DisciplineKpi[];
+    quality: DisciplineKpi[];
+  };
+  progression: ProgressionKpi[];
+  at_risk: AtRiskItem[];
+  reps: RepDisciplineRow[];
 }
 
 // Qualification Overview

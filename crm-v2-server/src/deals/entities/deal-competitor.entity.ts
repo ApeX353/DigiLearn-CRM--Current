@@ -13,10 +13,10 @@ import { Deal } from './deal.entity';
 @Entity('deal_competitors')
 @Index(['deal_id'])
 export class DealCompetitor {
-  @PrimaryColumn('varchar', { length: 36 })
+  @PrimaryColumn('uuid')
   id: string;
 
-  @Column({ name: 'deal_id', type: 'varchar', length: 36 })
+  @Column({ name: 'deal_id', type: 'uuid' })
   deal_id: string;
 
   @ManyToOne(() => Deal, (deal) => deal.competitors, { onDelete: 'CASCADE' })

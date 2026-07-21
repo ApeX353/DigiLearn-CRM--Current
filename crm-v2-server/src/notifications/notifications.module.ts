@@ -4,6 +4,8 @@ import { NotificationsService } from './notifications.service';
 import { UserNotificationsService } from './user-notifications.service';
 import { UserNotificationsController } from './user-notifications.controller';
 import { Notification, UserNotification } from './entities';
+import { NotificationPreference } from './entities/notification-preference.entity';
+import { NotificationPreferencesController } from './notification-preferences.controller';
 import { NotificationConfig } from './dto';
 import { SmtpEmailProvider } from './providers';
 
@@ -14,10 +16,17 @@ export interface NotificationsModuleOptions {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, UserNotification]),
+    TypeOrmModule.forFeature([
+      Notification,
+      UserNotification,
+      NotificationPreference,
+    ]),
     forwardRef(() => require('../auth/auth.module').AuthModule),
   ],
-  controllers: [UserNotificationsController],
+  controllers: [UserNotificationsController, NotificationPreferencesController],
+  // NotificationsGateway is provided once by the global
+  // NotificationsGatewayModule; UserNotificationsService injects that
+  // shared singleton (it's an @Optional dependency).
   providers: [UserNotificationsService],
   exports: [UserNotificationsService],
 })
@@ -45,10 +54,14 @@ export class NotificationsModule {
       module: NotificationsModule,
       global: options?.isGlobal ?? false,
       imports: [
-        TypeOrmModule.forFeature([Notification, UserNotification]),
+        TypeOrmModule.forFeature([
+      Notification,
+      UserNotification,
+      NotificationPreference,
+    ]),
         forwardRef(() => require('../auth/auth.module').AuthModule),
       ],
-      controllers: [UserNotificationsController],
+      controllers: [UserNotificationsController, NotificationPreferencesController],
       providers: [...providers, UserNotificationsService],
       exports: [NotificationsService, UserNotificationsService],
     };
@@ -87,10 +100,14 @@ export class NotificationsModule {
       module: NotificationsModule,
       global: options?.isGlobal ?? false,
       imports: [
-        TypeOrmModule.forFeature([Notification, UserNotification]),
+        TypeOrmModule.forFeature([
+      Notification,
+      UserNotification,
+      NotificationPreference,
+    ]),
         forwardRef(() => require('../auth/auth.module').AuthModule),
       ],
-      controllers: [UserNotificationsController],
+      controllers: [UserNotificationsController, NotificationPreferencesController],
       providers: [...providers, UserNotificationsService],
       exports: [NotificationsService, UserNotificationsService],
     };

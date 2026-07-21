@@ -21,7 +21,7 @@ export class AuthSession {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'user_id', type: 'varchar', length: 36 })
+  @Column({ name: 'user_id', type: 'uuid' })
   user_id: string;
 
   @Column({ type: 'varchar', length: 255 })

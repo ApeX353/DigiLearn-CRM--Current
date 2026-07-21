@@ -24,13 +24,13 @@ export class DocumentItem {
   })
   document_type: DocumentType;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   document_id: string;
 
   @Column({ type: 'text' })
   description: string;
 
-  @Column({ name: 'product_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'product_id', type: 'uuid', nullable: true })
   product_id: string | null;
 
   @ManyToOne(() => Product, { nullable: true, onDelete: 'SET NULL' })

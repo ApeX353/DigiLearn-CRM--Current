@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseModule } from './database/database.module';
 import { CommonModule } from './common/common.module';
 import { UsersModule } from './users/users.module';
@@ -14,6 +15,7 @@ import { RbacController } from './rbac/rbac.controller';
 import { RbacService } from './rbac/rbac.service';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { ApiKeyGuard } from './auth/guards/api-key.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { PipelinesModule } from './pipelines/pipelines.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
@@ -34,14 +36,27 @@ import { ActivitiesModule } from './activities/activities.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { FileManagerModule } from './file-manager/file-manager.module';
 import { SlaModule } from './sla/sla.module';
+import { ReportsModule } from './reports/reports.module';
+import { EmailSequencesModule } from './email-sequences/email-sequences.module';
+import { AuditModule } from './audit/audit.module';
+import { UserEmailModule } from './user-email/user-email.module';
+import { CalendarSyncModule } from './calendar-sync/calendar-sync.module';
+import { SchedulingModule } from './scheduling/scheduling.module';
+import { VideoIntegrationsModule } from './video-integrations/video-integrations.module';
+import { AutomationModule } from './automation/automation.module';
+import { CashRequisitionsModule } from './cash-requisitions/cash-requisitions.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
+import { NotificationsGatewayModule } from './notifications/notifications-gateway.module';
 
 @Module({
   imports: [
+    NotificationsGatewayModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
       cache: true,
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     CommonModule,
     UsersModule,
@@ -72,12 +87,26 @@ import { SlaModule } from './sla/sla.module';
     DashboardModule,
     FileManagerModule,
     SlaModule,
+    ReportsModule,
+    EmailSequencesModule,
+    AuditModule,
+    UserEmailModule,
+    CalendarSyncModule,
+    SchedulingModule,
+    VideoIntegrationsModule,
+    AutomationModule,
+    CashRequisitionsModule,
+    CampaignsModule,
   ],
   controllers: [
     RbacController
   ],
   providers: [
     RbacService,
+    {
+      provide: APP_GUARD,
+      useClass: ApiKeyGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

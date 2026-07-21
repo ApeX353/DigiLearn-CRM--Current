@@ -21,6 +21,11 @@ import {
   WhatsAppMessageType,
   WhatsAppMessageStatus,
 } from '../entities/whats-app.entity';
+import {
+  DemoMode,
+  DemoFollowupChannel,
+} from '../entities/demos.entity';
+import { IsArray, IsBooleanString } from 'class-validator';
 
 // ========================
 // Type-Specific DTOs
@@ -76,9 +81,18 @@ export class CreateCallDetailsDto {
   @MaxLength(50)
   phone_number: string;
 
-  @ApiProperty({ enum: CallOutcome })
+  /**
+   * Optional at create time — an outcome only makes sense once the
+   * call is actually completed. Previously required, which 400'd
+   * every SCHEDULED call (e.g. the follow-up-prompt-dialog call
+   * case sends `{ phone_number: '' }` with no outcome). The
+   * outcome is captured later via the mark-done flow, where it's
+   * enforced by the activity-level completion-outcome gate.
+   */
+  @ApiPropertyOptional({ enum: CallOutcome })
+  @IsOptional()
   @IsEnum(CallOutcome)
-  outcome: CallOutcome;
+  outcome?: CallOutcome;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -191,9 +205,17 @@ export class CreateMeetingDetailsDto {
   @IsDateString()
   start_time: string;
 
-  @ApiProperty()
+  /**
+   * Optional — if omitted the service defaults to
+   * `start_time + 30 minutes`. Previously this field was required,
+   * which broke callers like the follow-up-prompt dialog (which
+   * only knows a start time, not a duration). Left required it
+   * silently 400'd every Meeting-type follow-up schedule.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsDateString()
-  end_time: string;
+  end_time?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -285,6 +307,118 @@ export class CreateWhatsAppDetailsDto {
   @IsOptional()
   @IsDateString()
   follow_up_date?: string;
+}
+
+/**
+ * Demo lifecycle details. One DTO covers all three demo activity
+ * types because the form fields overlap heavily — each
+ * activity type uses the subset of fields that applies.
+ *
+ *   DEMO_BOOKING  → planned_at, mode, expected_attendees, agenda
+ *   DEMO_DELIVERY → actual_at, attendees_present,
+ *                   products_demonstrated, key_questions, pain_points,
+ *                   decision_makers_present, quantity_discussed,
+ *                   payment_plan_discussed, sdc_discussion, notes
+ *   DEMO_FOLLOWUP → followup_channel, next_activity_date, notes
+ *
+ * Validation is loose at this layer — the service-level handler
+ * applies activity-type-specific required-field rules so a single
+ * DTO works for all three.
+ */
+export class CreateDemoDetailsDto {
+  // ----- Booking ------------------------------------------------
+  @ApiPropertyOptional({ description: 'When the demo is scheduled' })
+  @IsOptional()
+  @IsDateString()
+  planned_at?: string;
+
+  @ApiPropertyOptional({ enum: DemoMode })
+  @IsOptional()
+  @IsEnum(DemoMode)
+  mode?: DemoMode;
+
+  @ApiPropertyOptional({
+    description: 'Expected attendee roles (e.g. ["head","bursar"])',
+    isArray: true,
+  })
+  @IsOptional()
+  @IsArray()
+  expected_attendees?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  agenda?: string;
+
+  // ----- Delivery -----------------------------------------------
+  @ApiPropertyOptional({ description: 'Actual demo date (set on delivery)' })
+  @IsOptional()
+  @IsDateString()
+  actual_at?: string;
+
+  @ApiPropertyOptional({ isArray: true })
+  @IsOptional()
+  @IsArray()
+  attendees_present?: string[];
+
+  @ApiPropertyOptional({ isArray: true })
+  @IsOptional()
+  @IsArray()
+  products_demonstrated?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  key_questions?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pain_points?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  decision_makers_present?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Free-form quantity (e.g. "30 tablets" or "school-wide")',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  quantity_discussed?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  payment_plan_discussed?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  sdc_discussion?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  attendee_notes?: string;
+
+  // ----- Follow-up ----------------------------------------------
+  @ApiPropertyOptional({ enum: DemoFollowupChannel })
+  @IsOptional()
+  @IsEnum(DemoFollowupChannel)
+  followup_channel?: DemoFollowupChannel;
+
+  @ApiPropertyOptional({ description: 'When the next follow-up step is due' })
+  @IsOptional()
+  @IsDateString()
+  next_activity_date?: string;
 }
 
 // ========================
@@ -388,4 +522,16 @@ export class CreateActivityDto {
   @ValidateNested()
   @Type(() => CreateWhatsAppDetailsDto)
   whatsapp?: CreateWhatsAppDetailsDto;
+
+  /**
+   * Demo lifecycle details. Required when type is one of the three
+   * demo activity types (DEMO_BOOKING / DEMO_DELIVERY /
+   * DEMO_FOLLOWUP); ignored for other activity types. The service
+   * applies type-specific required-field rules.
+   */
+  @ApiPropertyOptional({ type: CreateDemoDetailsDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateDemoDetailsDto)
+  demo?: CreateDemoDetailsDto;
 }

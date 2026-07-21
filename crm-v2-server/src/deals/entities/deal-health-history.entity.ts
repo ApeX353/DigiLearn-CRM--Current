@@ -13,10 +13,10 @@ import { User } from '../../users/entities/user.entity';
 @Entity('deal_health_history')
 @Index(['dealId'])
 export class DealHealthHistory {
-  @PrimaryColumn('varchar', { length: 36 })
+  @PrimaryColumn('uuid')
   id: string;
 
-  @Column({ name: 'deal_id', type: 'varchar', length: 36 })
+  @Column({ name: 'deal_id', type: 'uuid' })
   dealId: string;
 
   @ManyToOne(() => Deal, { onDelete: 'CASCADE' })
@@ -38,7 +38,7 @@ export class DealHealthHistory {
   @Column({ name: 'budget', type: 'int' })
   budget: number;
 
-  @Column({ name: 'calculated_by', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'calculated_by', type: 'uuid', nullable: true })
   calculatedBy: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

@@ -11,9 +11,9 @@ export enum MeetingPlatform {
 }
 
 @Entity('meetings')
-@Index('idx_activity', ['activity_id'])
-@Index('idx_start_time', ['start_time'])
-@Index('idx_platform', ['platform'])
+@Index('idx_meetings_activity', ['activity_id'])
+@Index('idx_meetings_start_time', ['start_time'])
+@Index('idx_meetings_platform', ['platform'])
 export class Meeting {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -31,10 +31,10 @@ export class Meeting {
   platform: MeetingPlatform;
 
   // Meeting details
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   start_time: Date;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   end_time: Date;
 
   @Column({ type: 'varchar', length: 255, nullable: true })

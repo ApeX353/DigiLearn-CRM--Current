@@ -25,7 +25,7 @@ export class LeadSLAHistory {
   @JoinColumn({ name: 'lead_id' })
   lead: Lead;
 
-  @Column({ name: 'lead_id', type: 'varchar', length: 36 })
+  @Column({ name: 'lead_id', type: 'uuid' })
   lead_id: string;
 
   @Column({
@@ -34,17 +34,17 @@ export class LeadSLAHistory {
   })
   status: LeadStatus;
 
-  @Column({ type: 'datetime', comment: 'When the lead entered this status' })
+  @Column({ type: 'timestamp', comment: 'When the lead entered this status' })
   entered_status_at: Date;
 
   @Column({
-    type: 'datetime',
+    type: 'timestamp',
     nullable: true,
     comment: 'When the lead exited this status',
   })
   exited_status_at: Date | null;
 
-  @Column({ type: 'datetime', comment: 'SLA due date for this status' })
+  @Column({ type: 'timestamp', comment: 'SLA due date for this status' })
   sla_due_date: Date;
 
   @Column({ type: 'int', comment: 'SLA hours for this status' })
@@ -63,7 +63,7 @@ export class LeadSLAHistory {
   sla_breached: boolean;
 
   @Column({
-    type: 'datetime',
+    type: 'timestamp',
     nullable: true,
     comment: 'When SLA breach occurred',
   })
@@ -76,7 +76,7 @@ export class LeadSLAHistory {
   escalated: boolean;
 
   @Column({
-    type: 'datetime',
+    type: 'timestamp',
     nullable: true,
     comment: 'When escalation occurred',
   })
@@ -88,8 +88,7 @@ export class LeadSLAHistory {
 
   @Column({
     name: 'escalated_to',
-    type: 'varchar',
-    length: 36,
+    type: 'uuid',
     nullable: true,
   })
   escalated_to: string | null;
@@ -101,14 +100,14 @@ export class LeadSLAHistory {
   idle_alert_sent: boolean;
 
   @Column({
-    type: 'datetime',
+    type: 'timestamp',
     nullable: true,
     comment: 'When idle alert was sent',
   })
   idle_alert_sent_at: Date | null;
 
   @Column({
-    type: 'datetime',
+    type: 'timestamp',
     nullable: true,
     comment: 'Last action taken on the lead',
   })

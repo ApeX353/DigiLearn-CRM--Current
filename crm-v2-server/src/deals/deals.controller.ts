@@ -7,11 +7,13 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
   HttpStatus,
   ParseUUIDPipe,
   ForbiddenException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { subject } from '@casl/ability';
 import { DealsService } from './deals.service';
 import {
@@ -61,8 +63,13 @@ export class DealsController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Validation failed',
   })
-  async create(@Body() dto: CreateDealDto, @CurrentUser('id') userId: string) {
-    const data = await this.dealsService.createDeal(dto, userId);
+  async create(
+    @Body() dto: CreateDealDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
+  ) {
+    const userRoles = (currentUser?.roles || []).map((r) => r.name);
+    const data = await this.dealsService.createDeal(dto, userId, userRoles);
     return { success: true, data, message: 'Deal created successfully' };
   }
 
@@ -152,6 +159,42 @@ export class DealsController {
   async bulkUpdate(@Body() dto: BulkUpdateDealDto, @CurrentUser() user: any) {
     const data = await this.dealsService.bulkUpdate(dto, user);
     return { success: true, data, message: 'Deals updated successfully' };
+  }
+
+  // ========================
+  // EXPORT
+  // ========================
+
+  @Get('export')
+  @Roles('admin', 'sales_manager', 'sales_rep')
+  @ApiOperation({ summary: 'Export deals as CSV' })
+  async exportCsv(
+    @Query() query: any,
+    @Res() res: Response,
+  ) {
+    const result = await this.dealsService.getDeals(query);
+    const deals = result.items;
+
+    const headers = ['Title', 'Value', 'Stage', 'Status', 'School', 'Assigned To', 'Health Score', 'Created At'];
+    const rows = deals.map((deal: any) => [
+      deal.title || '',
+      deal.value || 0,
+      deal.current_stage?.name || deal.currentStatus || '',
+      deal.closeStatus || '',
+      deal.school?.name || '',
+      deal.assigned_user ? `${deal.assigned_user.first_name} ${deal.assigned_user.last_name}` : '',
+      deal.healthScore || 0,
+      deal.created_at ? new Date(deal.created_at).toISOString().split('T')[0] : '',
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: any[]) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="deals-export-${Date.now()}.csv"`);
+    res.send(csvContent);
   }
 
   // ========================

@@ -7,7 +7,12 @@ import { config } from 'dotenv';
 import { join } from 'path';
 import cookieParser from 'cookie-parser';
 
-config({ path: join(__dirname, '../../../.env') });
+// `__dirname` is `dist/` in production and `src/` under ts-node in
+// dev. The project `.env` lives one level up from either, so
+// `../.env` works for both. The previous `../../../.env` path
+// resolved OUTSIDE the project and silently loaded nothing, leaving
+// the app running on whatever the shell happened to export.
+config({ path: join(__dirname, '../.env') });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -17,10 +22,18 @@ async function bootstrap() {
   // Global API prefix
   app.setGlobalPrefix('api/v2');
 
-  // CORS configuration
+  // CORS — accept every comma-separated origin from `CORS_ORIGIN`
+  // plus the dev Vite origin. Filtered for empty strings so a missing
+  // env var can't produce `origin: [undefined, 'http://localhost:5173']`
+  // which Express CORS then rejects on every request.
+  const allowedOrigins = [
+    ...(process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()) ?? []),
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ].filter(Boolean);
   app.enableCors({
-    origin: [process.env.CORS_ORIGIN, 'http://localhost:5173'],
-    credentials: process.env.CORS_CREDENTIALS === 'true',
+    origin: allowedOrigins,
+    credentials: process.env.CORS_CREDENTIALS !== 'false',
   });
 
   // Global validation pipe
@@ -96,7 +109,13 @@ async function bootstrap() {
     } as any),
   );
 
-  const port = process.env.SMS_PORT ?? 3000;
+  // Port resolution — honour `PORT` first (standard), fall back to
+  // the legacy misnamed `SMS_PORT` still set in some local `.env`
+  // files, then default to 3001 (what the client expects at
+  // `VITE_PUBLIC_API_URL=http://localhost:3001/api/v2`). Previously
+  // this read `SMS_PORT` only and defaulted to 3000, which silently
+  // put the API on the wrong port whenever the env was missing.
+  const port = process.env.PORT ?? process.env.SMS_PORT ?? 3001;
   await app.listen(port, '0.0.0.0');
 
   console.log(`\n🚀 Application is running on: http://localhost:${port}`);

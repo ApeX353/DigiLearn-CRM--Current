@@ -27,6 +27,7 @@ import {
   Clock,
   Wallet,
   CalendarIcon,
+  AlertCircle,
 } from "lucide-react";
 import {
   useLeadQualification,
@@ -57,6 +58,8 @@ import { useLeadStakeholders } from "~/api/leads";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Checkbox } from "../ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+import { handleApiError } from "~/api/axios";
 
 interface LeadQualificationModalProps {
   isOpen: boolean;
@@ -210,6 +213,20 @@ export function LeadQualificationModal({
 
   const handleSubmit = (values: LeadQualificationValues) => {
     if (qualification?.id) {
+      // The backend's qualify gate checks `qualification_needs`
+      // (product snapshots), not the `needs` display string. Without
+      // this array every qualify attempt failed with
+      // "boards/products required" even after products were picked.
+      const qualificationNeeds = products
+        .filter((p) => selectedProducts.includes(p.id))
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          price: Math.round(Number(p.price) || 0),
+          tax: Math.round(Number(p.tax) || 0),
+          discount: Math.round(Number(p.discount) || 0),
+        }));
+
       updateMutation.mutate(
         {
           id: qualification.id,
@@ -217,6 +234,7 @@ export function LeadQualificationModal({
             decision_maker_name: values.decision_maker_name,
             decision_maker_title: values.decision_maker_title,
             needs: values.needs,
+            qualification_needs: qualificationNeeds,
             plan_type: values.plan_type,
             timeline_type: values.timeline_type,
             specific_date:
@@ -235,14 +253,19 @@ export function LeadQualificationModal({
             toast.success("Qualification updated successfully");
             onClose();
           },
-          onError: () => {
-            toast.error("Failed to update qualification");
+          onError: (error) => {
+            toast.error("Could not update qualification", {
+              description: handleApiError(error),
+            });
           },
         },
       );
     } else {
       // either create or show error
-      toast.error("Missing qualification record");
+      toast.error("Qualification record is missing", {
+        description:
+          "Refresh the lead page. The CRM creates this record automatically for every lead.",
+      });
     }
   };
 
@@ -279,7 +302,24 @@ export function LeadQualificationModal({
       size="sm"
     >
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(handleSubmit, () => {
+            toast.error("Complete the required qualification fields", {
+              description:
+                "Authority, products required, payment plan, timeline, and budget status are needed before a lead can be qualified.",
+            });
+          })}
+          className="space-y-6"
+        >
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Required before Qualified</AlertTitle>
+            <AlertDescription>
+              Capture the decision-maker, need/products, payment plan, budget
+              signal, timeline, and a future next action before marking the
+              lead as Qualified.
+            </AlertDescription>
+          </Alert>
          
           {/* Section 1: Authority - Decision Maker */}
           <div className="space-y-3">
@@ -326,7 +366,7 @@ export function LeadQualificationModal({
                                 {stakeholder.contact?.last_name}
                               </div>
                               <div className="text-sm text-muted-foreground">
-                                {stakeholder.contact?.role} •{" "}
+                                {stakeholder.contact?.role} -{" "}
                                 {stakeholder.decision_role}
                               </div>
                             </Label>
@@ -339,7 +379,7 @@ export function LeadQualificationModal({
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-3 gap-x-4">
+            <div className="grid gap-3 sm:grid-cols-3">
               <FormField
                 name="checklist.email_verified"
                 control={form.control}

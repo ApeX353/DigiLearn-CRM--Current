@@ -101,6 +101,17 @@ export default function AddDealModalContainer({
     }
   }, [watchedPipelineId]);
 
+  // Native <select> trap: with no empty placeholder option the browser
+  // RENDERS the first pipeline as selected while the form value is
+  // still "" — so the Stage dropdown never loads until the user
+  // re-picks the pipeline they appear to already have. Default the
+  // form to the first pipeline once the list arrives.
+  useEffect(() => {
+    if (isOpen && pipelines.length > 0 && !form.getValues("pipeline_id")) {
+      form.setValue("pipeline_id", pipelines[0].id);
+    }
+  }, [isOpen, pipelines, form]);
+
   // Reset form with initial values when the modal opens
   useEffect(() => {
     if (isOpen) {

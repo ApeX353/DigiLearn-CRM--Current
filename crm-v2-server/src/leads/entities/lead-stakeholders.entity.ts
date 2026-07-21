@@ -31,13 +31,13 @@ export enum InfluenceLevel {
 @Index(['lead_id'])
 @Index(['contact_id'])
 export class LeadStakeholder {
-  @Column({ type: 'varchar', length: 36, primary: true })
+  @Column({ type: 'uuid', primary: true })
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   lead_id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   contact_id: string;
 
   @Column({ type: 'enum', enum: CONTACT_ROLES, nullable: true })
@@ -56,7 +56,7 @@ export class LeadStakeholder {
   })
   influence_level: InfluenceLevel;
 
-  @Column({ type: 'tinyint', default: 0 })
+  @Column({ type: 'boolean', default: false })
   is_primary: boolean;
 
   @Column({ type: 'text', nullable: true })

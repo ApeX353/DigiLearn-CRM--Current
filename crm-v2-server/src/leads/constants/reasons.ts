@@ -24,3 +24,40 @@ export const DISQUALIFY_REASONS = [
 ] as const;
 
 export type DisqualifyReason = (typeof DISQUALIFY_REASONS)[number];
+
+/**
+ * Phase A.1 — Disqualify reason category. Drives the server-side gate
+ * in `leads.service.ts#update`. Two buckets:
+ *
+ *   - `admin` — structural reasons that are objectively true (the
+ *     lead is a duplicate, the school no longer exists, the contact
+ *     belongs to a different school, the prospect already runs a
+ *     competing system). Reps may apply these directly because
+ *     there's no judgement call to dispute.
+ *
+ *   - `tactical` — soft / sales-judgement reasons reps can use to
+ *     dump leads they don't feel like working ("no budget", "not
+ *     interested", "can't reach"). These require an approved
+ *     LeadReversalRequest{kind:'tactical_disqualify'} unless the
+ *     compliance switch is off, OR the caller is admin/sales_manager.
+ *
+ * "Other" defaults to `tactical` — it's a freeform reason and the
+ * conservative default is to require approval rather than let the
+ * field become a tactical-disqualify backdoor.
+ */
+export const DISQUALIFY_REASON_KIND: Record<DisqualifyReason, 'admin' | 'tactical'> = {
+  'No budget': 'tactical',
+  'Not interested': 'tactical',
+  'Already has solution': 'admin',
+  'Wrong contact/school': 'admin',
+  'Duplicate entry': 'admin',
+  'School closed': 'admin',
+  'Cannot reach contact': 'tactical',
+  'Other': 'tactical',
+};
+
+export function isTacticalDisqualifyReason(reason: string | null | undefined): boolean {
+  if (!reason) return false;
+  const kind = (DISQUALIFY_REASON_KIND as Record<string, 'admin' | 'tactical' | undefined>)[reason];
+  return kind === 'tactical';
+}

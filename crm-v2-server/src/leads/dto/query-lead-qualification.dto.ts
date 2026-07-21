@@ -5,7 +5,8 @@ import {
   IsUUID,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 
 export class QueryLeadQualificationDto {
   @ApiPropertyOptional({ default: 1, description: 'Page number' })
@@ -25,37 +26,43 @@ export class QueryLeadQualificationDto {
 
   @ApiPropertyOptional({ description: 'Filter by qualified status' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   is_qualified?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter by has_needs' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   has_needs?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter by has_plan_type' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   has_plan_type?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter by has_timeline' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   has_timeline?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter by has_budget' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   has_budget?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter by has_verified_contact' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   has_verified_contact?: boolean;
 

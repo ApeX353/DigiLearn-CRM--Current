@@ -57,6 +57,7 @@ export interface Lead {
   school?: School;
   primary_contact?: Contact;
   assignee: User;
+  assigned_to?: string | null;
   stage: Stage;
   notes: string;
   last_contacted_at: Date | null;
@@ -68,11 +69,22 @@ export interface Lead {
   sla_breached: boolean;
   sla_breach_count: number;
   last_action_at: Date | null;
+  // Temperature scoring
+  temperature: "hot" | "warm" | "cold" | null;
+  temperature_score: number | null;
+  temperature_last_calculated: Date | null;
   // BANT Qualification fields
   decision_maker_confirmed?: boolean;
   budget_fit?: boolean;
   solution_fit_confirmed?: boolean;
   implementation_timeline?: string;
+  // Demo + Commercial-Intent feature
+  demo_status?: 'demo_scheduled' | 'demo_completed' | null;
+  demo_status_changed_at?: string | null;
+  commercial_intent?: boolean;
+  commercial_intent_at?: string | null;
+  commercial_intent_reason?: string | null;
+  demo_followup_sla_breached?: boolean;
 }
 
 export interface UpdateLeadPayload {
@@ -135,6 +147,9 @@ export const leadInfoSchema = z.object({
   city: z.string().optional(),
   estimated_value: z.number().optional(),
   assigned_to: z.string().max(36).optional(), // For managers/admins to assign to sales agents
+  // Campaign/event the lead was captured at (e.g. NASH congress).
+  // Survives lead→deal conversion for campaign ROI attribution.
+  source_campaign_id: z.string().uuid().optional(),
 });
 
 export const contactsSchema = z

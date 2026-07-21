@@ -27,6 +27,13 @@ export interface TabFormPayload {
   email?: CreateActivityDto["email"];
   meeting?: CreateActivityDto["meeting"];
   whatsapp?: CreateActivityDto["whatsapp"];
+  demo?: CreateActivityDto["demo"];
+  /**
+   * The Demo tab form selects which subtype to submit (booking /
+   * delivery / followup) inside its own state. The modal reads this
+   * to set CreateActivityDto.type when the user submits.
+   */
+  __demoType?: "demo_booking" | "demo_delivery" | "demo_followup";
 }
 
 /**

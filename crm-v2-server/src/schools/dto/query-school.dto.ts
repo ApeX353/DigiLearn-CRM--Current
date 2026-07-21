@@ -6,7 +6,8 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { SCHOOL_TYPES } from '../constants/school-types';
 import type { SchoolType } from '../constants/school-types';
 
@@ -16,7 +17,7 @@ export class QuerySchoolDto {
   @IsNumberString()
   page?: string;
 
-  @ApiPropertyOptional({ default: 10, description: 'Items per page' })
+  @ApiPropertyOptional({ default: 25, description: 'Items per page' })
   @IsOptional()
   @IsNumberString()
   limit?: string;
@@ -43,7 +44,8 @@ export class QuerySchoolDto {
 
   @ApiPropertyOptional({ description: 'Include inactive schools' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_inactive?: boolean;
 }

@@ -31,9 +31,8 @@ import { SkipRolesCheck } from '../auth/decorators/skip-roles-check.decorator';
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
-  @Public()
-  @SkipRolesCheck()
   @Get()
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all settings (key-value pairs)' })
   @ApiResponse({
@@ -49,9 +48,8 @@ export class SettingsController {
     };
   }
 
-  @Public()
-  @SkipRolesCheck()
   @Get('all')
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all settings with metadata (admin only)' })
   @ApiResponse({

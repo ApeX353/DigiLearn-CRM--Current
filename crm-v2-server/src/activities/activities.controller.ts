@@ -13,11 +13,14 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ActivitiesService } from './activities.service';
+import { WhatsAppSendService, type SendWhatsAppDto } from './whatsapp-send.service';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { QueryActivityDto, ActivitySummaryQueryDto } from './dto/query-activity.dto';
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { CreateActivityCommentDto } from './dto/create-activity-comment.dto';
+import { BulkStatusDto } from './dto/bulk-status.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
 import { ActivityStatus } from './entities/activity.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -35,7 +38,10 @@ import {
 @Controller('activities')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ActivitiesController {
-  constructor(private readonly activitiesService: ActivitiesService) {}
+  constructor(
+    private readonly activitiesService: ActivitiesService,
+    private readonly whatsAppSendService: WhatsAppSendService,
+  ) {}
 
   // ========================
   // Create Activity
@@ -184,37 +190,80 @@ export class ActivitiesController {
 
   @Patch(':id/status')
   @Roles('admin', 'sales_manager', 'sales_rep')
-  @ApiOperation({ summary: 'Update activity status' })
-  @ApiParam({ name: 'id', description: 'Activity UUID' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: Object.values(ActivityStatus),
-          example: 'completed',
-        },
-      },
-      required: ['status'],
-    },
+  @ApiOperation({
+    summary: 'Update activity status',
+    description:
+      'Transitions an activity to the requested status. When transitioning to `completed`, an `outcome` field is mandatory — the request is rejected with a 400 otherwise. Optional `completion_note` is stored alongside.',
   })
+  @ApiParam({ name: 'id', description: 'Activity UUID' })
+  @ApiBody({ type: UpdateStatusDto })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Activity status updated successfully',
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Activity not found' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed (e.g. missing outcome on completion)',
+  })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('status') status: ActivityStatus,
+    @Body() body: UpdateStatusDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
-    const activity = await this.activitiesService.updateStatus(id, status, userId);
+    const userRoles = (currentUser?.roles || []).map((r) => r.name);
+    const activity = await this.activitiesService.updateStatus(
+      id,
+      body.status,
+      userId,
+      body.outcome,
+      body.completion_note,
+      body.next_step,
+      userRoles,
+    );
     return {
       success: true,
       message: 'Activity status updated successfully',
       data: activity,
+    };
+  }
+
+  // ========================
+  // Bulk Update Activity Status
+  // ========================
+
+  @Patch('bulk-status')
+  @Roles('admin', 'sales_manager', 'sales_rep')
+  @ApiOperation({
+    summary: 'Mark many activities at once',
+    description:
+      'Applies the same status to every ID in the body. When the status is "completed", the response includes the subset that qualify for a follow-up prompt (meetings, calls, and tasks).',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Activities updated successfully',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'One or more activities not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Validation failed' })
+  async bulkUpdateStatus(
+    @Body() body: BulkStatusDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    const { updated, followUpCandidates } =
+      await this.activitiesService.bulkUpdateStatus(
+        body.ids,
+        body.status,
+        userId,
+        body.outcome,
+        body.completion_note,
+      );
+    return {
+      success: true,
+      message: `Updated ${updated.length} activities`,
+      data: updated,
+      followUpCandidates,
     };
   }
 
@@ -320,6 +369,47 @@ export class ActivitiesController {
     return {
       success: true,
       data: attachments,
+    };
+  }
+
+  // ========================
+  // WhatsApp Send
+  // ========================
+
+  @Post('whatsapp/send')
+  @Roles('admin', 'sales_manager', 'sales_rep')
+  @ApiOperation({ summary: 'Send a WhatsApp template message and create activity record' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        leadId: { type: 'string', format: 'uuid' },
+        contactPhone: { type: 'string', example: '+263771234567' },
+        templateName: { type: 'string', example: 'demo_followup' },
+        templateVariables: {
+          type: 'object',
+          additionalProperties: { type: 'string' },
+        },
+      },
+      required: ['leadId', 'contactPhone', 'templateName'],
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'WhatsApp message sent and activity created',
+  })
+  async sendWhatsApp(
+    @Body() dto: SendWhatsAppDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    const result = await this.whatsAppSendService.sendTemplateMessage(dto, userId);
+    return {
+      success: true,
+      sent: result.sent,
+      data: {
+        activityId: result.activity.id,
+        whatsAppMessageId: result.whatsAppMessage.id,
+      },
     };
   }
 

@@ -1,4 +1,4 @@
-import { DataSource } from 'typeorm';
+﻿import { DataSource } from 'typeorm';
 import { Role } from '../../auth/entities/role.entity';
 import { Permission } from '../../auth/entities/permission.entity';
 import { RolePermission } from '../../auth/entities/role-permission.entity';
@@ -15,7 +15,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
   const permissionRepository = dataSource.getRepository(Permission);
   const rolePermissionRepository = dataSource.getRepository(RolePermission);
 
-  console.log('🌱 Seeding roles and permissions...');
+  console.log('ðŸŒ± Seeding roles and permissions...');
 
   // ========================
   // All role-permission assignments
@@ -26,7 +26,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
 
   const rolePermissionsData: RolePermissionData[] = [
     // ========================
-    // Admin — manage all
+    // Admin â€” manage all
     // ========================
     { role: 'admin', action: 'manage', subject: 'Dashboard', conditions: null },
     { role: 'admin', action: 'manage', subject: 'Lead', conditions: null },
@@ -44,7 +44,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
     { role: 'admin', action: 'manage', subject: 'Product', conditions: null },
 
     // ========================
-    // Manager — read-only on most entities
+    // Manager â€” read-only on most entities
     // ========================
     { role: 'manager', action: 'read', subject: 'Dashboard', conditions: null },
     { role: 'manager', action: 'read', subject: 'Report', conditions: null },
@@ -61,62 +61,62 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
     { role: 'manager', action: 'read', subject: 'Product', conditions: null },
 
     // ========================
-    // Sales Manager — full CRUD on sales entities
+    // Sales Manager â€” full CRUD on sales entities
     // ========================
-    { role: 'sales-manager', action: 'read', subject: 'Dashboard', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Report', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'User', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Dashboard', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Report', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'User', conditions: null },
     // Company
-    { role: 'sales-manager', action: 'create', subject: 'Company', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Company', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Company', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Company', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Company', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Company', conditions: null },
     // Lead
-    { role: 'sales-manager', action: 'create', subject: 'Lead', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Lead', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Lead', conditions: null },
-    { role: 'sales-manager', action: 'delete', subject: 'Lead', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Lead', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Lead', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Lead', conditions: null },
+    { role: 'sales_manager', action: 'delete', subject: 'Lead', conditions: null },
     // LeadActivity
-    { role: 'sales-manager', action: 'create', subject: 'LeadActivity', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'LeadActivity', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'LeadActivity', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'LeadActivity', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'LeadActivity', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'LeadActivity', conditions: null },
     // Deal
-    { role: 'sales-manager', action: 'create', subject: 'Deal', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Deal', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Deal', conditions: null },
-    { role: 'sales-manager', action: 'delete', subject: 'Deal', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Deal', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Deal', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Deal', conditions: null },
+    { role: 'sales_manager', action: 'delete', subject: 'Deal', conditions: null },
     // Quote
-    { role: 'sales-manager', action: 'create', subject: 'Quote', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Quote', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Quote', conditions: null },
-    { role: 'sales-manager', action: 'delete', subject: 'Quote', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Quote', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Quote', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Quote', conditions: null },
+    { role: 'sales_manager', action: 'delete', subject: 'Quote', conditions: null },
     // Invoice
-    { role: 'sales-manager', action: 'create', subject: 'Invoice', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Invoice', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Invoice', conditions: null },
-    { role: 'sales-manager', action: 'delete', subject: 'Invoice', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Invoice', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Invoice', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Invoice', conditions: null },
+    { role: 'sales_manager', action: 'delete', subject: 'Invoice', conditions: null },
     // Raffle
-    { role: 'sales-manager', action: 'create', subject: 'Raffle', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Raffle', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Raffle', conditions: null },
-    { role: 'sales-manager', action: 'delete', subject: 'Raffle', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Raffle', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Raffle', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Raffle', conditions: null },
+    { role: 'sales_manager', action: 'delete', subject: 'Raffle', conditions: null },
     // PaymentTerm
-    { role: 'sales-manager', action: 'create', subject: 'PaymentTerm', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'PaymentTerm', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'PaymentTerm', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'PaymentTerm', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'PaymentTerm', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'PaymentTerm', conditions: null },
     // Installment
-    { role: 'sales-manager', action: 'read', subject: 'Installment', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Installment', conditions: null },
     // Payment
-    { role: 'sales-manager', action: 'create', subject: 'Payment', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Payment', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Payment', conditions: null },
-    { role: 'sales-manager', action: 'delete', subject: 'Payment', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Payment', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Payment', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Payment', conditions: null },
+    { role: 'sales_manager', action: 'delete', subject: 'Payment', conditions: null },
     // Product
-    { role: 'sales-manager', action: 'create', subject: 'Product', conditions: null },
-    { role: 'sales-manager', action: 'read', subject: 'Product', conditions: null },
-    { role: 'sales-manager', action: 'update', subject: 'Product', conditions: null },
+    { role: 'sales_manager', action: 'create', subject: 'Product', conditions: null },
+    { role: 'sales_manager', action: 'read', subject: 'Product', conditions: null },
+    { role: 'sales_manager', action: 'update', subject: 'Product', conditions: null },
 
     // ========================
-    // Sales Rep — limited access, own records via conditions
+    // Sales Rep â€” limited access, own records via conditions
     // ========================
     { role: 'sales_rep', action: 'read', subject: 'Dashboard', conditions: null },
     { role: 'sales_rep', action: 'read', subject: 'User', conditions: '{"id":"${id}"}' },
@@ -180,27 +180,31 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       });
       await permissionRepository.save(permission);
       console.log(
-        `  ✓ Created permission: ${permData.action}:${permData.subject}`,
+        `  âœ“ Created permission: ${permData.action}:${permData.subject}`,
       );
     } else {
       console.log(
-        `  ℹ Permission exists: ${permData.action}:${permData.subject}`,
+        `  â„¹ Permission exists: ${permData.action}:${permData.subject}`,
       );
     }
 
     permissionMap.set(`${permData.action}:${permData.subject}`, permission);
   }
 
-  // Extract unique roles
+  // Extract unique roles. `finance` carries no CASL permission rows —
+  // it exists for the cash-requisition approval chain, whose routes
+  // are gated by @Roles(name) checks — but it must still be seeded so
+  // admins can assign it to users.
   const uniqueRoleNames = Array.from(
-    new Set(rolePermissionsData.map((rp) => rp.role)),
+    new Set([...rolePermissionsData.map((rp) => rp.role), 'finance']),
   );
 
   const roleDescriptions: Record<string, string> = {
     admin: 'System administrator with full access',
     manager: 'Manager with reporting and user access',
-    'sales-manager': 'Sales manager with full sales access',
+    'sales_manager': 'Sales manager with full sales access',
     sales_rep: 'Sales agent with limited access to own records',
+    finance: 'Finance officer — approves and pays cash requisitions',
   };
 
   // Create or get roles
@@ -217,9 +221,9 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
         is_system_role: true,
       });
       await roleRepository.save(role);
-      console.log(`  ✓ Created role: ${roleName}`);
+      console.log(`  âœ“ Created role: ${roleName}`);
     } else {
-      console.log(`  ℹ Role exists: ${roleName}`);
+      console.log(`  â„¹ Role exists: ${roleName}`);
     }
 
     roleMap.set(roleName, role);
@@ -232,7 +236,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
 
     if (!role || !permission) {
       console.log(
-        `  ⚠ Skipping: ${rpData.role} - ${rpData.action}:${rpData.subject} (not found)`,
+        `  âš  Skipping: ${rpData.role} - ${rpData.action}:${rpData.subject} (not found)`,
       );
       continue;
     }
@@ -252,14 +256,14 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
       });
       await rolePermissionRepository.save(rolePermission);
       console.log(
-        `  ✓ Linked: ${rpData.role} -> ${rpData.action}:${rpData.subject}${rpData.conditions ? ' (with conditions)' : ''}`,
+        `  âœ“ Linked: ${rpData.role} -> ${rpData.action}:${rpData.subject}${rpData.conditions ? ' (with conditions)' : ''}`,
       );
     } else {
       console.log(
-        `  ℹ Link exists: ${rpData.role} -> ${rpData.action}:${rpData.subject}`,
+        `  â„¹ Link exists: ${rpData.role} -> ${rpData.action}:${rpData.subject}`,
       );
     }
   }
 
-  console.log('✅ Roles and permissions seeded successfully!');
+  console.log('âœ… Roles and permissions seeded successfully!');
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,10 +30,11 @@ import { useAuthStore } from "~/stores/use-auth-store";
 import { useChangePassword } from "~/api/auth";
 import { useActivityLogs } from "~/api/activity-logs";
 import { formatDistanceToNow } from "date-fns";
+import { useLocation } from "react-router";
 
 const changePasswordSchema = z
   .object({
-    current_password: z.string().min(1, "Current password is required"),
+    current_password: z.string().optional(),
     new_password: z.string().min(8, "Password must be at least 8 characters"),
     confirm_password: z.string(),
   })
@@ -46,8 +47,18 @@ type ChangePasswordValues = z.infer<typeof changePasswordSchema>;
 
 export default function ProfilePage() {
   const user = useAuthStore((state) => state.user);
+  const requiresPasswordChange = useAuthStore(
+    (state) => state.requiresPasswordChange,
+  );
   const changePassword = useChangePassword();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (requiresPasswordChange || location.pathname === "/change-password") {
+      setShowPasswordForm(true);
+    }
+  }, [location.pathname, requiresPasswordChange]);
 
   const { data: activityData, isLoading: activityLoading } = useActivityLogs({
     actioned_by: user?.id,
@@ -69,7 +80,7 @@ export default function ProfilePage() {
   const onChangePassword = async (values: ChangePasswordValues) => {
     try {
       await changePassword.mutateAsync({
-        current_password: values.current_password,
+        current_password: values.current_password || undefined,
         new_password: values.new_password,
       });
       toast.success("Password changed successfully");

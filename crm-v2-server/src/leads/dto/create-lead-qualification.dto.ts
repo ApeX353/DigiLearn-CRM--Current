@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
   IsNotEmpty,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -79,7 +80,9 @@ export class CreateLeadQualificationDto {
 
   @ApiPropertyOptional({ example: 'Needs digital learning platform for 500 students' })
   @IsOptional()
-  @IsString()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QualificationNeedsDto)
   qualification_needs?: QualificationNeedsDto[];
 
   // ===== PLAN TYPE =====

@@ -3,9 +3,10 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, LessThan, In } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from '@node-rs/argon2';
@@ -48,6 +49,10 @@ export interface AuthResponse {
 export class AuthService {
   private readonly MAX_FAILED_ATTEMPTS = 5;
   private readonly LOCKOUT_DURATION_MINUTES = 15;
+  private readonly SESSION_SAVE_ATTEMPTS = 3;
+  private readonly SESSION_SAVE_RETRY_DELAY_MS = 250;
+  private readonly DEFAULT_MAX_ACTIVE_SESSIONS_PER_USER = 25;
+  private readonly logger = new Logger(AuthService.name);
 
   constructor(
     @InjectRepository(User)
@@ -503,14 +508,16 @@ export class AuthService {
       last_activity_at: new Date(),
     });
 
-    await this.authSessionRepository.save(session);
+    await this.cleanupExpiredSessions(user.id);
+    const savedSession = await this.saveSessionWithRetry(session);
+    await this.enforceActiveSessionLimit(user.id, savedSession.id);
 
     // Generate JWT payload
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       roles: user.roles?.map((r: any) => r.name) || [],
-      sessionId: session.id,
+      sessionId: savedSession.id,
     };
 
     const jwtExpirationDays = parseInt(this.configService.get('JWT_EXPIRATION') || '7', 10);
@@ -551,6 +558,113 @@ export class AuthService {
     await this.accountSecurityRepository.save(accountSecurity);
   }
 
+  private async cleanupExpiredSessions(userId: string): Promise<void> {
+    try {
+      await this.authSessionRepository.delete({
+        user_id: userId,
+        expires_at: LessThan(new Date()),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to clean expired auth sessions for user ${userId}: ${this.formatError(error)}`,
+      );
+    }
+  }
+
+  private async saveSessionWithRetry(session: AuthSession): Promise<AuthSession> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= this.SESSION_SAVE_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.authSessionRepository.save(session);
+      } catch (error) {
+        lastError = error;
+        if (attempt < this.SESSION_SAVE_ATTEMPTS) {
+          await this.delay(this.SESSION_SAVE_RETRY_DELAY_MS * attempt);
+        }
+      }
+    }
+
+    this.logger.error(
+      `Failed to create auth session for user ${session.user_id} after ${this.SESSION_SAVE_ATTEMPTS} attempts: ${this.formatError(lastError)}`,
+    );
+    throw lastError;
+  }
+
+  private async enforceActiveSessionLimit(
+    userId: string,
+    currentSessionId: string,
+  ): Promise<void> {
+    const maxActiveSessions = this.getMaxActiveSessionsPerUser();
+    // Sessions created within this window are never pruned. Concurrent logins
+    // for the same user all stamp last_activity_at=now(), so ordering by it
+    // cannot separate them and each login's enforcement pass would revoke the
+    // OTHER logins' brand-new sessions (they only protect their own id) — the
+    // client then gets a 200 + a JWT for a session a sibling killed ms later.
+    const FRESH_SESSION_GRACE_MS = 60_000;
+
+    try {
+      const graceCutoff = new Date(Date.now() - FRESH_SESSION_GRACE_MS);
+      // Order by created_at only — last_activity_at is mutated on every
+      // authed request by JwtStrategy.validate and is unstable for ordering.
+      const activeSessions = await this.authSessionRepository.find({
+        where: { user_id: userId, is_active: true },
+        order: { created_at: 'DESC' },
+        select: ['id', 'created_at'],
+      });
+
+      const staleSessionIds = activeSessions
+        .slice(maxActiveSessions)
+        .filter(
+          (session) =>
+            session.id !== currentSessionId && session.created_at < graceCutoff,
+        )
+        .map((session) => session.id);
+
+      if (staleSessionIds.length === 0) {
+        return;
+      }
+
+      await this.authSessionRepository.update(
+        { id: In(staleSessionIds) },
+        {
+          is_active: false,
+          revoked_at: new Date(),
+          revoke_reason: 'Session limit exceeded',
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to enforce auth session limit for user ${userId}: ${this.formatError(error)}`,
+      );
+    }
+  }
+
+  private getMaxActiveSessionsPerUser(): number {
+    const configuredLimit = parseInt(
+      this.configService.get<string>('AUTH_MAX_ACTIVE_SESSIONS_PER_USER') || '',
+      10,
+    );
+
+    if (Number.isFinite(configuredLimit) && configuredLimit > 0) {
+      return configuredLimit;
+    }
+
+    return this.DEFAULT_MAX_ACTIVE_SESSIONS_PER_USER;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private formatError(error: unknown): string {
+    if (error instanceof Error) {
+      return `${error.name}: ${error.message}`;
+    }
+
+    return String(error);
+  }
+
   private async hashPassword(password: string): Promise<string> {
     return argon2.hash(password);
   }
@@ -567,7 +681,18 @@ export class AuthService {
   }
 
   private async hashToken(token: string): Promise<string> {
-    return argon2.hash(token);
+    // The refresh token is stored hashed and looked up by exact-match equality
+    // (`findOne({ where: { refresh_token_hash: tokenHash } })`). Argon2 uses a
+    // random salt per call, so its output is non-deterministic — every login
+    // wrote one hash, every refresh computed a *different* hash, and the
+    // lookup never matched, silently breaking session persistence.
+    //
+    // The plaintext token is 64 random bytes (see `randomBytes(64)` in
+    // generateTokens), which carries 512 bits of entropy. A keyed
+    // SHA-256 (with the JWT secret as key) gives us a deterministic
+    // index, peppered against DB-only leaks, with no preimage risk.
+    const secret = this.configService.get<string>('JWT_SECRET_TOKEN') || 'dev-fallback-pepper';
+    return createHash('sha256').update(`${secret}:${token}`).digest('hex');
   }
 
   /**

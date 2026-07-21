@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { subMonths, format, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
-import Container from "~/components/container";
-import PageHeader from "~/components/page-header";
+import { KpiPill } from "~/components/layout/kpi-pill";
 import PipelinesSelector from "~/components/pipelines-selector";
 import PipelineKanban from "~/components/pipeline/pipeline-kanban";
 import PipelineTable from "~/components/pipeline/pipeline-table";
@@ -26,6 +26,7 @@ import {
   LayoutList,
   Trophy,
   CalendarIcon,
+  AlertTriangle,
 } from "lucide-react";
 import {
   useDealsSummary,
@@ -46,11 +47,16 @@ import { useCurrency } from "~/hooks/use-currency";
 import { useAnyRole } from "~/hooks/use-permission";
 import { toast } from "sonner";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import AddDealModalContainer from "~/components/deals/add-deal-modal-container";
 import { PendingDealRollbackRequestsCard } from "~/components/deals/pending-deal-rollback-requests-card";
 import { RequestDealRollbackDialog } from "~/components/deals/request-deal-rollback-dialog";
 import { ReviewDealRollbackRequestDialog } from "~/components/deals/review-deal-rollback-request-dialog";
 import { useAddDealModalStore } from "~/stores/use-add-deal-modal-store";
+import {
+  formatDealStageBlock,
+  type BlockedActionMessage,
+} from "~/lib/blocked-action-messages";
 
 type ViewMode = "kanban" | "list";
 
@@ -62,6 +68,7 @@ interface RollbackRequestContext {
 
 export default function PipelineStagesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { formatCurrency } = useCurrency();
   const canRunSlaCheck = useAnyRole([
     "admin",
@@ -85,6 +92,8 @@ export default function PipelineStagesPage() {
     useState<RollbackRequestContext | null>(null);
   const [reviewRequest, setReviewRequest] =
     useState<DealRollbackRequest | null>(null);
+  const [stageMoveError, setStageMoveError] =
+    useState<BlockedActionMessage | null>(null);
 
   const { data: summary } = useDealsSummary(selectedPipelineId);
   const { data: stagesData, isLoading: stagesLoading } = usePipelineStages(
@@ -216,16 +225,25 @@ export default function PipelineStagesPage() {
 
   const handleOnPipelineChange = useCallback(
     (updates: { id: string; position: number; status: string }[]) => {
+      if (updates.length === 0) return;
       bulkUpdate.mutate(
         { deals: updates },
         {
-          onError: () => {
-            toast.error("Failed to update deal positions");
+          onSuccess: () => {
+            setStageMoveError(null);
+          },
+          onError: (error) => {
+            const message = formatDealStageBlock(error, updates[0]?.status);
+            setStageMoveError(message);
+            toast.error(message.title, {
+              description: message.description,
+            });
+            queryClient.invalidateQueries({ queryKey: ["deals"] });
           },
         },
       );
     },
-    [bulkUpdate],
+    [bulkUpdate, queryClient],
   );
 
   const handleEditDeal = useCallback(
@@ -277,103 +295,56 @@ export default function PipelineStagesPage() {
   }
 
   return (
-    <Container>
-      <PageHeader
-        title="Pipeline Stages"
-        subtitle="Configure your deal pipeline stages"
-        actions={
-          <div className="flex gap-x-2">
-            <PipelinesSelector
-              value={selectedPipelineId}
-              onValueChange={setSelectedPipelineId}
-            />
-          </div>
-        }
-      />
-
-      <section className="p-4 space-y-6 overflow-x-hidden">
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="p-4 border border-gray-300 bg-white">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 min-w-0 flex-1 mr-2">
-                <p className="text-xs font-medium text-black truncate">
-                  Total Deals
-                </p>
-                <p className="text-base font-bold text-black">
-                  {pipelineSummary.total_deals}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-                <Target className="h-5 w-5 text-black" />
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4 border border-gray-300 bg-white">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 min-w-0 flex-1 mr-2">
-                <p className="text-xs font-medium text-black truncate">
-                  Pipeline Value
-                </p>
-                <p className="text-base font-bold text-black">
-                  {formatCurrency(pipelineSummary.pipeline_value)}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-                <DollarSign className="h-5 w-5 text-black" />
-              </div>
-            </div>
-          </Card>
+    <>
+      <section className="px-3 md:px-4 pt-2 pb-3 space-y-2 overflow-x-hidden">
+        {/* KPI strip — compact pill-style tiles so the pipeline sits
+            higher on the screen and reps see Kanban columns without
+            scrolling. Was an oversized 4-up card grid. */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          <KpiPill
+            label="Total deals"
+            value={String(pipelineSummary.total_deals)}
+            icon={<Target className="h-3.5 w-3.5 text-primary" />}
+            accent="bg-primary/10"
+          />
+          <KpiPill
+            label="Pipeline value"
+            value={formatCurrency(pipelineSummary.pipeline_value)}
+            icon={<DollarSign className="h-3.5 w-3.5 text-[oklch(0.5_0.16_150)] dark:text-[oklch(0.72_0.17_150)]" />}
+            accent="bg-[oklch(0.64_0.17_150_/_0.12)]"
+          />
           {showWonLost && (
             <>
-            <Card className="p-4 border border-gray-300 bg-white">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1 min-w-0 flex-1 mr-2">
-                  <p className="text-xs font-medium text-black truncate">Won Deals</p>
-                  <p className="text-base font-bold text-black">{formatCurrency((archivedDealsData?.data || []).filter(deal => deal.closeStatus === 'won').reduce((acc, cur) => acc + (cur.value || 0), 0))}</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4 border border-gray-300 bg-white">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1 min-w-0 flex-1 mr-2">
-                  <p className="text-xs font-medium text-black truncate">Lost Deals</p>
-                  <p className="text-base font-bold text-black">{formatCurrency((archivedDealsData?.data || []).filter(deal => deal.closeStatus === 'lost').reduce((acc, cur) => acc + (cur.value || 0), 0))}</p>
-                </div>
-              </div>
-            </Card>
+              <KpiPill
+                label="Won"
+                value={formatCurrency(
+                  (archivedDealsData?.data || [])
+                    .filter((deal) => deal.closeStatus === "won")
+                    .reduce((acc, cur) => acc + (cur.value || 0), 0),
+                )}
+              />
+              <KpiPill
+                label="Lost"
+                value={formatCurrency(
+                  (archivedDealsData?.data || [])
+                    .filter((deal) => deal.closeStatus === "lost")
+                    .reduce((acc, cur) => acc + (cur.value || 0), 0),
+                )}
+              />
             </>
           )}
-          <Card className="p-4 border border-gray-300 bg-white">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 min-w-0 flex-1 mr-2">
-                <p className="text-xs font-medium text-black truncate">
-                  Overdue
-                </p>
-                <p className="text-base font-bold text-black">
-                  {pipelineSummary.deals_with_overdue_invoices}
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-                <Clock className="h-5 w-5 text-black" />
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4 border border-gray-300 bg-white">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 min-w-0 flex-1 mr-2">
-                <p className="text-xs font-medium text-black truncate">
-                  Avg Health
-                </p>
-                <p className="text-base font-bold text-black">
-                  {pipelineSummary.avg_deal_health}%
-                </p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
-                <Users className="h-5 w-5 text-black" />
-              </div>
-            </div>
-          </Card>
+          <KpiPill
+            label="Overdue"
+            value={String(pipelineSummary.deals_with_overdue_invoices)}
+            icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />}
+            accent="bg-muted"
+          />
+          <KpiPill
+            label="Avg health"
+            value={`${pipelineSummary.avg_deal_health}%`}
+            icon={<Users className="h-3.5 w-3.5 text-muted-foreground" />}
+            accent="bg-muted"
+          />
         </div>
 
         {breachedDealsCount > 0 && (
@@ -391,16 +362,23 @@ export default function PipelineStagesPage() {
           />
         )}
 
-        {/* Pipeline Controls */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
+        {/* Pipeline Controls — selector lives inline with the
+            create/view toggles instead of in a dedicated header row
+            above, so no horizontal band of empty space sits between
+            the topbar and the KPI strip. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => useAddDealModalStore.getState().onOpen()}>
               <Plus className="mr-2 h-4 w-4" />
               Create Deal
             </Button>
+            <PipelinesSelector
+              value={selectedPipelineId}
+              onValueChange={setSelectedPipelineId}
+            />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Won & Lost toggle */}
             <Button
               variant={showWonLost ? "default" : "outline"}
@@ -454,6 +432,23 @@ export default function PipelineStagesPage() {
           </div>
         </div>
 
+        {stageMoveError && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{stageMoveError.title}</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>{stageMoveError.description}</p>
+              {stageMoveError.missingItems.length > 0 && (
+                <ul className="list-disc space-y-1 pl-4">
+                  {stageMoveError.missingItems.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Kanban / List */}
         {viewMode === "kanban" && (
           <div className="max-w-full overflow-hidden">
@@ -496,6 +491,6 @@ export default function PipelineStagesPage() {
           if (!open) setReviewRequest(null);
         }}
       />
-    </Container>
+    </>
   );
 }

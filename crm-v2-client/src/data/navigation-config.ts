@@ -6,7 +6,6 @@ import {
   FileText,
   Receipt,
   CreditCard,
-  CheckSquare,
   Activity,
   BarChart3,
   Users,
@@ -16,6 +15,14 @@ import {
   type LucideIcon,
   AlertCircle,
   Ban,
+  Mail,
+  FileEdit,
+  CalendarClock,
+  ShieldAlert,
+  Copy,
+  ClipboardCheck,
+  Wallet,
+  Megaphone,
 } from "lucide-react";
 import type { Role } from "~/api/rbac";
 
@@ -94,23 +101,47 @@ export const NavigationConfig: NavigationItem[] = [
         canView: false,
         allowedRoles: ["admin", "manager", "sales_manager"],
       },
+      {
+        title: "Requisitions",
+        url: "/requisitions",
+        icon: Wallet,
+        canView: false,
+        // Reps raise them; managers/finance approve them. Everyone
+        // with a stake gets the page — the page itself scopes tabs.
+        allowedRoles: [
+          "admin",
+          "manager",
+          "sales_manager",
+          "sales_rep",
+          "finance",
+        ],
+      },
+      {
+        title: "Campaigns",
+        url: "/campaigns",
+        icon: Megaphone,
+        canView: false,
+        allowedRoles: [
+          "admin",
+          "manager",
+          "sales_manager",
+          "sales_rep",
+          "finance",
+        ],
+      },
     ],
   },
 
-  // Activity Section
+  // Activity Section — Tasks removed as a separate nav item because
+  // Task is a sub-entity of Activity (1:1 via activity_id). Tasks now
+  // live inside Activities as a filterable type; the /tasks route
+  // redirects to /activities?type=task so old bookmarks keep working.
   {
     title: "Activity",
     icon: Activity,
     canView: false,
     allowedRoles: ["admin", "manager", "sales_manager", "sales_rep"],
     children: [
-      {
-        title: "Tasks",
-        url: "/tasks",
-        icon: CheckSquare,
-        canView: false,
-        allowedRoles: ["admin", "manager", "sales_manager", "sales_rep"],
-      },
       {
         title: "Activities",
         url: "/activities",
@@ -124,6 +155,38 @@ export const NavigationConfig: NavigationItem[] = [
         icon: BarChart3,
         canView: false,
         allowedRoles: ["admin", "sales_manager", "manager"],
+      },
+      {
+        title: "Scheduling Links",
+        url: "/scheduling-links",
+        icon: CalendarClock,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager", "sales_rep"],
+      },
+    ],
+  },
+
+  // Management control (Phases 5 + 8) — stuck-lead escalations and
+  // duplicate-suspicion queue. Manager-only.
+  {
+    title: "Management",
+    icon: ShieldAlert,
+    canView: false,
+    allowedRoles: ["admin", "sales_manager"],
+    children: [
+      {
+        title: "Escalations",
+        url: "/management/escalations",
+        icon: ShieldAlert,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager"],
+      },
+      {
+        title: "Duplicates",
+        url: "/management/duplicates",
+        icon: Copy,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager"],
       },
     ],
   },
@@ -139,6 +202,20 @@ export const NavigationConfig: NavigationItem[] = [
         title: "Users",
         url: "/admin/users",
         icon: Users,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager"],
+      },
+      {
+        title: "Approval Queue",
+        url: "/admin/approval-queue",
+        icon: ClipboardCheck,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager"],
+      },
+      {
+        title: "Compliance Report",
+        url: "/admin/compliance-report",
+        icon: ShieldAlert,
         canView: false,
         allowedRoles: ["admin", "sales_manager"],
       },
@@ -162,6 +239,20 @@ export const NavigationConfig: NavigationItem[] = [
         icon: Calculator,
         canView: false,
         allowedRoles: ["admin"],
+      },
+      {
+        title: "Email Sequences",
+        url: "/admin/email-sequences",
+        icon: Mail,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager"],
+      },
+      {
+        title: "Email Templates",
+        url: "/admin/email-templates",
+        icon: FileEdit,
+        canView: false,
+        allowedRoles: ["admin", "sales_manager", "sales_rep"],
       },
     ],
   },

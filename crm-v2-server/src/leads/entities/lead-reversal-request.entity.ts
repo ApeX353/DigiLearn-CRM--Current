@@ -29,7 +29,7 @@ export class LeadReversalRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   lead_id: string;
 
   @ManyToOne(() => Lead, { onDelete: 'CASCADE' })
@@ -38,6 +38,41 @@ export class LeadReversalRequest {
 
   @Column({ type: 'enum', enum: LEAD_STATUSES })
   requested_status: LeadStatus;
+
+  /**
+   * Kind of request — historically this entity only represented
+   * status reversals (e.g. "restore from Disqualified back to
+   * Contacted"), but Phase 7 of the management-control pass folded
+   * reassignment approval into the same queue so managers have a
+   * single place to handle rep-initiated changes. Phase A.1 of the
+   * compliance hardening plan added a third kind for tactical
+   * disqualifications.
+   *
+   *   status_reversal     — legacy rows; requests a lead status rollback.
+   *   reassignment        — rep wants the lead moved to a different owner.
+   *   tactical_disqualify — rep wants to disqualify a lead with a
+   *                         soft/judgement reason (no budget, not
+   *                         interested, etc.). Manager approval is
+   *                         required before the disqualify is applied,
+   *                         unless the compliance switch is off or the
+   *                         caller is admin/sales_manager.
+   *
+   * Default is `status_reversal` so existing rows keep their original
+   * meaning. New rows set this explicitly.
+   */
+  @Column({
+    type: 'varchar',
+    length: 32,
+    default: 'status_reversal',
+  })
+  kind: 'status_reversal' | 'reassignment' | 'tactical_disqualify';
+
+  /**
+   * Target user for `reassignment` kind — the rep the requester wants
+   * the lead moved to. NULL for status-reversal requests.
+   */
+  @Column({ type: 'uuid', nullable: true })
+  proposed_assignee_id: string | null;
 
   @Column({ type: 'text' })
   reason: string;
@@ -52,29 +87,29 @@ export class LeadReversalRequest {
   })
   status: LeadReversalRequestStatus;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   requested_by_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'requested_by_id' })
   requested_by: User | null;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   reviewed_by_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'reviewed_by_id' })
   reviewed_by: User | null;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   reviewed_at: Date | null;
 
   @Column({ type: 'text', nullable: true })
   review_note: string | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'datetime' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
   updated_at: Date;
 }

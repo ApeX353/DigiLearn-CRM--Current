@@ -20,8 +20,16 @@ import {
   usePipelineAnalysisStats,
   useFinanceReportStats,
 } from "~/api/reports";
+import { useReportExport } from "~/api/reports/use-report-export";
 import { useCurrency } from "~/hooks/use-currency";
-import { Loader2 } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { Loader2, Download } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -35,6 +43,51 @@ import {
   Pie,
 } from "recharts";
 import PageHeader from "~/components/page-header";
+
+function ExportButton({
+  reportType,
+  dateRange,
+}: {
+  reportType: "sales" | "pipeline" | "collections";
+  dateRange?: "mtd" | "qtd" | "ytd";
+}) {
+  const exportReport = useReportExport();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={exportReport.isPending}
+        >
+          {exportReport.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          Export
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem
+          onClick={() =>
+            exportReport.mutate({ reportType, format: "pdf", dateRange })
+          }
+        >
+          Download PDF
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() =>
+            exportReport.mutate({ reportType, format: "xlsx", dateRange })
+          }
+        >
+          Download Excel
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export default function ReportsPage() {
   const { formatCurrency } = useCurrency();
@@ -51,13 +104,18 @@ export default function ReportsPage() {
 
       <section className="p-4">
         <Tabs defaultValue="sales">
-          <TabsList>
-            <TabsTrigger value="sales">Sales Performance</TabsTrigger>
-            <TabsTrigger value="pipeline">Pipeline Analysis</TabsTrigger>
-            <TabsTrigger value="finance">Finance Report</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between mb-4">
+            <TabsList>
+              <TabsTrigger value="sales">Sales Performance</TabsTrigger>
+              <TabsTrigger value="pipeline">Pipeline Analysis</TabsTrigger>
+              <TabsTrigger value="finance">Finance Report</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="sales" className="space-y-4">
+            <div className="flex justify-end">
+              <ExportButton reportType="sales" dateRange="qtd" />
+            </div>
             {salesLoading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -127,6 +185,9 @@ export default function ReportsPage() {
           </TabsContent>
 
           <TabsContent value="pipeline" className="space-y-4">
+            <div className="flex justify-end">
+              <ExportButton reportType="pipeline" />
+            </div>
             {pipelineLoading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -241,6 +302,9 @@ export default function ReportsPage() {
           </TabsContent>
 
           <TabsContent value="finance" className="space-y-4">
+            <div className="flex justify-end">
+              <ExportButton reportType="collections" />
+            </div>
             {financeLoading ? (
               <div className="flex items-center justify-center h-32">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

@@ -1,7 +1,8 @@
-import { Clock } from "lucide-react";
+import { Clock, AlertTriangle, Flame } from "lucide-react";
+import { differenceInDays } from "date-fns";
 import type { Deal } from "~/api/deals";
 import { useCurrency } from "~/hooks/use-currency";
-import { Badge } from "../ui/badge";
+import { cn } from "~/lib/utils";
 
 interface KanbanHeaderProps {
   deals: Deal[];
@@ -14,41 +15,138 @@ interface KanbanHeaderProps {
   };
 }
 
+/**
+ * KanbanHeader — stage column header.
+ *
+ * Hierarchy (scan order):
+ *   1. 3px colored accent bar for instant stage recognition
+ *   2. Stage name + deal count
+ *   3. Large tabular stage total + weighted value pill
+ *   4. Metadata strip: win prob. · SLA · overdue count
+ *   5. Optional description
+ *
+ * The overdue count is the single most important signal for a
+ * manager — it shows at a glance which stages are draining reps'
+ * time without progress.
+ */
 export function KanbanHeader({ deals, stage }: KanbanHeaderProps) {
   const { formatCurrency } = useCurrency();
-  const totalValue =
-    deals?.reduce((sum, d) => sum + (Number(d.value) || 0), 0) ?? 0;
+
+  const count = deals?.length ?? 0;
+  const stageColor = stage.color || "oklch(0.55 0.2 262)";
+
+  let totalValue = 0;
+  let overdueCount = 0;
+  let hotCount = 0;
+
+  for (const d of deals ?? []) {
+    totalValue += Number(d.value) || 0;
+
+    if (stage.sla_days > 0 && d.currentStageSince) {
+      const days = differenceInDays(
+        new Date(),
+        new Date(d.currentStageSince),
+      );
+      if (days > stage.sla_days) overdueCount += 1;
+    }
+
+    if ((d as unknown as { temperature?: string }).temperature === "hot") {
+      hotCount += 1;
+    }
+  }
+
+  const weightedValue = Math.round((totalValue * stage.probability) / 100);
 
   return (
-    <div className="p-3 border-b space-y-4">
-      <div className="flex items-center gap-2">
-        <div
-          className="h-3 w-3 rounded-full shrink-0"
-          style={{ backgroundColor: stage.color || "#94a3b8" }}
-        />
-        <h3 className="text-sm font-semibold truncate">{stage.name}</h3>
-        <Badge variant="secondary" className="ml-auto text-xs text-muted-foreground shrink-0">
-          {deals?.length ?? 0}
-        </Badge>
-        <span>{stage.probability}%</span>
+    <div
+      className="relative px-3 pt-3 pb-2 border-b bg-background rounded-t-md"
+      style={{ ["--stage-color" as string]: stageColor }}
+    >
+      {/* top accent bar */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[3px] rounded-t-md"
+        style={{ backgroundColor: stageColor }}
+        aria-hidden="true"
+      />
+
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <h3
+          className="text-sm font-semibold tracking-tight truncate"
+          title={stage.name}
+        >
+          {stage.name}
+        </h3>
+        <span className="text-xs font-medium text-muted-foreground tabular shrink-0">
+          {count} {count === 1 ? "deal" : "deals"}
+        </span>
       </div>
-      <div className="flex items-center gap-2">
-        {totalValue > 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {formatCurrency(totalValue)}
-          </p>
-        ) : (
-          <p className="text-xs text-muted-foreground">{formatCurrency(0)}</p>
-        )}
-        <div className="ml-auto flex items-center gap-x-2">
-          <Clock className="h-3 w-3 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">
-            SLA: {stage.sla_days}d
-          </span>
+
+      <div className="flex items-baseline gap-1.5">
+        <div className="text-[15px] font-semibold text-foreground tabular leading-none">
+          {formatCurrency(totalValue)}
         </div>
+        {totalValue > 0 && stage.probability > 0 && stage.probability < 100 && (
+          <span
+            className="text-[10px] text-muted-foreground tabular"
+            title={`Weighted by ${stage.probability}% win probability`}
+          >
+            ≈ {formatCurrency(weightedValue)}
+          </span>
+        )}
       </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
+          <span
+            className="inline-block size-1.5 rounded-full"
+            style={{ backgroundColor: stageColor }}
+          />
+          {stage.probability}% win
+        </span>
+
+        {stage.sla_days > 0 && (
+          <span className="inline-flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            SLA {stage.sla_days}d
+          </span>
+        )}
+
+        {overdueCount > 0 && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-1.5 h-[18px]",
+              "bg-red-50 text-red-700 border border-red-200",
+              "dark:bg-red-950/30 dark:text-red-400 dark:border-red-900",
+            )}
+            title={`${overdueCount} deal${
+              overdueCount === 1 ? "" : "s"
+            } past SLA in this stage`}
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {overdueCount} overdue
+          </span>
+        )}
+
+        {hotCount > 0 && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-1.5 h-[18px]",
+              "bg-orange-50 text-orange-700 border border-orange-200",
+              "dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-900",
+            )}
+            title={`${hotCount} hot lead${hotCount === 1 ? "" : "s"}`}
+          >
+            <Flame className="h-3 w-3" />
+            {hotCount} hot
+          </span>
+        )}
+      </div>
+
       {stage.description && (
-        <p className="text-xs text-muted-foreground pl-5 truncate mt-0.5">
+        <p
+          className="mt-1.5 text-[11px] text-muted-foreground truncate"
+          title={stage.description}
+        >
           {stage.description}
         </p>
       )}

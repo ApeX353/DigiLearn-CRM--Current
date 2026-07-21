@@ -240,7 +240,11 @@ export function AddPaymentModal({
           payment_method: values.payment_method,
           method: values.payment_method,
           payment_date: values.payment_date.toISOString(),
-          reference_number: reference,
+          // The API's CreatePaymentDto whitelists `reference` only —
+          // sending `reference_number` made the global
+          // forbidNonWhitelisted pipe reject the WHOLE request with
+          // "property reference_number should not exist", so no
+          // payment could ever be recorded with a reference filled in.
           reference,
           notes: values.notes || undefined,
         },

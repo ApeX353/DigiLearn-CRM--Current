@@ -4,7 +4,9 @@ export { LeadsByStageWidget } from "./leads-by-stage-widget";
 export { SLAComplianceWidget } from "./sla-compliance-widget";
 export { LeadConversionWidget } from "./lead-conversion-widget";
 export { NurtureFollowUpsWidget } from "./nurture-follow-ups-widget";
-export { LeadsContactedWidget } from "./leads-contacted-widget";
+// LeadsContactedWidget retired — superseded by the Prospecting
+// Discipline block inside ActivityDisciplineSection, which uses
+// the stricter first-TIME-contact definition.
 export { CollectionsDueWidget } from "./collections-due-widget";
 export { SalesMetricsWidget } from "./sales-metrics-widget";
 export { DemoStatsWidget } from "./demo-stats-widget";
@@ -13,3 +15,4 @@ export { FunnelHealthWidget } from "./funnel-health-widget";
 export { TopPerformingProductsWidget } from "./top-performing-products-widget";
 export { SchoolsBoughtWidget } from "./schools-bought-widget";
 export { QualificationOverviewWidget } from "./qualification-overview-widget";
+export { ActivityDisciplineSection } from "./activity-discipline-section";

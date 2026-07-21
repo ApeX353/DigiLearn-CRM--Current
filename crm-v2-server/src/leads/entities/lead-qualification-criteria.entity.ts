@@ -36,7 +36,7 @@ export class LeadQualificationCriteria {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'lead_id', type: 'varchar', length: 36 })
+  @Column({ name: 'lead_id', type: 'uuid' })
   lead_id: string;
 
   @ManyToOne(() => Lead, { onDelete: 'CASCADE' })

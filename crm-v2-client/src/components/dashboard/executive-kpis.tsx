@@ -5,29 +5,42 @@ import {
   TrendingUp,
   Wallet,
   CheckCircle,
-  Target,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import type { ExecutiveKPIs as ExecutiveKPIsType } from "~/api/dashboard";
 import { cn } from "~/lib/utils";
+import { Progress } from "~/components/ui/progress";
 
 interface ExecutiveKPIsProps {
   data?: ExecutiveKPIsType;
   isLoading: boolean;
 }
 
+/**
+ * ExecutiveKPIs — redesigned to read like a manager's cockpit.
+ *
+ * Key upgrades:
+ *   - tabular number alignment for at-a-glance comparison across cards
+ *   - dedicated label-overline style for titles
+ *   - progress bar on the Cash Collected card (vs. monthly target)
+ *   - trend chip uses explicit up/down semantics and status color tokens
+ *   - consistent iconography using the semantic color tokens (success/info/primary/warning)
+ *     instead of raw tailwind palette classes — plays nicely with dark mode
+ */
 export function ExecutiveKPIs({ data, isLoading }: ExecutiveKPIsProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i}>
+          <Card key={i} className="overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-[100px]" />
-              <Skeleton className="h-4 w-4 rounded-full" />
+              <Skeleton className="h-3 w-[120px]" />
+              <Skeleton className="h-8 w-8 rounded-md" />
             </CardHeader>
             <CardContent>
-              <Skeleton className="h-8 w-[120px] mb-2" />
-              <Skeleton className="h-3 w-[80px]" />
+              <Skeleton className="h-7 w-[140px] mb-2" />
+              <Skeleton className="h-3 w-[90px]" />
             </CardContent>
           </Card>
         ))}
@@ -35,95 +48,157 @@ export function ExecutiveKPIs({ data, isLoading }: ExecutiveKPIsProps) {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+          Executive metrics are not available for the selected filters.
+        </CardContent>
+      </Card>
+    );
+  }
 
-  // Calculate progress toward monthly target
   const targetProgress =
     data.monthlyTarget > 0
-      ? (data.cashCollected / data.monthlyTarget) * 100
+      ? Math.min((data.cashCollected / data.monthlyTarget) * 100, 100)
       : 0;
 
-  // Calculate qualification rate
   const qualificationRate =
     data.qualification.totalLeads > 0
       ? (data.qualification.qualifiedLeads / data.qualification.totalLeads) * 100
       : 0;
 
+  const nf = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
   const kpiCards = [
     {
       title: "Cash Collected",
-      value: `$${data.cashCollected.toLocaleString()}`,
-      subtitle: `Target: $${data.monthlyTarget.toLocaleString()}`,
-      percentage: targetProgress,
+      value: nf(data.cashCollected),
+      subtitle: `Target ${nf(data.monthlyTarget)}`,
+      trend: {
+        value: targetProgress,
+        label: `${targetProgress.toFixed(0)}% of target`,
+        positive: true,
+      },
+      progress: targetProgress,
       icon: DollarSign,
-      iconColor: "text-green-600",
-      bgColor: "bg-green-100 dark:bg-green-950",
+      tone: "success" as const,
     },
     {
       title: "Principal Sold",
-      value: `$${data.principalSold.toLocaleString()}`,
-      subtitle: `Overdue: $${data.overdueAmount.toLocaleString()}`,
-      percentage: data.overdueAmount > 0 ? -10 : 0, // Negative indicator if overdue exists
+      value: nf(data.principalSold),
+      subtitle:
+        data.overdueAmount > 0
+          ? `Overdue ${nf(data.overdueAmount)}`
+          : "No overdue",
+      trend:
+        data.overdueAmount > 0
+          ? {
+              value: -10,
+              label: "Overdue exposure",
+              positive: false,
+            }
+          : null,
       icon: Wallet,
-      iconColor: "text-blue-600",
-      bgColor: "bg-blue-100 dark:bg-blue-950",
+      tone: "info" as const,
     },
     {
       title: "Pipeline Value",
-      value: `$${data.pipelineValue.toLocaleString()}`,
-      subtitle: `Coverage: ${data.pipelineCoverageRatio.toFixed(1)}x`,
-      percentage: data.pipelineCoverageRatio * 10, // Show as percentage-like indicator
+      value: nf(data.pipelineValue),
+      subtitle: `Coverage ${data.pipelineCoverageRatio.toFixed(1)}×`,
+      trend: {
+        value: data.pipelineCoverageRatio,
+        label: `${data.pipelineCoverageRatio.toFixed(1)}× coverage`,
+        positive: data.pipelineCoverageRatio >= 3,
+      },
       icon: TrendingUp,
-      iconColor: "text-purple-600",
-      bgColor: "bg-purple-100 dark:bg-purple-950",
+      tone: "primary" as const,
     },
     {
       title: "Lead Qualification",
       value: `${data.qualification.qualifiedLeads} / ${data.qualification.totalLeads}`,
-      subtitle: `Avg Score: ${data.qualification.averageScore.toFixed(1)}%`,
-      percentage: qualificationRate,
+      subtitle: `Avg score ${data.qualification.averageScore.toFixed(1)}%`,
+      trend: {
+        value: qualificationRate,
+        label: `${qualificationRate.toFixed(0)}% qualified`,
+        positive: qualificationRate >= 40,
+      },
       icon: CheckCircle,
-      iconColor: "text-orange-600",
-      bgColor: "bg-orange-100 dark:bg-orange-950",
+      tone: "warning" as const,
     },
   ];
 
+  const toneClasses: Record<string, { bg: string; text: string }> = {
+    success: {
+      bg: "bg-[oklch(0.64_0.17_150_/_0.12)]",
+      text: "text-[oklch(0.5_0.16_150)] dark:text-[oklch(0.72_0.17_150)]",
+    },
+    info: {
+      bg: "bg-[oklch(0.62_0.15_230_/_0.12)]",
+      text: "text-[oklch(0.5_0.15_230)] dark:text-[oklch(0.72_0.15_230)]",
+    },
+    primary: {
+      bg: "bg-primary/10",
+      text: "text-primary",
+    },
+    warning: {
+      bg: "bg-[oklch(0.78_0.15_67_/_0.15)]",
+      text: "text-[oklch(0.55_0.15_60)] dark:text-[oklch(0.82_0.15_67)]",
+    },
+  };
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
       {kpiCards.map((kpi, index) => {
         const Icon = kpi.icon;
-        const isPositive = kpi.percentage >= 0;
-
+        const tone = toneClasses[kpi.tone];
+        const TrendIcon =
+          kpi.trend?.positive === false ? ArrowDownRight : ArrowUpRight;
         return (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {kpi.title}
-              </CardTitle>
-              <div className={cn("p-2 rounded-full", kpi.bgColor)}>
-                <Icon className={cn("h-4 w-4", kpi.iconColor)} />
+          <Card
+            key={index}
+            className="hover-lift overflow-hidden"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="label-overline">{kpi.title}</CardTitle>
+              <div
+                className={cn(
+                  "flex size-9 items-center justify-center rounded-md",
+                  tone.bg,
+                )}
+              >
+                <Icon className={cn("h-4 w-4", tone.text)} />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
-              <div className="flex items-center gap-2 mt-2">
-                {kpi.percentage !== 0 && (
+            <CardContent className="pt-2">
+              <div className="text-[22px] font-semibold tabular leading-tight">
+                {kpi.value}
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground truncate">
+                  {kpi.subtitle}
+                </p>
+                {kpi.trend && (
                   <div
                     className={cn(
-                      "flex items-center text-xs font-medium",
-                      isPositive ? "text-green-600" : "text-red-600"
+                      "flex items-center gap-0.5 text-[11px] font-medium tabular shrink-0",
+                      kpi.trend.positive
+                        ? "text-[oklch(0.5_0.16_150)] dark:text-[oklch(0.72_0.17_150)]"
+                        : "text-destructive",
                     )}
                   >
-                    {isPositive ? (
-                      <Target className="h-3 w-3 mr-1" />
-                    ) : (
-                      <Target className="h-3 w-3 mr-1" />
-                    )}
-                    {Math.abs(kpi.percentage).toFixed(1)}%
+                    <TrendIcon className="h-3 w-3" />
+                    {kpi.trend.label}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>
               </div>
+              {typeof kpi.progress === "number" && (
+                <Progress
+                  value={kpi.progress}
+                  className="mt-3 h-1.5"
+                  aria-label={`${kpi.title} progress`}
+                />
+              )}
             </CardContent>
           </Card>
         );

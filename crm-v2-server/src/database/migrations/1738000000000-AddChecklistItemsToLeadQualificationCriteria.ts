@@ -13,15 +13,14 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
           columns: [
             {
               name: 'id',
-              type: 'varchar',
-              length: '36',
+              type: 'uuid',
               isPrimary: true,
+              isGenerated: true,
               generationStrategy: 'uuid',
             },
             {
               name: 'lead_id',
-              type: 'varchar',
-              length: '36',
+              type: 'uuid',
             },
             // BANT - Budget fields
             {
@@ -44,9 +43,8 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
             },
             {
               name: 'budget_confirmed',
-              type: 'tinyint',
-              width: 1,
-              default: 0,
+              type: 'boolean',
+              default: false,
             },
             // BANT - Authority fields
             {
@@ -68,9 +66,8 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
             },
             {
               name: 'authority_confirmed',
-              type: 'tinyint',
-              width: 1,
-              default: 0,
+              type: 'boolean',
+              default: false,
             },
             // BANT - Need fields
             {
@@ -90,9 +87,8 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
             },
             {
               name: 'needs_confirmed',
-              type: 'tinyint',
-              width: 1,
-              default: 0,
+              type: 'boolean',
+              default: false,
             },
             // BANT - Timeline fields
             {
@@ -112,23 +108,21 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
             },
             {
               name: 'timeline_confirmed',
-              type: 'tinyint',
-              width: 1,
-              default: 0,
+              type: 'boolean',
+              default: false,
             },
             // Checklist items (JSON)
             {
               name: 'checklist_items',
-              type: 'json',
+              type: 'jsonb',
               isNullable: true,
               comment: 'Flexible checklist for tracking qualification steps',
             },
             // Overall qualification
             {
               name: 'is_qualified',
-              type: 'tinyint',
-              width: 1,
-              default: 0,
+              type: 'boolean',
+              default: false,
             },
             {
               name: 'qualification_score',
@@ -137,26 +131,24 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
             },
             {
               name: 'qualified_by',
-              type: 'varchar',
-              length: '36',
+              type: 'uuid',
               isNullable: true,
             },
             {
               name: 'qualified_at',
-              type: 'datetime',
+              type: 'timestamp',
               isNullable: true,
             },
             // Timestamps
             {
               name: 'created_at',
-              type: 'datetime',
+              type: 'timestamp',
               default: 'CURRENT_TIMESTAMP',
             },
             {
               name: 'updated_at',
-              type: 'datetime',
+              type: 'timestamp',
               default: 'CURRENT_TIMESTAMP',
-              onUpdate: 'CURRENT_TIMESTAMP',
             },
           ],
         }),
@@ -205,7 +197,7 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
           'lead_qualification_criteria',
           new TableColumn({
             name: 'checklist_items',
-            type: 'json',
+            type: 'jsonb',
             isNullable: true,
             comment: 'Flexible checklist for tracking qualification steps',
           }),
@@ -213,36 +205,19 @@ export class AddChecklistItemsToLeadQualificationCriteria1738000000000 implement
       }
     }
 
-    // Create index on checklist_items for JSON queries (MySQL 8.0+)
-    // This allows for efficient queries on JSON fields
-    const hasJsonIndex = await queryRunner.query(
-      `SELECT COUNT(*) as count FROM information_schema.statistics
-       WHERE table_schema = DATABASE()
-       AND table_name = 'lead_qualification_criteria'
-       AND index_name = 'IDX_checklist_items_category'`,
-    );
-
-    if (hasJsonIndex[0].count === 0) {
-      // Create a virtual column and index for efficient querying by category
-      await queryRunner.query(`
-        ALTER TABLE lead_qualification_criteria
-        ADD COLUMN checklist_category_index VARCHAR(100)
-        GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(checklist_items, '$[0].category'))) VIRTUAL,
-        ADD INDEX IDX_checklist_items_category (checklist_category_index)
-      `);
-    }
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_checklist_items_category"
+      ON "lead_qualification_criteria" (((checklist_items -> 0) ->> 'category'))
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     const tableExists = await queryRunner.hasTable('lead_qualification_criteria');
 
     if (tableExists) {
-      // Drop the virtual column and its index first
-      await queryRunner.query(`
-        ALTER TABLE lead_qualification_criteria
-        DROP INDEX IF EXISTS IDX_checklist_items_category,
-        DROP COLUMN IF EXISTS checklist_category_index
-      `);
+      await queryRunner.query(
+        'DROP INDEX IF EXISTS "IDX_checklist_items_category"',
+      );
 
       // Drop the checklist_items column
       const hasChecklistItemsColumn = await queryRunner.hasColumn(

@@ -7,7 +7,8 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { ActivityType, ActivityStatus } from '../entities/activity.entity';
 
 export class QueryActivityDto {
@@ -56,6 +57,14 @@ export class QueryActivityDto {
   @IsUUID()
   assigned_to_id?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Indirect filter: matches activities whose lead is owned by this school. Implemented as a join on lead.school_id, so the request still hits a single index-friendly query.',
+  })
+  @IsOptional()
+  @IsUUID()
+  school_id?: string;
+
   @ApiPropertyOptional({ description: 'Filter activities from this date' })
   @IsOptional()
   @IsDateString()
@@ -66,15 +75,43 @@ export class QueryActivityDto {
   @IsDateString()
   end_date?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Filter activities whose due_at (or scheduled_at when due_at is null) is on or after this ISO date. Used by the Activities page date-context tabs.',
+  })
+  @IsOptional()
+  @IsDateString()
+  due_from?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Filter activities whose due_at (or scheduled_at when due_at is null) is on or before this ISO date.',
+  })
+  @IsOptional()
+  @IsDateString()
+  due_to?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Convenience filter: only "open" activities (status NOT IN completed/cancelled). Defaults to false.',
+  })
+  @IsOptional()
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
+  @IsBoolean()
+  open_only?: boolean;
+
   @ApiPropertyOptional({ description: 'Filter by isPinned' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   is_pinned?: boolean;
 
   @ApiPropertyOptional({ description: 'Include type-specific details' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_details?: boolean;
 }

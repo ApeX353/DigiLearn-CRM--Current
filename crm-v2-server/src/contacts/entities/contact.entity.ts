@@ -11,6 +11,10 @@ import {
 } from 'typeorm';
 import { School } from '../../schools/entities/schools.entity';
 import { CONTACT_ROLES, type ContactRole } from '../constants/contact-roles';
+import {
+  STAKEHOLDER_TYPES,
+  type StakeholderType,
+} from '../constants/stakeholder-types';
 import { PreferredContactMethod } from '../constants/preferred-contact-method';
 import { Activity } from '../../activities/entities/activity.entity';
 
@@ -23,7 +27,7 @@ export class Contact {
   @JoinColumn({ name: 'school_id' })
   school: School;
 
-  @Column({ name: 'school_id', type: 'varchar', length: 36 })
+  @Column({ name: 'school_id', type: 'uuid' })
   school_id: string;
 
   @Column({ type: 'varchar', length: 100 })
@@ -34,6 +38,30 @@ export class Contact {
 
   @Column({ type: 'enum', enum: CONTACT_ROLES, nullable: true })
   role: ContactRole | null;
+
+  /**
+   * Relationship category — see `stakeholder-types.ts`. Nullable so
+   * legacy rows keep working; new records should populate it.
+   * Non-school stakeholders (government, partners, donors) still live
+   * in this table keyed off the nearest related school for locality;
+   * `organization_name` captures the real org name when the school
+   * is not the stakeholder's actual employer.
+   */
+  @Column({ type: 'enum', enum: STAKEHOLDER_TYPES, nullable: true })
+  stakeholder_type: StakeholderType | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  organization_name: string | null;
+
+  /**
+   * `true` for people who are, or are linked to, a real sales lead
+   * (the historical shape of this table). `false` for pure
+   * relationship-maintenance stakeholders — they still receive
+   * activities, but they never enter the pipeline and should not
+   * appear in the Leads list.
+   */
+  @Column({ type: 'boolean', default: true, name: 'is_sales_lead' })
+  is_sales_lead: boolean;
 
   @Column({ default: false })
   is_primary: boolean;

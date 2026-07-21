@@ -11,10 +11,13 @@ import {
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
 import {
+  CalendarDays,
   ChevronsUpDown,
   LogIn,
   LogOut,
+  Mail,
   User,
+  Video,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 
@@ -78,6 +81,19 @@ export const UserButton = ({ showLogin = false }: { showLogin?: boolean }) => {
           </DropdownMenuGroup>
           <DropdownMenuItem onClick={() => navigate("/profile")}>
             <User className="h-4 w-4 mr-2" /> Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/profile/email-accounts")}>
+            <Mail className="h-4 w-4 mr-2" /> Email accounts
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => navigate("/profile/calendar-connections")}
+          >
+            <CalendarDays className="h-4 w-4 mr-2" /> Calendar sync
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => navigate("/profile/video-connections")}
+          >
+            <Video className="h-4 w-4 mr-2" /> Video conferencing
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />

@@ -17,9 +17,9 @@ export enum TaskPriority {
 }
 
 @Entity('tasks')
-@Index('idx_activity', ['activity_id'])
-@Index('idx_status', ['status'])
-@Index('idx_priority', ['priority'])
+@Index('idx_tasks_activity', ['activity_id'])
+@Index('idx_tasks_status', ['status'])
+@Index('idx_tasks_priority', ['priority'])
 export class Task {
   @PrimaryGeneratedColumn('uuid')
   id: string;

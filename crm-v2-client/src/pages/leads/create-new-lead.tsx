@@ -56,6 +56,8 @@ import { cn } from "~/lib/utils";
 import { StaffCombobox } from "~/components/staff-combobox";
 import { useAuthStore } from "~/stores/use-auth-store";
 import { useRbacStore } from "~/stores/use-rbac-store";
+import { useCampaigns } from "~/api/campaigns";
+import { DuplicateWarningBanner } from "~/components/duplicates/duplicate-warning-banner";
 
 export default function CreateNewLeadPage() {
   const navigate = useNavigate();
@@ -63,6 +65,8 @@ export default function CreateNewLeadPage() {
   const [schoolSearchTerm, setSchoolSearchTerm] = useState("");
   const [hydratedSchoolId, setHydratedSchoolId] = useState<string | null>(null);
   const createLead = useCreateLead();
+  const { data: campaignsData } = useCampaigns();
+  const campaigns = campaignsData ?? [];
   const currentUser = useAuthStore((state) => state.user);
   const ability = useRbacStore((state) => state.ability);
   const isSalesRep = currentUser?.roles?.includes("sales_rep") ?? false;
@@ -220,6 +224,10 @@ export default function CreateNewLeadPage() {
       <PageHeader hasBackButton title="Create New Lead" />
       <Container className="p-4 max-w-4xl mx-auto">
         {/* <pre>{JSON.stringify(form.formState.errors, null, 2)}</pre> */}
+        {/* Phase 8 — peek for duplicates as the rep types. The
+            banner renders nothing until a candidate is found, so the
+            page stays empty when nothing looks suspicious. */}
+        <DuplicateBannerBridge form={form} className="mb-4" />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Lead Information Card */}
@@ -279,6 +287,42 @@ export default function CreateNewLeadPage() {
                       </FormItem>
                     )}
                   />
+
+                  {campaigns.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="lead.source_campaign_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Source campaign</FormLabel>
+                          <Select
+                            onValueChange={(v) =>
+                              field.onChange(v === "none" ? undefined : v)
+                            }
+                            value={field.value ?? "none"}
+                          >
+                            <FormControl>
+                              <SelectTrigger
+                                className="w-full"
+                                data-testid="lead-source-campaign"
+                              >
+                                <SelectValue placeholder="No campaign" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">No campaign</SelectItem>
+                              {campaigns.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <FormField
                     control={form.control}
@@ -930,5 +974,36 @@ export default function CreateNewLeadPage() {
         </Form>
       </Container>
     </div>
+  );
+}
+
+/**
+ * Thin wrapper that subscribes to the live form values relevant to
+ * duplicate detection and pipes them into the banner. Kept at the
+ * bottom of the file so the main component stays readable.
+ */
+function DuplicateBannerBridge({
+  form,
+  className,
+}: {
+  form: ReturnType<typeof useForm<AddLeadValues>>;
+  className?: string;
+}) {
+  const leadName = form.watch("lead.name");
+  const schoolId = form.watch("lead.school_id");
+  const primaryContact = form.watch("contacts.0");
+  const phone = primaryContact?.phone;
+  const email = primaryContact?.email;
+  return (
+    <DuplicateWarningBanner
+      kind="lead"
+      className={className}
+      value={{
+        lead_name: leadName,
+        school_id: schoolId ?? null,
+        phone: phone ?? null,
+        email: email ?? null,
+      }}
+    />
   );
 }

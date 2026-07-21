@@ -13,21 +13,21 @@ import { User } from '../../users/entities/user.entity';
 @Index(['dealId'])
 @Index(['movedBy'])
 export class DealStageHistory {
-  @PrimaryColumn('varchar', { length: 36 })
+  @PrimaryColumn('uuid')
   id: string;
 
   /* ========================
      RELATIONS
   ======================== */
 
-  @Column({ name: 'deal_id', type: 'varchar', length: 36 })
+  @Column({ name: 'deal_id', type: 'uuid' })
   dealId: string;
 
   @ManyToOne(() => Deal, deal => deal.stageHistory, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'deal_id' })
   deal: Deal;
 
-  @Column({ name: 'moved_by', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'moved_by', type: 'uuid', nullable: true })
   movedBy: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

@@ -1,13 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 
+const mockProvider = () => ({});
+
 describe('AuthController', () => {
   let controller: AuthController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-    }).compile();
+    })
+      .useMocker(mockProvider)
+      .compile();
 
     controller = module.get<AuthController>(AuthController);
   });

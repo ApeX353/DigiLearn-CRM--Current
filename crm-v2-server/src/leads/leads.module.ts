@@ -19,6 +19,16 @@ import { School } from '../schools/entities/schools.entity';
 import { Contact } from '../contacts/entities/contact.entity';
 import { User } from '../users/entities/user.entity';
 import { LeadReversalRequest } from './entities/lead-reversal-request.entity';
+import { EmailSequencesModule } from '../email-sequences/email-sequences.module';
+import { LeadTemperatureService } from './services/lead-temperature.service';
+import { Activity } from '../activities/entities/activity.entity';
+import { LeadEscalation } from './entities/lead-escalation.entity';
+import { LeadEscalationService } from './services/lead-escalation.service';
+import { LeadEscalationsController } from './lead-escalations.controller';
+import { DuplicateSuspicion } from './entities/duplicate-suspicion.entity';
+import { DuplicateDetectionService } from './services/duplicate-detection.service';
+import { DuplicatesController } from './duplicates.controller';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -29,25 +39,42 @@ import { LeadReversalRequest } from './entities/lead-reversal-request.entity';
       LeadStakeholder,
       LeadReversalRequest,
       LeadQualificationCriteria,
+      LeadEscalation,
+      DuplicateSuspicion,
       School,
       Contact,
       User,
+      Activity,
     ]),
     forwardRef(() => AuthModule),
     ActivityLogsModule,
+    forwardRef(() => EmailSequencesModule),
+    SettingsModule,
   ],
   controllers: [
     LeadsController,
     LeadReversalRequestsController,
     LeadSLAController,
     LeadQualificationController,
+    LeadEscalationsController,
+    DuplicatesController,
   ],
   providers: [
     LeadsService,
     LeadSLAService,
     LeadQualificationService,
     CanAccessLeadGuard,
+    LeadTemperatureService,
+    LeadEscalationService,
+    DuplicateDetectionService,
   ],
-  exports: [LeadsService, LeadSLAService, LeadQualificationService],
+  exports: [
+    LeadsService,
+    LeadSLAService,
+    LeadQualificationService,
+    LeadTemperatureService,
+    LeadEscalationService,
+    DuplicateDetectionService,
+  ],
 })
 export class LeadsModule {}

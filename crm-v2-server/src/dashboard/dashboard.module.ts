@@ -12,6 +12,11 @@ import { LeadQualificationCriteria } from '../leads/entities/lead-qualification-
 import { User } from '../users/entities/user.entity';
 import { DocumentItem } from '../document-items/entities/document-item.entity';
 import { SettingsModule } from '../settings/settings.module';
+import { DealStageHistory } from '../deals/entities/deal-stage-history.entity';
+import { DisciplineMetricsService } from './discipline-metrics.service';
+import { ActivityDisciplineService } from './activity-discipline.service';
+import { ComplianceReportService } from './compliance-report.service';
+import { LeadReversalRequest } from '../leads/entities/lead-reversal-request.entity';
 
 @Module({
   imports: [
@@ -26,9 +31,22 @@ import { SettingsModule } from '../settings/settings.module';
       LeadQualificationCriteria,
       User,
       DocumentItem,
+      DealStageHistory,
+      LeadReversalRequest,
     ]),
   ],
   controllers: [DashboardController],
-  providers: [DashboardService],
+  providers: [
+    DashboardService,
+    DisciplineMetricsService,
+    ActivityDisciplineService,
+    ComplianceReportService,
+  ],
+  exports: [
+    DashboardService,
+    DisciplineMetricsService,
+    ActivityDisciplineService,
+    ComplianceReportService,
+  ],
 })
 export class DashboardModule {}

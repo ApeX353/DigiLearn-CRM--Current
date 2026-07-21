@@ -6,9 +6,9 @@ import { Entity, Index, PrimaryGeneratedColumn, Column, CreateDateColumn, Update
 import { Activity } from "./activity.entity";
 
 @Entity('emails')
-@Index('idx_activity', ['activity_id'])
-@Index('idx_thread', ['thread_id'])
-@Index('idx_message_id', ['message_id'])
+@Index('idx_emails_activity', ['activity_id'])
+@Index('idx_emails_thread', ['thread_id'])
+@Index('idx_emails_message_id', ['message_id'])
 export class Email {
   @PrimaryGeneratedColumn('uuid')
   id: string;

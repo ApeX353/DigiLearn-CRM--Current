@@ -1,125 +1,168 @@
-@import url("https://fonts.googleapis.com/css2?family=Alan+Sans:wght@300..900&family=Geist:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Alan+Sans:wght@300..900&family=Geist:wght@100..900&display=swap");
 @import "tw-animate-css";
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * ======================================================================
+ *  CRM DESIGN TOKENS — Pipedrive-inspired, sales-first
+ *  Updated for the UX redesign pass. Palette favors a clean emerald
+ *  accent paired with an indigo brand, stronger neutral contrast, and
+ *  dedicated status/stage tokens for pipeline visibility.
+ * ======================================================================
+ */
+
 :root {
-  --background: oklch(100% 0.00011 271.152);
-  --foreground: oklch(0.3211 0 0);
+  /* Surfaces */
+  --background: oklch(0.9856 0.002 247);
+  --foreground: oklch(0.2137 0.013 264);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.3211 0 0);
+  --card-foreground: oklch(0.2137 0.013 264);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.3211 0 0);
-  --primary: oklch(0.5459 0.2154 262.7465);
+  --popover-foreground: oklch(0.2137 0.013 264);
+
+  /* Brand — refined indigo (primary action) */
+  --primary: oklch(0.5262 0.195 262);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.9904 0.0045 258.3243);
-  --secondary-foreground: oklch(0.2686 0 0);
-  --muted: oklch(0.9846 0.0017 247.8389);
-  --muted-foreground: oklch(0.551 0.0234 264.3637);
-  --accent: oklch(0.9099 0.0433 262.416);
-  --accent-foreground: oklch(0.272 0.1089 262.8979);
-  --destructive: oklch(0.6368 0.2078 25.3313);
+
+  /* Secondary / muted */
+  --secondary: oklch(0.9725 0.006 247);
+  --secondary-foreground: oklch(0.2745 0.014 264);
+  --muted: oklch(0.9686 0.005 247);
+  --muted-foreground: oklch(0.5373 0.02 257);
+
+  /* Accent — soft indigo highlight */
+  --accent: oklch(0.9556 0.031 262);
+  --accent-foreground: oklch(0.3372 0.13 263);
+
+  /* Status */
+  --destructive: oklch(0.6068 0.208 25);
   --destructive-foreground: oklch(1 0 0);
-  --warning: oklch(78.259% 0.14023 72.027);
-  --warning-foreground: oklch(97.611% 0.01399 74.303);
-  --border: oklch(0.93 0.0035 247.8602);
-  --input: oklch(0.9535 0.0219 263.1922);
-  --ring: oklch(0.5459 0.2154 262.7465);
-  --chart-1: oklch(0.6368 0.1719 262.5635);
-  --chart-2: oklch(0.5459 0.2154 262.7465);
-  --chart-3: oklch(0.4354 0.1724 262.8668);
-  --chart-4: oklch(0.3277 0.1282 262.4777);
-  --chart-5: oklch(0.272 0.1089 262.8979);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.3211 0 0);
-  --sidebar-primary: oklch(0.5459 0.2154 262.7465);
+  --warning: oklch(0.7843 0.152 67);
+  --warning-foreground: oklch(0.3529 0.06 60);
+  --success: oklch(0.6392 0.165 150);
+  --success-foreground: oklch(1 0 0);
+  --info: oklch(0.6235 0.148 230);
+  --info-foreground: oklch(1 0 0);
+
+  /* Controls */
+  --border: oklch(0.9176 0.006 247);
+  --border-strong: oklch(0.8667 0.008 247);
+  --input: oklch(0.9529 0.008 247);
+  --ring: oklch(0.5262 0.195 262);
+
+  /* Chart palette — complementary sales-dashboard friendly scale */
+  --chart-1: oklch(0.5262 0.195 262);
+  --chart-2: oklch(0.6392 0.165 150);
+  --chart-3: oklch(0.7843 0.152 67);
+  --chart-4: oklch(0.6235 0.148 230);
+  --chart-5: oklch(0.5804 0.18 310);
+
+  /* Sidebar — soft off-white with indigo active state */
+  --sidebar: oklch(0.9882 0.002 247);
+  --sidebar-foreground: oklch(0.3294 0.013 264);
+  --sidebar-primary: oklch(0.5262 0.195 262);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.9099 0.0433 262.416);
-  --sidebar-accent-foreground: oklch(0.272 0.1089 262.8979);
-  --sidebar-border: oklch(0.9276 0.0058 264.5313);
-  --sidebar-ring: oklch(0.5459 0.2154 262.7465);
-  --font-sans: Alan Sans, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: Source Serif 4, serif;
-  --font-mono: JetBrains Mono, monospace;
-  --radius: 0.5rem;
-  --shadow-x: 0;
-  --shadow-y: 0px;
-  --shadow-blur: 0px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.1;
-  --shadow-color: oklch(0 0 0);
-  --shadow-2xs: 0 0px 0px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 0px 0px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --sidebar-accent: oklch(0.9556 0.031 262);
+  --sidebar-accent-foreground: oklch(0.3372 0.13 263);
+  --sidebar-border: oklch(0.9176 0.006 247);
+  --sidebar-ring: oklch(0.5262 0.195 262);
+
+  /* Typography — Inter as primary UI font */
+  --font-sans: Inter, "Alan Sans", ui-sans-serif, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif, system-ui;
+  --font-serif: "Source Serif 4", serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  /* Radius */
+  --radius: 0.625rem;
+
+  /* Shadows — refined CRM-grade elevation */
+  --shadow-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.04);
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.06), 0 1px 3px 0 oklch(0 0 0 / 0.06);
+  --shadow:
+    0 1px 3px 0 oklch(0 0 0 / 0.07), 0 2px 6px -1px oklch(0 0 0 / 0.05);
   --shadow-md:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+    0 2px 4px -1px oklch(0 0 0 / 0.06), 0 4px 8px -2px oklch(0 0 0 / 0.08);
   --shadow-lg:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+    0 4px 6px -2px oklch(0 0 0 / 0.05), 0 10px 15px -3px oklch(0 0 0 / 0.1);
   --shadow-xl:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0 0px 0px 0px hsl(0 0% 0% / 0.25);
-  --tracking-normal: 0em;
+    0 8px 10px -4px oklch(0 0 0 / 0.06), 0 20px 25px -5px oklch(0 0 0 / 0.12);
+  --shadow-2xl: 0 25px 50px -12px oklch(0 0 0 / 0.25);
+
+  --tracking-normal: -0.006em;
   --spacing: 0.25rem;
+
+  /* ==== Pipeline stage palette (OKLCh) ==== */
+  --stage-new: oklch(0.7 0.04 237);
+  --stage-contacted: oklch(0.65 0.14 240);
+  --stage-qualified: oklch(0.6 0.16 262);
+  --stage-demo: oklch(0.65 0.17 294);
+  --stage-proposal: oklch(0.7 0.16 76);
+  --stage-negotiation: oklch(0.68 0.16 40);
+  --stage-won: oklch(0.65 0.17 150);
+  --stage-lost: oklch(0.62 0.19 25);
 }
 
 .dark {
-  --background: oklch(0.2046 0 0);
-  --foreground: oklch(0.9219 0 0);
-  --card: oklch(0.2686 0 0);
-  --card-foreground: oklch(0.9219 0 0);
-  --popover: oklch(0.2686 0 0);
-  --popover-foreground: oklch(0.9219 0 0);
-  --primary: oklch(0.5459 0.2154 262.7465);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.2686 0 0);
-  --secondary-foreground: oklch(0.9219 0 0);
-  --muted: oklch(0.2393 0 0);
-  --muted-foreground: oklch(0.7155 0 0);
-  --accent: oklch(0.273 0.0056 156.8387);
-  --accent-foreground: oklch(0.9099 0.0433 262.416);
-  --destructive: oklch(0.6368 0.2078 25.3313);
+  --background: oklch(0.1882 0.013 264);
+  --foreground: oklch(0.9373 0.005 247);
+  --card: oklch(0.2471 0.013 264);
+  --card-foreground: oklch(0.9373 0.005 247);
+  --popover: oklch(0.2471 0.013 264);
+  --popover-foreground: oklch(0.9373 0.005 247);
+
+  --primary: oklch(0.6196 0.195 262);
+  --primary-foreground: oklch(0.14 0.02 264);
+
+  --secondary: oklch(0.2824 0.013 264);
+  --secondary-foreground: oklch(0.9373 0.005 247);
+  --muted: oklch(0.2627 0.013 264);
+  --muted-foreground: oklch(0.7098 0.015 257);
+  --accent: oklch(0.3 0.08 262);
+  --accent-foreground: oklch(0.8706 0.05 262);
+
+  --destructive: oklch(0.6784 0.208 25);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.3715 0 0);
-  --input: oklch(0.3715 0 0);
-  --ring: oklch(0.5459 0.2154 262.7465);
-  --chart-1: oklch(0.6368 0.1719 262.5635);
-  --chart-2: oklch(0.5459 0.2154 262.7465);
-  --chart-3: oklch(0.5459 0.2154 262.7465);
-  --chart-4: oklch(0.3277 0.1282 262.4777);
-  --chart-5: oklch(0.272 0.1089 262.8979);
-  --sidebar: oklch(0.2046 0 0);
-  --sidebar-foreground: oklch(0.9219 0 0);
-  --sidebar-primary: oklch(0.5459 0.2154 262.7465);
+  --warning: oklch(0.8 0.152 67);
+  --warning-foreground: oklch(0.22 0.04 60);
+  --success: oklch(0.6824 0.165 150);
+  --success-foreground: oklch(0.14 0.03 150);
+  --info: oklch(0.6745 0.148 230);
+  --info-foreground: oklch(0.14 0.03 230);
+
+  --border: oklch(0.3216 0.014 264);
+  --border-strong: oklch(0.3843 0.015 264);
+  --input: oklch(0.3216 0.014 264);
+  --ring: oklch(0.6196 0.195 262);
+
+  --chart-1: oklch(0.6196 0.195 262);
+  --chart-2: oklch(0.6824 0.165 150);
+  --chart-3: oklch(0.8 0.152 67);
+  --chart-4: oklch(0.6745 0.148 230);
+  --chart-5: oklch(0.6353 0.18 310);
+
+  --sidebar: oklch(0.1725 0.013 264);
+  --sidebar-foreground: oklch(0.9373 0.005 247);
+  --sidebar-primary: oklch(0.6196 0.195 262);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.272 0.1089 262.8979);
-  --sidebar-accent-foreground: oklch(0.9099 0.0433 262.416);
-  --sidebar-border: oklch(0.3715 0 0);
-  --sidebar-ring: oklch(0.5459 0.2154 262.7465);
-  --font-sans: Alan Sans, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: Source Serif 4, serif;
-  --font-mono: JetBrains Mono, monospace;
-  --radius: 1.5rem;
-  --shadow-x: 0;
-  --shadow-y: 0px;
-  --shadow-blur: 0px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.1;
-  --shadow-color: oklch(0 0 0);
-  --shadow-2xs: 0 0px 0px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 0px 0px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl:
-    0 0px 0px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0 0px 0px 0px hsl(0 0% 0% / 0.25);
+  --sidebar-accent: oklch(0.3 0.08 262);
+  --sidebar-accent-foreground: oklch(0.8706 0.05 262);
+  --sidebar-border: oklch(0.3216 0.014 264);
+  --sidebar-ring: oklch(0.6196 0.195 262);
+
+  --radius: 0.625rem;
+
+  --stage-new: oklch(0.68 0.04 237);
+  --stage-contacted: oklch(0.68 0.14 240);
+  --stage-qualified: oklch(0.65 0.16 262);
+  --stage-demo: oklch(0.7 0.17 294);
+  --stage-proposal: oklch(0.75 0.16 76);
+  --stage-negotiation: oklch(0.72 0.16 40);
+  --stage-won: oklch(0.7 0.17 150);
+  --stage-lost: oklch(0.67 0.19 25);
 }
 
 @theme inline {
@@ -141,7 +184,12 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
@@ -157,6 +205,15 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-stage-new: var(--stage-new);
+  --color-stage-contacted: var(--stage-contacted);
+  --color-stage-qualified: var(--stage-qualified);
+  --color-stage-demo: var(--stage-demo);
+  --color-stage-proposal: var(--stage-proposal);
+  --color-stage-negotiation: var(--stage-negotiation);
+  --color-stage-won: var(--stage-won);
+  --color-stage-lost: var(--stage-lost);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -181,35 +238,119 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /*
+     * CRM density token — 14px root is ~87.5% of the browser default
+     * (16px). Every Tailwind size token (text-sm, text-base, text-lg…)
+     * and every spacing token (p-4, gap-3, h-9…) is rem-based, so a
+     * single change here shrinks typography AND padding in lockstep —
+     * ~7% tighter than the previous 15px root and ~12.5% tighter than
+     * browser default. Keeps hierarchy intact (headings still scale
+     * relatively) but gives every surface more operational density:
+     * left summary panes fit more labels, tables show more rows,
+     * pipeline cards breathe less, and KPI tiles stop overflowing.
+     * Anything that needs an absolute size (favicon-tier icons,
+     * toast dismiss buttons) already uses px and is unaffected.
+     */
+    font-size: 13.5px;
+    font-feature-settings:
+      "cv11", "ss01", "ss03", "cv02", "cv03", "cv04";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
   body {
     @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-normal);
+  }
+
+  /* Stronger, more readable headings */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply text-foreground;
+    letter-spacing: -0.014em;
+  }
+  h1 {
+    @apply text-2xl font-semibold;
+  }
+  h2 {
+    @apply text-xl font-semibold;
+  }
+  h3 {
+    @apply text-lg font-semibold;
+  }
+
+  /* Table rows — tighter and more professional */
+  table {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @layer utilities {
+  /* ==== Scrollbars ==== */
   .scrollbar-thin {
     scrollbar-width: thin;
   }
-
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
-
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
+    background: oklch(from var(--muted-foreground) l c h / 0.3);
     border-radius: 3px;
   }
-
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
+    background: oklch(from var(--muted-foreground) l c h / 0.5);
+  }
+
+  /* ==== CRM utilities ==== */
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Stat KPI helper — uppercase metadata label */
+  .label-overline {
+    @apply text-[11px] uppercase tracking-wider font-medium text-muted-foreground;
+  }
+
+  /* Subtle ring used on hover for interactive cards */
+  .hover-lift {
+    @apply transition-all duration-200;
+  }
+  .hover-lift:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* Stage bar — thin top accent on kanban columns/cards */
+  .stage-accent {
+    position: relative;
+  }
+  .stage-accent::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--stage-color, oklch(0.55 0.2 262));
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
   }
 }
 
+/* ==== Animations (preserved from prior theme) ==== */
 @keyframes pulse-breach {
   0%,
   100% {
@@ -272,26 +413,35 @@
   }
 }
 
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-pulse-breach {
   animation: pulse-breach 1.5s ease-in-out infinite;
 }
-
 .animate-pulse-risk {
   animation: pulse-risk 2s ease-in-out infinite;
 }
-
 .animate-celebrate-pulse {
   animation: celebrate-pulse 0.6s ease-in-out;
 }
-
 .animate-shine {
   animation: shine 2s ease-in-out infinite;
 }
-
 .animate-checkmark-pop {
   animation: checkmark-pop 0.4s ease-out;
 }
-
 .animate-progress-glow {
   animation: progress-glow 1s ease-in-out infinite;
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.2s ease-out;
 }

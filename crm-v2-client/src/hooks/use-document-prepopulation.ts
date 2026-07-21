@@ -76,6 +76,11 @@ export function useDocumentPrepopulation(
     if (!resolvedSchool && lead?.school) {
       resolvedSchool = lead.school;
     }
+    if (!resolvedSchool && quote?.school) {
+      // Invoicing from a quote — without this the School field came
+      // up empty and the user had to re-pick it by hand.
+      resolvedSchool = quote.school as unknown as School;
+    }
 
     // Get primary contact from school
     const primaryContact = resolvedSchool?.contacts?.find(
@@ -156,8 +161,12 @@ export function useDocumentPrepopulation(
     return {
       isReady,
       isLoading,
-      school_id: resolvedSchool?.id,
-      deal_id: deal?.id,
+      school_id: resolvedSchool?.id || quote?.school_id,
+      // Carry the deal through quote→invoice. Without the quote
+      // fallback an invoice created from a deal-linked quote lost the
+      // deal_id, and "Mark Won" (which requires a deal invoice)
+      // could never be satisfied through the UI.
+      deal_id: deal?.id || quote?.deal_id || undefined,
       person_id: personId || primaryContact?.id || lead?.primary_contact?.id,
       client_name: clientName,
       client_email: clientEmail,

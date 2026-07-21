@@ -18,7 +18,7 @@ export class Payment {
   id: string;
 
   @Index()
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   invoice_id: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })

@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In, ILike } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, ILike, Brackets } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { addDays } from 'date-fns';
 import {
@@ -27,6 +27,7 @@ import { Lead } from '../leads/entities/lead.entity';
 import { School } from '../schools/entities/schools.entity';
 import { User } from '../users/entities/user.entity';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { Activity, ActivityType } from '../activities/entities/activity.entity';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { CloseDealDto } from './dto/close-deal.dto';
@@ -41,6 +42,10 @@ import { QuotesService } from '../quotes/quotes.service';
 import { DealHealthCalculationService } from './deal-health-calculation.service';
 import { QueryDealsDto } from './dto/query-deals';
 import { Invoice } from '../invoices/entities/invoice.entity';
+import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { LeadsService } from '../leads/leads.service';
+import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 
 @Injectable()
 export class DealsService {
@@ -67,13 +72,96 @@ export class DealsService {
     private activityLogsService: ActivityLogsService,
     private quotesService: QuotesService,
     private dealHealthCalculationService: DealHealthCalculationService,
+    private notificationsGateway: NotificationsGateway,
+    private leadsService: LeadsService,
+    private complianceSettings: ComplianceSettingsService,
   ) {}
+
+  /**
+   * Demo + Commercial-Intent gate. Runs at the top of `createDeal`
+   * and again on `convertLeadToDeal` paths. Throws BadRequestException
+   * with a precise list of missing fields so the UI can render an
+   * actionable "you need X, Y, Z" message instead of a generic 400.
+   *
+   * Bypass conditions (any one is sufficient):
+   *   1. The compliance switch
+   *      `compliance.policy.enforce_commercial_intent_for_deal` is OFF.
+   *      (Default — protects existing live data.)
+   *   2. The caller is admin or sales_manager. Managers reviewed the
+   *      lead manually and can override the gate.
+   *
+   * When ON, the gate requires:
+   *   - lead.commercial_intent === true
+   *   - dto.value > 0  (an estimated value)
+   *   - dto.title or lead.lead_name  (product/solution interest)
+   *   - the lead has a recorded decision-maker (via the qualification
+   *     criteria `decision_maker_name` field — already collected by
+   *     the existing qualification flow)
+   *
+   * Quantity / scope and "next commercial step" are captured implicitly
+   * via `dto.value` + the deal title; the spec's "next commercial step"
+   * is satisfied by the very act of creating a deal (the deal IS the
+   * next commercial step).
+   */
+  private async assertCommercialIntentGate(
+    lead: Lead,
+    dto: CreateDealDto,
+    userRoles: string[],
+  ): Promise<void> {
+    const isManagerOrAdmin =
+      userRoles.includes('admin') || userRoles.includes('sales_manager');
+    if (isManagerOrAdmin) return;
+    const enforce = await this.complianceSettings.getBoolean(
+      'enforce_commercial_intent_for_deal',
+    );
+    if (!enforce) return;
+
+    const missing: string[] = [];
+    if (!lead.commercial_intent) {
+      missing.push(
+        'commercial intent (the lead must show a clear commercial signal — log a Demo Delivery with outcome Quote Requested, or a Demo Follow-up with Quote / SDC Meeting / Payment Plan requested)',
+      );
+    }
+    if (!dto.value || Number(dto.value) <= 0) {
+      missing.push('estimated deal value (greater than 0)');
+    }
+    if (!dto.title || dto.title.trim() === '') {
+      missing.push('deal title (product or solution interest)');
+    }
+
+    // Check qualification has a decision-maker.
+    const qual = await this.dataSource
+      .getRepository('lead_qualification_criteria' as any)
+      .createQueryBuilder('q')
+      .where('q.lead_id = :id', { id: lead.id })
+      .getRawOne()
+      .catch(() => null);
+    const hasDecisionMaker =
+      qual &&
+      typeof qual.q_decision_maker_name === 'string' &&
+      qual.q_decision_maker_name.trim() !== '';
+    if (!hasDecisionMaker) {
+      missing.push(
+        'decision-maker name (open the lead qualification panel and add the head / bursar / decision-maker contact)',
+      );
+    }
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Cannot create deal yet — the following are required first: ${missing.join('; ')}.`,
+      );
+    }
+  }
 
   /* ========================================
      1. CREATE DEAL (Transactional)
   ======================================== */
 
-  async createDeal(dto: CreateDealDto, userId: string): Promise<Deal> {
+  async createDeal(
+    dto: CreateDealDto,
+    userId: string,
+    userRoles: string[] = [],
+  ): Promise<Deal> {
     // Validate lead exists and is not already converted
     const lead = await this.leadRepository.findOne({
       where: { id: dto.lead_id },
@@ -83,6 +171,12 @@ export class DealsService {
     if (lead.status === 'Converted') {
       throw new ConflictException('Lead has already been converted to a deal');
     }
+
+    // Demo + Commercial-Intent gate (default OFF; enabled by admins
+    // via Settings → Compliance & Controls). Throws BadRequest with
+    // a precise list of missing fields so the UI can render an
+    // actionable message.
+    await this.assertCommercialIntentGate(lead, dto, userRoles);
 
     // Validate school
     const school = await this.schoolRepository.findOne({
@@ -145,6 +239,9 @@ export class DealsService {
           ? new Date(dto.expected_close_date)
           : undefined,
         closeStatus: DealCloseStatus.ONGOING,
+        // Campaign provenance survives conversion — ROI reporting
+        // attributes this deal back to the event that sourced it.
+        source_campaign_id: lead.source_campaign_id ?? null,
       });
       await manager.save(Deal, deal);
 
@@ -178,11 +275,29 @@ export class DealsService {
         await manager.save(DealCompetitor, competitors);
       }
 
-      // Mark lead as converted
-      await manager.update(Lead, dto.lead_id, {
-        status: 'Converted' as any,
-        converted_at: new Date(),
-      });
+      // Mark lead as converted through the shared transition service so
+      // SLA history and status audit stay in lockstep with lead updates.
+      await this.leadsService.updateStatusInTransaction(
+        manager,
+        dto.lead_id,
+        'Converted',
+        userId,
+      );
+
+      // Cash-requisition carry-over: costs raised while this was still
+      // a lead must follow the deal (cost-to-close = lead-stage spend +
+      // deal-stage spend). We attach deal_id and KEEP lead_id so the
+      // provenance ("spent before conversion") stays queryable. Runs
+      // inside the same transaction as the conversion — a failed deal
+      // create never half-moves costs.
+      await manager
+        .createQueryBuilder()
+        .update(CashRequisition)
+        .set({ deal_id: dealId })
+        .where('lead_id = :leadId AND deal_id IS NULL', {
+          leadId: dto.lead_id,
+        })
+        .execute();
 
       if (dto?.items && dto.items.length > 0) {
         const quote = await this.quotesService.create(
@@ -359,6 +474,8 @@ export class DealsService {
       this.ensureBackwardStageMoveAllowed(deal, newStage);
 
       await this.dataSource.transaction(async (manager) => {
+        await this.assertStageGateEvidence(manager, deal, newStage);
+
         const transitionUpdate = await this.buildStageTransitionUpdatePayload(
           manager,
           {
@@ -430,7 +547,24 @@ export class DealsService {
       );
     }
 
-    return this.findDealDetails(id);
+    const updatedDeal = await this.findDealDetails(id);
+
+    // Emit pipeline update via WebSocket when stage changes
+    if (newValues.stage) {
+      this.notificationsGateway.emitToRoom(
+        `pipeline:${deal.pipeline_id}`,
+        'pipeline:deal-updated',
+        {
+          dealId: id,
+          title: deal.title,
+          fromStage: oldValues.stage,
+          toStage: newValues.stage,
+          updatedBy: userId,
+        },
+      );
+    }
+
+    return updatedDeal;
   }
 
   /* ========================================
@@ -835,6 +969,7 @@ export class DealsService {
 
         if (targetStage && targetStage.id !== deal.current_stage_id) {
           this.ensureBackwardStageMoveAllowed(deal, targetStage);
+          await this.assertStageGateEvidence(manager, deal, targetStage);
 
           const transitionUpdate = await this.buildStageTransitionUpdatePayload(
             manager,
@@ -938,6 +1073,8 @@ export class DealsService {
     this.ensureBackwardStageMoveAllowed(deal, newStage);
 
     await this.dataSource.transaction(async (manager) => {
+      await this.assertStageGateEvidence(manager, deal, newStage, dto.notes);
+
       const transitionUpdate = await this.buildStageTransitionUpdatePayload(
         manager,
         {
@@ -1081,21 +1218,22 @@ export class DealsService {
 
     const options: IPaginationOptions = { page, limit };
 
+    // `close_status` filter — caller may override the default. The
+    // previous implementation hardcoded ONGOING then AND'd the dto
+    // filter on top, which made `?close_status=won` return 0 rows
+    // (contradictory WHERE: ongoing AND won). Now the caller's
+    // choice wins; if absent, we default to ONGOING so the list
+    // page doesn't show closed-won/lost inventory by default.
+    const effectiveCloseStatus = dto.close_status ?? DealCloseStatus.ONGOING;
     const qb = this.dealRepository
       .createQueryBuilder('deal')
       .leftJoinAndSelect('deal.school', 'school')
       .leftJoinAndSelect('deal.assigned_user', 'assigned_user')
       .leftJoinAndSelect('deal.current_stage', 'current_stage')
       .where('deal.close_status = :close_status', {
-        close_status: DealCloseStatus.ONGOING,
+        close_status: effectiveCloseStatus,
       })
       .orderBy('deal.actualCloseDate', 'DESC');
-
-    if (dto.close_status) {
-      qb.andWhere('deal.closeStatus = :closeStatus', {
-        closeStatus: dto.close_status,
-      });
-    }
 
     if (dto.search) {
       qb.andWhere(
@@ -1178,6 +1316,247 @@ export class DealsService {
     return Number(targetStage.order) < Number(currentStage.order);
   }
 
+  private async assertStageGateEvidence(
+    manager: EntityManager,
+    deal: Deal,
+    targetStage: Stage,
+    notes?: string,
+  ): Promise<void> {
+    const stageName = this.normalizeStageName(targetStage.name);
+    const terminalKind = this.getTerminalStageKind(targetStage.name);
+    const currentOrder = Number(deal.current_stage?.order ?? 0);
+    const targetOrder = Number(targetStage.order ?? 0);
+    if (
+      currentOrder > 0 &&
+      targetOrder > currentOrder + 1 &&
+      terminalKind !== DealCloseStatus.LOST
+    ) {
+      throw new BadRequestException(
+        `Deal stage cannot skip from "${deal.current_stage?.name}" to "${targetStage.name}". Move through the required intermediate stage first.`,
+      );
+    }
+
+    if (terminalKind === DealCloseStatus.LOST && !notes?.trim()) {
+      throw new BadRequestException(
+        'A lost reason/transition note is required before moving a deal to Lost',
+      );
+    }
+
+    if (
+      /\bdemo\b/.test(stageName) &&
+      /\b(booked|scheduled)\b/.test(stageName) &&
+      !(await this.hasDemoEvidence(manager, deal, false))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: schedule a demo meeting on this lead/deal before entering Demo Booked',
+      );
+    }
+
+    if (
+      /\bdemo\b/.test(stageName) &&
+      /\b(completed|held|done)\b/.test(stageName) &&
+      !(await this.hasDemoEvidence(manager, deal, true))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: complete a demo meeting on this lead/deal before entering Demo Completed',
+      );
+    }
+
+    if (
+      /\b(quote|quotation|proposal)\b/.test(stageName) &&
+      !(await this.hasQuoteEvidence(manager, deal, {
+        statuses: ['Sent', 'Accepted'],
+        proposalActivity: true,
+      }))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: send a quotation/proposal before entering this stage',
+      );
+    }
+
+    if (
+      /\b(sdc|approval)\b/.test(stageName) &&
+      !(await this.hasQuoteEvidence(manager, deal, {
+        statuses: ['Sent', 'Accepted'],
+        proposalActivity: true,
+      }))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: quotation evidence is required before SDC Approval',
+      );
+    }
+
+    if (
+      /\bpo\b|\bpurchase order\b/.test(stageName) &&
+      !(await this.hasQuoteEvidence(manager, deal, { requirePo: true }))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: mark the related quotation as PO received before entering PO Issued',
+      );
+    }
+
+    if (
+      /\b(contract|delivery|installation|commissioned)\b/.test(stageName) &&
+      terminalKind !== DealCloseStatus.LOST &&
+      !(await this.hasQuoteEvidence(manager, deal, {
+        statuses: ['Accepted'],
+        requirePo: true,
+      }))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: accepted quotation or PO evidence is required before this stage',
+      );
+    }
+
+    if (
+      terminalKind === DealCloseStatus.WON &&
+      !(await this.hasQuoteEvidence(manager, deal, {
+        statuses: ['Accepted'],
+        requirePo: true,
+      }))
+    ) {
+      throw new BadRequestException(
+        'Move blocked: accepted quotation or PO evidence is required before marking a deal won',
+      );
+    }
+  }
+
+  private normalizeStageName(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  private getTerminalStageKind(name: string): DealCloseStatus.WON | DealCloseStatus.LOST | null {
+    const normalized = this.normalizeStageName(name);
+    if (/\blost\b/.test(normalized)) {
+      return DealCloseStatus.LOST;
+    }
+    if (/\bwon\b/.test(normalized) || /\bcommissioned\b/.test(normalized)) {
+      return DealCloseStatus.WON;
+    }
+    return null;
+  }
+
+  private async hasDemoEvidence(
+    manager: EntityManager,
+    deal: Deal,
+    completed: boolean,
+  ): Promise<boolean> {
+    const explicitDemoType = completed
+      ? ActivityType.DEMO_DELIVERY
+      : ActivityType.DEMO_BOOKING;
+    const qb = manager
+      .createQueryBuilder(Activity, 'a')
+      .where(
+        new Brackets((typeScope) => {
+          typeScope
+            .where('a.type = :explicitDemoType', { explicitDemoType })
+            .orWhere(
+              new Brackets((legacyScope) => {
+                legacyScope
+                  .where('a.type = :meetingType', {
+                    meetingType: ActivityType.MEETING,
+                  })
+                  .andWhere('a.subject ILIKE :demo', { demo: '%demo%' });
+              }),
+            );
+        }),
+      )
+      .andWhere(
+        new Brackets((scope) => {
+          scope.where('a.deal_id = :dealId', { dealId: deal.id });
+          if (deal.lead_id) {
+            scope.orWhere('a.lead_id = :leadId', { leadId: deal.lead_id });
+          }
+        }),
+      );
+
+    if (completed) {
+      qb.andWhere("a.status = 'completed'").andWhere(
+        'a.completed_at IS NOT NULL',
+      );
+    } else {
+      qb.andWhere("a.status NOT IN ('completed','cancelled')")
+        .andWhere('a.completed_at IS NULL')
+        .andWhere('a.due_at IS NOT NULL');
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async hasQuoteEvidence(
+    manager: EntityManager,
+    deal: Deal,
+    options: {
+      statuses?: string[];
+      requirePo?: boolean;
+      proposalActivity?: boolean;
+    },
+  ): Promise<boolean> {
+    const quoteQb = manager
+      .createQueryBuilder()
+      .select('1')
+      .from('quotes', 'q')
+      .where('q.deal_id = :dealId', { dealId: deal.id });
+
+    quoteQb.andWhere(
+      new Brackets((qb) => {
+        let hasCondition = false;
+        if (options.statuses?.length) {
+          qb.where('q.status IN (:...statuses)', {
+            statuses: options.statuses,
+          });
+          hasCondition = true;
+        }
+        if (options.requirePo) {
+          if (hasCondition) {
+            qb.orWhere('q.po_received = TRUE');
+          } else {
+            qb.where('q.po_received = TRUE');
+          }
+          hasCondition = true;
+        }
+        if (!hasCondition) {
+          qb.where('1 = 0');
+        }
+      }),
+    );
+
+    if ((await quoteQb.getRawOne()) !== undefined) {
+      return true;
+    }
+
+    if (!options.proposalActivity) {
+      return false;
+    }
+
+    const activityQb = manager
+      .createQueryBuilder(Activity, 'a')
+      .where("a.status = 'completed'")
+      .andWhere('a.completed_at IS NOT NULL')
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where('a.completion_outcome = :proposal', {
+              proposal: 'proposal_sent',
+            })
+            .orWhere('a.subject ILIKE :quote', { quote: '%quote%' })
+            .orWhere('a.subject ILIKE :proposalText', {
+              proposalText: '%proposal%',
+            }),
+        ),
+      )
+      .andWhere(
+        new Brackets((scope) => {
+          scope.where('a.deal_id = :dealId', { dealId: deal.id });
+          if (deal.lead_id) {
+            scope.orWhere('a.lead_id = :leadId', { leadId: deal.lead_id });
+          }
+        }),
+      );
+
+    return (await activityQb.getCount()) > 0;
+  }
+
   private async buildStageTransitionUpdatePayload(
     manager: EntityManager,
     {
@@ -1235,12 +1614,78 @@ export class DealsService {
       nextPosition = (maxPosResult?.maxPos ?? 0) + 1000;
     }
 
+    // Auto-complete any open "Advance <targetStage>" task on this
+    // deal. These are seeded (and rep-authored) tasks that exist to
+    // move the deal INTO the new stage; the stage transition itself
+    // satisfies them, so they should leave the open queue instead of
+    // lingering as overdue items on the card the rep just moved.
+    // Use the Activity entity class (not the raw table name) so
+    // TypeORM wires column mappings correctly.
+    const escapedStageName = targetStage.name.replace(
+      /([.*+?^=!:${}()|[\]\/\\])/g,
+      '\\$1',
+    );
+    await manager
+      .createQueryBuilder()
+      .update(Activity)
+      .set({
+        status: 'completed' as any,
+        completed_at: now,
+        completion_outcome: 'successful' as any,
+      })
+      .where('deal_id = :dealId', { dealId: deal.id })
+      .andWhere("status NOT IN ('completed', 'cancelled')")
+      .andWhere('subject ~* :pattern', {
+        pattern: `\\yAdvance\\s+${escapedStageName}\\y`,
+      })
+      .execute();
+
+    // Auto-close on terminal-stage landing.
+    //
+    // Audit (Apr 2026) found deals sitting in the "Closed Won" stage
+    // with `close_status='ongoing'` because drag-to-stage uses this
+    // path while only the separate "Mark Won/Lost" button flipped
+    // close_status. That made the Activity Discipline dashboard's
+    // `deals_won` count — which reads `close_status='won' AND
+    // actualCloseDate ∈ window` — undercount, while stage-based
+    // funnel widgets overcounted.
+    //
+    // Terminal detection is name-based because the Stage entity has
+    // no `is_terminal` flag. Matches "Closed Won" / "Closed Lost"
+    // case-insensitively. Forward landing flips close_status AND
+    // stamps actualCloseDate; backward move FROM a terminal stage
+    // (e.g. rollback from Closed Won → Negotiation) resets both so
+    // the deal re-enters the pipeline cleanly.
+    const terminalKind = this.getTerminalStageKind(targetStage.name);
+    const closeTransition: Partial<Deal> = {};
+    if (terminalKind) {
+      closeTransition.closeStatus = terminalKind;
+      closeTransition.actualCloseDate = now;
+      if (terminalKind === DealCloseStatus.LOST && notes?.trim()) {
+        closeTransition.lostReason = notes.trim();
+      }
+    } else if (deal.closeStatus && deal.closeStatus !== DealCloseStatus.ONGOING) {
+      // Coming back out of a terminal stage — reopen the deal.
+      closeTransition.closeStatus = DealCloseStatus.ONGOING;
+      closeTransition.actualCloseDate = null as unknown as Date;
+      closeTransition.lostReason = null as unknown as string;
+    }
+
     return {
       current_stage_id: targetStage.id,
       currentStatus: targetStage.name,
       currentStageSince: now,
       probability: Number(targetStage.probability),
       position: nextPosition,
+      // Phase A.4 — every stage transition resets the stage-age SLA
+      // flags. The new stage starts a fresh clock; the breach
+      // notification cron will re-evaluate against the new stage's
+      // sla_days on its next pass. Without this reset, a deal that
+      // sat in stage X for 30 days would carry the `sla_breached`
+      // flag into stage Y until the cron next runs.
+      sla_breached: false,
+      last_breached_at: null,
+      ...closeTransition,
       ...(incrementRollbackCount
         ? { rollback_count: (deal.rollback_count ?? 0) + 1 }
         : {}),

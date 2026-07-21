@@ -1,4 +1,4 @@
-import { Calendar, ListTodo, Mail, MessageCircle, MessageSquare, Phone } from "lucide-react";
+import { Calendar, ListTodo, Mail, MessageCircle, MessageSquare, Phone, Sparkles } from "lucide-react";
 import type { ActivityType } from "~/api/activities";
 
 export const TYPE_CONFIG: Record<
@@ -42,5 +42,23 @@ export const TYPE_CONFIG: Record<
     icon: MessageCircle,
     className:
       "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-400",
+  },
+  demo_booking: {
+    label: "Demo booking",
+    icon: Calendar,
+    className:
+      "bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900 dark:text-fuchsia-400",
+  },
+  demo_delivery: {
+    label: "Demo delivery",
+    icon: Sparkles,
+    className:
+      "bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900 dark:text-fuchsia-400",
+  },
+  demo_followup: {
+    label: "Demo follow-up",
+    icon: MessageCircle,
+    className:
+      "bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900 dark:text-fuchsia-400",
   },
 };

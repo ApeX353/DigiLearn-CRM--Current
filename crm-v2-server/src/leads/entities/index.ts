@@ -4,3 +4,5 @@ export * from './lead-sla-history.entity';
 export * from './lead-stakeholders.entity';
 export * from './lead-qualification-criteria.entity';
 export * from './lead-reversal-request.entity';
+export * from './lead-escalation.entity';
+export * from './duplicate-suspicion.entity';

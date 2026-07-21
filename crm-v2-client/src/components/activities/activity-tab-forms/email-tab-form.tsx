@@ -18,9 +18,14 @@ import type {
   TabFormHandle,
   TabFormPayload,
 } from "./types";
+import { TemplatePicker } from "~/components/email/template-picker";
+import { toast } from "sonner";
 
 export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
-  function EmailTabForm({ selectedContacts, onActionDataChange }, ref) {
+  function EmailTabForm(
+    { selectedContacts, onActionDataChange, leadId, dealId },
+    ref,
+  ) {
     const form = useForm<EmailTabValues>({
       resolver: zodResolver(emailTabSchema),
       defaultValues: {
@@ -35,11 +40,16 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
     // Auto-fill to_recipients from selected contacts
     useEffect(() => {
       if (selectedContacts && selectedContacts.length > 0) {
-        const recipients = selectedContacts.map((c) => {
+        const recipients = selectedContacts
+          .filter((c) => c.email?.trim())
+          .map((c) => {
           const name = `${c.first_name} ${c.last_name}`.trim();
-          return JSON.stringify({ email: c.email || "", name });
+          return JSON.stringify({ email: c.email?.trim() || "", name });
         });
-        form.setValue("to_recipients", `[${recipients.join(",")}]`);
+        form.setValue(
+          "to_recipients",
+          recipients.length > 0 ? `[${recipients.join(",")}]` : "",
+        );
       } else {
         form.setValue("to_recipients", "");
       }
@@ -84,9 +94,39 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
             .join(", ")
         : "";
 
+    // First contact drives the mail-merge context — the render call
+    // only takes one contact id because a rendered template is
+    // per-message, not per-recipient. If you want different bodies
+    // per recipient, send separate emails.
+    const primaryContactId = selectedContacts?.[0]?.id;
+
     return (
       <Form {...form}>
         <div className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Start from a saved template or write from scratch.
+            </p>
+            <TemplatePicker
+              context={{
+                lead_id: leadId,
+                deal_id: dealId,
+                contact_id: primaryContactId,
+              }}
+              compact
+              onApply={(rendered, tpl) => {
+                form.setValue("subject", rendered.subject, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
+                form.setValue("body", rendered.body_text || rendered.body_html, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
+                toast.success(`Applied template "${tpl.name}"`);
+              }}
+            />
+          </div>
           {recipientSummary ? (
             <div>
               <Label>To</Label>

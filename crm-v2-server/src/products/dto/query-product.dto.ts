@@ -5,7 +5,8 @@ import {
   IsNumberString,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { PRODUCT_TYPES } from '../constants';
 import type { ProductType } from '../constants';
 
@@ -40,6 +41,7 @@ export class QueryProductDto {
     description: 'Filter by active status',
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   is_active?: boolean;
 }

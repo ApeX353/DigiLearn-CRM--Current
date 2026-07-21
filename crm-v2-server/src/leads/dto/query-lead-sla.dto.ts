@@ -1,6 +1,7 @@
 import { IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { LEAD_STATUSES } from '../constants';
 import type { LeadStatus } from '../constants';
 
@@ -12,7 +13,8 @@ export class QueryLeadSLADto {
 
   @ApiPropertyOptional({ description: 'Include inactive SLA configurations' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_inactive?: boolean;
 }

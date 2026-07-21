@@ -22,6 +22,7 @@ type LeadsListParams = PaginationParams & {
   assigned_to?: string;
   assignment_state?: "assigned" | "unassigned";
   sla_breached?: boolean;
+  temperature?: "hot" | "warm" | "cold";
   search?: string;
   source?: LeadSource;
   school_id?: string;

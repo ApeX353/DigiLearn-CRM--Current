@@ -4,12 +4,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { LeadsService } from './leads.service';
+import { DecisionRole } from './entities/lead-stakeholders.entity';
+
+function createActivityCountQuery(count: number) {
+  return {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getCount: jest.fn().mockResolvedValue(count),
+  };
+}
 
 describe('LeadsService', () => {
   let service: LeadsService;
 
   const leadRepository = {
     findOne: jest.fn(),
+    save: jest.fn(),
   };
 
   const leadReversalRequestRepository = {
@@ -24,6 +34,17 @@ describe('LeadsService', () => {
     logUpdate: jest.fn(),
   };
 
+  const dataSource = {
+    transaction: jest.fn(async (callback: any) =>
+      callback({
+        getRepository: jest.fn(() => ({
+          find: jest.fn().mockResolvedValue([]),
+          delete: jest.fn().mockResolvedValue(undefined),
+        })),
+      }),
+    ),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -33,13 +54,19 @@ describe('LeadsService', () => {
       {} as any,
       {} as any,
       {} as any,
-      {} as any,
+      dataSource as any,
       activityLogsService as any,
       {} as any,
       {} as any,
       {} as any,
       {} as any,
       leadReversalRequestRepository as any,
+      // Phase A.3 — ComplianceSettingsService mock so the gates in
+      // update() short-circuit predictably in unit tests.
+      {
+        getNumber: async () => 0,
+        getBoolean: async () => false,
+      } as any,
     );
   });
 
@@ -123,7 +150,9 @@ describe('LeadsService', () => {
     };
     const created = {
       lead_id: leadId,
+      kind: 'status_reversal',
       requested_status: dto.status,
+      proposed_assignee_id: null,
       reason: 'Need rollback for contract correction',
       notes: 'Waiting for approval',
       status: 'pending',
@@ -153,7 +182,7 @@ describe('LeadsService', () => {
       leadId,
       { reversal_request: saved },
       userId,
-      'Submitted lead reversal request for Alpha School Lead',
+      'Reopen / status reversal request submitted for "Alpha School Lead"',
     );
     expect(result).toEqual(saved);
   });
@@ -242,6 +271,7 @@ describe('LeadsService', () => {
     const pending = {
       id: 'req-pending-approved',
       lead_id: 'lead-2',
+      kind: 'status_reversal',
       requested_status: 'Qualified',
       status: 'pending',
       reviewed_by_id: null,
@@ -276,5 +306,122 @@ describe('LeadsService', () => {
     expect(updateStatusSpy).toHaveBeenCalledWith('lead-2', 'Qualified', 'manager-2');
     expect(result.status).toBe('approved');
     expect(result.reviewed_by_id).toBe('manager-2');
+  });
+
+  it('routes generic status updates through updateStatus', async () => {
+    const lead = {
+      id: 'lead-3',
+      status: 'New',
+      lead_name: 'Gamma School Lead',
+      assigned_to: 'rep-1',
+    };
+
+    jest.spyOn(service, 'findOne').mockResolvedValueOnce(lead as any);
+    const updateStatusSpy = jest
+      .spyOn(service, 'updateStatus')
+      .mockResolvedValueOnce({ ...lead, status: 'Contacted' } as any);
+
+    const result = await service.update(
+      'lead-3',
+      { status: 'Contacted' } as any,
+      'rep-1',
+      ['sales_rep'],
+    );
+
+    expect(leadRepository.save).not.toHaveBeenCalled();
+    expect(updateStatusSpy).toHaveBeenCalledWith(
+      'lead-3',
+      'Contacted',
+      'rep-1',
+    );
+    expect(result.status).toBe('Contacted');
+  });
+
+  it('blocks qualification when MVD is incomplete even if the lead has contact data', async () => {
+    const manager = {
+      findOne: jest
+        .fn()
+        .mockResolvedValueOnce({
+          id: 'lead-mvd',
+          lead_name: 'MVD Lead',
+          school: { name: 'MVD School' },
+          primary_contact: {
+            first_name: 'Pat',
+            last_name: 'Principal',
+            phone: '+263700000000',
+          },
+          stakeholders: [],
+        })
+        .mockResolvedValueOnce({
+          lead_id: 'lead-mvd',
+          needs: 'Interested in boards',
+          qualification_needs: [],
+          has_budget: false,
+          timeline_type: null,
+        }),
+      getRepository: jest.fn().mockReturnValue({
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValue(createActivityCountQuery(0)),
+      }),
+    };
+
+    await expect(
+      (service as any).assertMinimumViableDataForQualification(
+        manager,
+        'lead-mvd',
+      ),
+    ).rejects.toThrow(
+      'Cannot qualify lead until Minimum Viable Data is complete',
+    );
+  });
+
+  it('allows qualification only when MVD and a future next action are present', async () => {
+    const manager = {
+      findOne: jest
+        .fn()
+        .mockResolvedValueOnce({
+          id: 'lead-ready',
+          lead_name: 'Ready Lead',
+          school: { name: 'Ready School' },
+          primary_contact: {
+            first_name: 'Dana',
+            last_name: 'Director',
+            email: 'dana@example.com',
+          },
+          stakeholders: [
+            {
+              decision_role: DecisionRole.DECISION_MAKER,
+              contact: {
+                first_name: 'Dana',
+                last_name: 'Director',
+                email: 'dana@example.com',
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          lead_id: 'lead-ready',
+          needs: 'Needs smart boards',
+          qualification_needs: [{ product: 'Smart board', quantity: 3 }],
+          has_budget: true,
+          budget_indicator: 'Budget approved',
+          has_timeline: true,
+          timeline_type: 'This quarter',
+          decision_maker_name: 'Dana Director',
+        }),
+      getRepository: jest.fn().mockReturnValue({
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValue(createActivityCountQuery(1)),
+      }),
+    };
+
+    await expect(
+      (service as any).assertMinimumViableDataForQualification(
+        manager,
+        'lead-ready',
+      ),
+    ).resolves.toBeUndefined();
   });
 });

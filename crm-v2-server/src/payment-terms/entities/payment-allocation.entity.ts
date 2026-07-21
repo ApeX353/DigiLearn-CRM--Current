@@ -18,10 +18,10 @@ export class PaymentAllocation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   payment_id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   installment_id: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })

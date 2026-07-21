@@ -16,6 +16,7 @@ import {
   FormItem,
   FormLabel,
   FormControl,
+  FormDescription,
   FormMessage,
 } from "~/components/ui/form";
 import { TASK_STATUSES, TASK_PRIORITIES } from "~/api/activities/types";
@@ -74,16 +75,20 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                 </FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="What needs to be done?"
+                    placeholder="Example: Call bursar about quotation approval"
                     {...field}
                   />
                 </FormControl>
+                <FormDescription className="text-xs">
+                  Make this a concrete next action. Notes belong in the Note
+                  tab and do not count as follow-up commitments.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField
               control={form.control}
               name="status"
@@ -162,8 +167,16 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                         {staff.first_name} {staff.last_name}
                       </SelectItem>
                     ))}
+                    {staffList.length === 0 && (
+                      <SelectItem value="none" disabled>
+                        No active staff available
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+                <FormDescription className="text-xs">
+                  Leave blank only when the record owner will handle it.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -184,6 +197,10 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                     placeholder="Select due date and time"
                   />
                 </FormControl>
+                <FormDescription className="text-xs">
+                  Future due dates keep SLA, hygiene, and manager follow-up
+                  views accurate.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

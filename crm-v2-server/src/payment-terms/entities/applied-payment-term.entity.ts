@@ -30,13 +30,13 @@ export class AppliedPaymentTerm {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   document_id: string;
 
   @Column({ type: 'enum', enum: APPLIED_DOCUMENT_TYPES })
   document_type: AppliedDocumentType;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   payment_term_id: string | null;
 
   // Snapshot fields

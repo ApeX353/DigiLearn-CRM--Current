@@ -67,7 +67,13 @@ export function useLogin() {
   const setAuth = useAuthStore((state) => state.setAuth)
 
   return useMutation({
-    mutationFn: authApi.login,
+    mutationFn: async (data: LoginRequest) => {
+      try {
+        return await authApi.login(data)
+      } catch (error) {
+        throw new Error(handleApiError(error))
+      }
+    },
     onSuccess: (data) => {
       setAuth(
         data.access_token,
@@ -80,9 +86,6 @@ export function useLogin() {
       } else {
         navigate('/')
       }
-    },
-    onError: (error) => {
-      throw new Error(handleApiError(error))
     },
   })
 }

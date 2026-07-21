@@ -32,14 +32,16 @@ import { Enable2FADto, Disable2FADto } from './dto/two-factor.dto';
 import { TwoFactorService } from './two-factor.service';
 
 const REFRESH_COOKIE_NAME = 'crm_auth.session_token';
-// secure/sameSite are env-driven so the refresh cookie works over plain
-// http://localhost in local dev. Defaults preserve production behaviour
-// (Secure + SameSite=None) when the vars are unset.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const COOKIE_SETTINGS: CookieOptions = {
   httpOnly: true,
-  secure: process.env.COOKIE_SECURE !== 'false',
-  sameSite:
-    (process.env.COOKIE_SAMESITE as CookieOptions['sameSite']) || 'none',
+  // In production the site is served over HTTPS and the API may live on a
+  // different site, so SameSite=None + Secure is required. In development the
+  // client (localhost:5173) and the API (localhost:3001) are the same site,
+  // so SameSite=Lax works and we can drop Secure so browsers keep the cookie
+  // over plain HTTP — otherwise logins silently fail in strict Chromium setups.
+  secure: IS_PRODUCTION,
+  sameSite: IS_PRODUCTION ? 'none' : 'lax',
   path: '/api/v2/auth/refresh',
 };
 

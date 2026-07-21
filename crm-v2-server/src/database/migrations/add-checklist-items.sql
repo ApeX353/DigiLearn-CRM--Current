@@ -1,114 +1,90 @@
--- Migration: Add checklist_items column to lead_qualification_criteria
--- Database: MySQL 8.0+
--- Date: 2026-01-27
+-- Manual PostgreSQL helper migration: add checklist_items support to
+-- lead_qualification_criteria.
+--
+-- The application uses TypeORM migrations (`*.ts`) for normal deployment.
+-- This SQL file is retained as an idempotent manual helper only. Keep it
+-- PostgreSQL-safe so it cannot be accidentally run against the production
+-- database with MySQL syntax.
 
--- ============================================
--- OPTION 1: If table doesn't exist, create it
--- ============================================
-
-CREATE TABLE IF NOT EXISTS `lead_qualification_criteria` (
-  `id` VARCHAR(36) PRIMARY KEY,
-  `lead_id` VARCHAR(36) NOT NULL,
+CREATE TABLE IF NOT EXISTS lead_qualification_criteria (
+  id uuid PRIMARY KEY,
+  lead_id uuid NOT NULL,
 
   -- BANT - Budget fields
-  `budget_amount` DECIMAL(15, 2) NULL,
-  `budget_currency` VARCHAR(20) NULL,
-  `budget_notes` TEXT NULL,
-  `budget_confirmed` TINYINT(1) DEFAULT 0,
+  budget_amount numeric(15, 2),
+  budget_currency varchar(20),
+  budget_notes text,
+  budget_confirmed boolean DEFAULT false,
 
   -- BANT - Authority fields
-  `decision_maker_name` VARCHAR(255) NULL,
-  `decision_maker_title` VARCHAR(255) NULL,
-  `authority_notes` TEXT NULL,
-  `authority_confirmed` TINYINT(1) DEFAULT 0,
+  decision_maker_name varchar(255),
+  decision_maker_title varchar(255),
+  authority_notes text,
+  authority_confirmed boolean DEFAULT false,
 
   -- BANT - Need fields
-  `pain_points` TEXT NULL,
-  `desired_outcomes` TEXT NULL,
-  `needs_notes` TEXT NULL,
-  `needs_confirmed` TINYINT(1) DEFAULT 0,
+  pain_points text,
+  desired_outcomes text,
+  needs_notes text,
+  needs_confirmed boolean DEFAULT false,
 
   -- BANT - Timeline fields
-  `target_decision_date` DATE NULL,
-  `target_implementation_date` DATE NULL,
-  `timeline_notes` TEXT NULL,
-  `timeline_confirmed` TINYINT(1) DEFAULT 0,
+  target_decision_date date,
+  target_implementation_date date,
+  timeline_notes text,
+  timeline_confirmed boolean DEFAULT false,
 
   -- Flexible checklist system
-  `checklist_items` JSON NULL COMMENT 'Flexible checklist for tracking qualification steps',
+  checklist_items jsonb,
 
   -- Overall qualification
-  `is_qualified` TINYINT(1) DEFAULT 0,
-  `qualification_score` INT NULL,
-  `qualified_by` VARCHAR(36) NULL,
-  `qualified_at` DATETIME NULL,
+  is_qualified boolean DEFAULT false,
+  qualification_score integer,
+  qualified_by uuid,
+  qualified_at timestamptz,
 
-  -- Timestamps
-  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at timestamptz DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamptz DEFAULT CURRENT_TIMESTAMP,
 
-  -- Foreign keys
-  CONSTRAINT `FK_lead_qualification_criteria_lead`
-    FOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON DELETE CASCADE,
-  CONSTRAINT `FK_lead_qualification_criteria_user`
-    FOREIGN KEY (`qualified_by`) REFERENCES `users`(`id`) ON DELETE SET NULL,
-
-  -- Indexes
-  INDEX `IDX_lead_qualification_criteria_lead_id` (`lead_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ============================================
--- OPTION 2: If table exists, just add the column
--- ============================================
-
--- Check if column exists before adding
-SET @column_exists = (
-  SELECT COUNT(*)
-  FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'lead_qualification_criteria'
-  AND COLUMN_NAME = 'checklist_items'
+  CONSTRAINT fk_lead_qualification_criteria_lead
+    FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lead_qualification_criteria_user
+    FOREIGN KEY (qualified_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Add column if it doesn't exist
-SET @sql = IF(
-  @column_exists = 0,
-  'ALTER TABLE `lead_qualification_criteria`
-   ADD COLUMN `checklist_items` JSON NULL COMMENT ''Flexible checklist for tracking qualification steps''',
-  'SELECT ''Column checklist_items already exists'' AS message'
-);
+CREATE INDEX IF NOT EXISTS idx_lead_qualification_criteria_lead_id
+  ON lead_qualification_criteria (lead_id);
 
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+ALTER TABLE lead_qualification_criteria
+  ADD COLUMN IF NOT EXISTS checklist_items jsonb;
 
--- ============================================
--- Add virtual column and index for efficient JSON querying
--- ============================================
+ALTER TABLE lead_qualification_criteria
+  ADD COLUMN IF NOT EXISTS checklist_category_index varchar(100)
+  GENERATED ALWAYS AS (checklist_items -> 0 ->> 'category') STORED;
 
--- This creates a virtual column that extracts the first checklist item's category
--- and indexes it for efficient filtering by category
-ALTER TABLE `lead_qualification_criteria`
-ADD COLUMN IF NOT EXISTS `checklist_category_index` VARCHAR(100)
-  GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(checklist_items, '$[0].category'))) VIRTUAL,
-ADD INDEX IF NOT EXISTS `IDX_checklist_items_category` (`checklist_category_index`);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_category
+  ON lead_qualification_criteria (checklist_category_index);
 
--- ============================================
--- ROLLBACK (if needed)
--- ============================================
+-- Keep updated_at current for manual SQL usage.
+CREATE OR REPLACE FUNCTION set_lead_qualification_updated_at()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = CURRENT_TIMESTAMP;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
-/*
--- To rollback, uncomment and run:
+DROP TRIGGER IF EXISTS trg_lead_qualification_updated_at
+  ON lead_qualification_criteria;
 
--- Drop the virtual column and index
-ALTER TABLE `lead_qualification_criteria`
-  DROP INDEX IF EXISTS `IDX_checklist_items_category`,
-  DROP COLUMN IF EXISTS `checklist_category_index`;
+CREATE TRIGGER trg_lead_qualification_updated_at
+BEFORE UPDATE ON lead_qualification_criteria
+FOR EACH ROW
+EXECUTE FUNCTION set_lead_qualification_updated_at();
 
--- Drop the checklist_items column
-ALTER TABLE `lead_qualification_criteria`
-  DROP COLUMN IF EXISTS `checklist_items`;
-
--- To completely drop the table (WARNING: This will delete all data)
--- DROP TABLE IF EXISTS `lead_qualification_criteria`;
-*/
+-- ROLLBACK NOTES:
+-- DROP TRIGGER IF EXISTS trg_lead_qualification_updated_at ON lead_qualification_criteria;
+-- DROP FUNCTION IF EXISTS set_lead_qualification_updated_at();
+-- DROP INDEX IF EXISTS idx_checklist_items_category;
+-- ALTER TABLE lead_qualification_criteria DROP COLUMN IF EXISTS checklist_category_index;
+-- ALTER TABLE lead_qualification_criteria DROP COLUMN IF EXISTS checklist_items;

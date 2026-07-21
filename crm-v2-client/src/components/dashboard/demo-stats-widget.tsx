@@ -33,22 +33,34 @@ const data = demoStatsData?.data;
         <Calendar className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{data.demoToProposalRate.toFixed(1)}%</div>
+        {/* Headline: real demo → proposal advance rate. Previously
+            this was (wonDeals ÷ dealsInDemoStage)*100 — nonsense.
+            Server now computes: of deals that had a demo completed
+            in the period, how many have since moved past the demo
+            stage or closed. */}
+        <div className="text-2xl font-bold">
+          {data.demoToProposalRate.toFixed(1)}%
+        </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Demo conversion rate
+          Demo → proposal advance rate
         </p>
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Scheduled</span>
+            <span className="text-muted-foreground" title="Future meeting activities with 'demo' in the subject">
+              Scheduled
+            </span>
             <span className="font-medium">{data.upcomingDemos}</span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Completed</span>
-            <span className="font-medium text-green-600">{data.completedDemos}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Pending</span>
-            <span className="font-medium text-orange-600">{data.upcomingDemos - data.completedDemos}</span>
+            <span
+              className="text-muted-foreground"
+              title="Meeting activities with 'demo' in the subject that completed in the selected period"
+            >
+              Completed (period)
+            </span>
+            <span className="font-medium text-green-600">
+              {data.completedDemos}
+            </span>
           </div>
         </div>
       </CardContent>

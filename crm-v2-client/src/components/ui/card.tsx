@@ -2,12 +2,19 @@ import * as React from "react"
 
 import { cn } from "~/lib/utils"
 
+// CRM density pass — the shadcn defaults (`gap-6 py-6 px-6 = 24px`
+// on a 16px root = 24px padding every side) were chunky even at the
+// previous 14px root. Tightened to `gap-3 py-4 px-4` on the shell and
+// matching `px-4 / pb-4 / pt-4` on the slots so every Card across the
+// app (list pages, detail tiles, KPI tiles, form cards) gets a denser
+// baseline. Individual cards that need extra air can still override
+// via className.
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        "bg-card text-card-foreground flex flex-col gap-3 rounded-xl border py-4 shadow-sm",
         className
       )}
       {...props}
@@ -20,7 +27,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-4 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-4",
         className
       )}
       {...props}
@@ -65,7 +72,7 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-content"
-      className={cn("px-6", className)}
+      className={cn("px-4", className)}
       {...props}
     />
   )
@@ -75,7 +82,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-footer"
-      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      className={cn("flex items-center px-4 [.border-t]:pt-4", className)}
       {...props}
     />
   )

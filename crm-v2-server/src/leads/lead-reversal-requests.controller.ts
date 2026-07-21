@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Get,
   HttpStatus,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,6 +24,42 @@ import { ReviewLeadReversalRequestDto } from './dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class LeadReversalRequestsController {
   constructor(private readonly leadsService: LeadsService) {}
+
+  /**
+   * Phase C.2 — manager approval queue. Returns every reversal /
+   * reassignment / tactical_disqualify request in the system,
+   * filterable by status and kind. Used by the new Approval Queue
+   * page so managers don't have to dig into each lead individually
+   * to find what needs their attention.
+   */
+  @Get()
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'List reversal requests across all leads (manager queue)',
+  })
+  @ApiQuery({ name: 'status', required: false, enum: ['pending', 'approved', 'rejected'] })
+  @ApiQuery({
+    name: 'kind',
+    required: false,
+    enum: ['status_reversal', 'reassignment', 'tactical_disqualify'],
+  })
+  @ApiQuery({ name: 'limit', required: false })
+  async listAll(
+    @Query('status') status?: 'pending' | 'approved' | 'rejected',
+    @Query('kind')
+    kind?: 'status_reversal' | 'reassignment' | 'tactical_disqualify',
+    @Query('limit') limit?: string,
+  ) {
+    const requests = await this.leadsService.findReversalRequests({
+      status,
+      kind,
+      limit: limit ? Math.max(1, Math.min(500, parseInt(limit, 10))) : 100,
+    });
+    return {
+      success: true,
+      data: requests,
+    };
+  }
 
   @Post(':id/approve')
   @Roles('admin', 'sales_manager')

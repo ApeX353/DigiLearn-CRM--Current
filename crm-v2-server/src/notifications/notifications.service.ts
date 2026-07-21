@@ -27,8 +27,7 @@ export class NotificationsService {
       config?.templates?.cache ?? true,
     );
     this.templatesPath =
-      config?.templates?.path ||
-      join(process.cwd(), 'notifications', 'templates');
+      config?.templates?.path || join(__dirname, 'templates');
     this.defaultEmailFrom = config?.email?.defaultFrom;
     this.defaultSmsFrom = config?.sms?.defaultFrom;
   }

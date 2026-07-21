@@ -7,7 +7,8 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { INVOICE_STATUSES, PAYMENT_STATUSES } from '../constants';
 import type { InvoiceStatus, PaymentStatus } from '../constants';
 
@@ -56,7 +57,8 @@ export class QueryInvoiceDto {
 
   @ApiPropertyOptional({ description: 'Filter overdue invoices only' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   overdue?: boolean;
 
@@ -65,7 +67,8 @@ export class QueryInvoiceDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_children?: boolean;
 }

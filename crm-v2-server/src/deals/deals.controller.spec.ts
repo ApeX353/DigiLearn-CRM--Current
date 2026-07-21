@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { DealsController } from './deals.controller';
 import { DealsService } from './deals.service';
 
+const mockProvider = () => ({});
+
 describe('DealsController', () => {
   let controller: DealsController;
 
@@ -9,7 +11,9 @@ describe('DealsController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DealsController],
       providers: [DealsService],
-    }).compile();
+    })
+      .useMocker(mockProvider)
+      .compile();
 
     controller = module.get<DealsController>(DealsController);
   });

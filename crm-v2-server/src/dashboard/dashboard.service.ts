@@ -15,18 +15,30 @@ import {
   type DateRangeType,
 } from './dto/dashboard-filters.dto';
 import { SettingsService } from '../settings/settings.service';
+import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 
-// Configurable defaults
-const DEFAULT_DAILY_LEADS_TARGET = 40;
-const DEFAULT_MONTHLY_TARGET = 100000;
-const DEFAULT_EXPECTED_WIN_RATE = 0.25;
-const DEFAULT_HIGH_VALUE_THRESHOLD = 20000;
-const QUALIFICATION_THRESHOLD = 80;
+// All numeric thresholds are now sourced from ComplianceSettingsService
+// (Phase A.3). The legacy `defaults` / `defaults.daily_leads_target`
+// settings keys are still honoured by `resolveDailyLeadsTarget()` for
+// backward compatibility, but the canonical knob is
+// `compliance.targets.daily_contacts_per_rep` and admins should manage
+// it from Admin Settings → Compliance & Controls.
 const CONTACT_ACTIVITY_TYPES = [
   ActivityType.CALL,
   ActivityType.EMAIL,
   ActivityType.WHATSAPP,
   ActivityType.MEETING,
+];
+
+const ACTIONABLE_ACTIVITY_TYPES = [
+  ActivityType.TASK,
+  ActivityType.CALL,
+  ActivityType.EMAIL,
+  ActivityType.WHATSAPP,
+  ActivityType.MEETING,
+  ActivityType.DEMO_BOOKING,
+  ActivityType.DEMO_DELIVERY,
+  ActivityType.DEMO_FOLLOWUP,
 ];
 
 @Injectable()
@@ -51,6 +63,7 @@ export class DashboardService {
     @InjectRepository(DocumentItem)
     private readonly documentItemRepo: Repository<DocumentItem>,
     private readonly settingsService: SettingsService,
+    private readonly complianceSettings: ComplianceSettingsService,
   ) {}
 
   // ===== HELPERS =====
@@ -172,7 +185,12 @@ export class DashboardService {
       return dottedValue;
     }
 
-    return DEFAULT_DAILY_LEADS_TARGET;
+    // Phase A.3: fall back to the canonical compliance setting
+    // (`compliance.targets.daily_contacts_per_rep`), which itself
+    // defaults to 40 if no admin override exists. The legacy
+    // `defaults` lookups above remain so any organisation that wrote
+    // to those keys before A.3 keeps the same behaviour.
+    return this.complianceSettings.getNumber('daily_contacts_per_rep');
   }
 
   private buildLeadsContactedBaseQuery(
@@ -183,7 +201,9 @@ export class DashboardService {
       .where('a.lead_id IS NOT NULL')
       .andWhere('a.type IN (:...types)', {
         types: CONTACT_ACTIVITY_TYPES,
-      });
+      })
+      .andWhere("a.status = 'completed'")
+      .andWhere('a.completed_at IS NOT NULL');
 
     if (filters.province) {
       qb.innerJoin('a.lead', 'lead')
@@ -296,7 +316,7 @@ export class DashboardService {
       .leftJoin('deal.school', 'school')
       .where('inv.due_date < :now', { now })
       .andWhere('inv.status IN (:...statuses)', {
-        statuses: ['Sent', 'Partially Paid', 'Overdue'],
+        statuses: ['Sent', 'Partially-Paid', 'Overdue'],
       });
 
     if (userRole === 'sales_rep')
@@ -315,15 +335,38 @@ export class DashboardService {
       .getRawOne();
     const overdueAmount = Math.max(0, Number(overdueResult?.total || 0));
 
-    // Pipeline coverage
-    const monthlyTarget = DEFAULT_MONTHLY_TARGET;
-    const requiredPipeline = monthlyTarget / DEFAULT_EXPECTED_WIN_RATE;
+    // Pipeline coverage — Phase A.3: monthly revenue target and
+    // expected win rate are now driven by Compliance & Controls so
+    // sales leadership can re-baseline without a deploy.
+    const monthlyTarget = await this.complianceSettings.getNumber(
+      'monthly_revenue_target',
+    );
+    const expectedWinRate = await this.complianceSettings.getNumber(
+      'expected_win_rate',
+    );
+    const requiredPipeline =
+      expectedWinRate > 0 ? monthlyTarget / expectedWinRate : 0;
     const pipelineCoverageRatio =
       requiredPipeline > 0 ? (pipelineValue / requiredPipeline) * 100 : 0;
 
-    // Qualification stats
-    const qualStats = await this.qualificationRepo
+    // Qualification stats — scoped to the same role/filter dimensions
+    // as the rest of the executive KPIs. Previously this was
+    // unscoped and counted lifetime records regardless of whether
+    // the manager filtered to a single rep / province.
+    const qualQb = this.qualificationRepo
       .createQueryBuilder('q')
+      .leftJoin('q.lead', 'lead')
+      .leftJoin('lead.school', 'school')
+      .where('lead.deleted_at IS NULL');
+
+    if (userRole === 'sales_rep')
+      qualQb.andWhere('lead.assigned_to = :uid', { uid: userId });
+    if (filters.salesRepId)
+      qualQb.andWhere('lead.assigned_to = :rep', { rep: filters.salesRepId });
+    if (filters.province)
+      qualQb.andWhere('school.province = :prov', { prov: filters.province });
+
+    const qualStats = await qualQb
       .select('COUNT(*)', 'total')
       .addSelect(
         'SUM(CASE WHEN q.is_qualified = true THEN 1 ELSE 0 END)',
@@ -369,12 +412,10 @@ export class DashboardService {
 
     const dailyTarget = await this.resolveDailyLeadsTarget();
 
-    console.log(dailyTarget);
-
     const cohortQb = this.buildLeadsContactedBaseQuery(filters)
       .select('DISTINCT a.created_by_id', 'repId')
-      .andWhere('a.created_at >= :start', { start: rangeStart })
-      .andWhere('a.created_at <= :end', { end: rangeEnd });
+      .andWhere('a.completed_at >= :start', { start: rangeStart })
+      .andWhere('a.completed_at <= :end', { end: rangeEnd });
     this.applyLeadsContactedScope(cohortQb, filters, userId, userRole);
 
     const cohortRows = await cohortQb.getRawMany();
@@ -388,7 +429,7 @@ export class DashboardService {
     let repUsers: User[] = [];
     if (cohortRepIds.length > 0) {
       repUsers = await this.userRepo
-        .createQueryBuilder('u')
+          .createQueryBuilder('u')
         .where('u.is_active = :active', { active: true })
         .andWhere('u.id IN (:...repIds)', { repIds: cohortRepIds })
         .orderBy('u.first_name', 'ASC')
@@ -402,17 +443,17 @@ export class DashboardService {
         const todayResult = await this.buildLeadsContactedBaseQuery(filters)
           .select('COUNT(DISTINCT a.lead_id)', 'count')
           .andWhere('a.created_by_id = :repId', { repId: rep.id })
-          .andWhere('a.created_at >= :start', { start: todayStart })
-          .andWhere('a.created_at <= :end', { end: todayEnd })
+          .andWhere('a.completed_at >= :start', { start: todayStart })
+          .andWhere('a.completed_at <= :end', { end: todayEnd })
           .getRawOne();
 
         const rangeResult = await this.buildLeadsContactedBaseQuery(filters)
-          .select('DATE(a.created_at)', 'day')
+          .select('DATE(a.completed_at)', 'day')
           .addSelect('COUNT(DISTINCT a.lead_id)', 'count')
           .andWhere('a.created_by_id = :repId', { repId: rep.id })
-          .andWhere('a.created_at >= :start', { start: rangeStart })
-          .andWhere('a.created_at <= :end', { end: rangeEnd })
-          .groupBy('DATE(a.created_at)')
+          .andWhere('a.completed_at >= :start', { start: rangeStart })
+          .andWhere('a.completed_at <= :end', { end: rangeEnd })
+          .groupBy('DATE(a.completed_at)')
           .getRawMany();
 
         const mtdTotal = rangeResult.reduce(
@@ -445,11 +486,11 @@ export class DashboardService {
 
     if (activeRepIds.length > 0 && rangeDays > 0) {
       const dayRows = await this.buildLeadsContactedBaseQuery(filters)
-        .select('DATE(a.created_at)', 'day')
+        .select('DATE(a.completed_at)', 'day')
         .andWhere('a.created_by_id IN (:...repIds)', { repIds: activeRepIds })
-        .andWhere('a.created_at >= :start', { start: rangeStart })
-        .andWhere('a.created_at <= :end', { end: rangeEnd })
-        .groupBy('DATE(a.created_at)')
+        .andWhere('a.completed_at >= :start', { start: rangeStart })
+        .andWhere('a.completed_at <= :end', { end: rangeEnd })
+        .groupBy('DATE(a.completed_at)')
         .getRawMany();
       daysWithAny = new Set(dayRows.map((row) => row.day)).size;
     }
@@ -483,7 +524,7 @@ export class DashboardService {
       .leftJoinAndSelect('inv.school', 'school')
       .leftJoin('inv.deal', 'deal')
       .where('inv.status IN (:...statuses)', {
-        statuses: ['Sent', 'Partially Paid', 'Overdue'],
+        statuses: ['Sent', 'Partially-Paid', 'Overdue'],
       });
 
     if (userRole === 'sales_rep')
@@ -598,88 +639,181 @@ export class DashboardService {
   }
 
   /**
-   * Demo Stats - Mid-funnel tracking
+   * Demo Stats — mid-funnel tracking.
+   *
+   * Reworked (Apr 2026 audit): the previous version defined
+   * `completedDemos` as "won deals in the period", which is flatly
+   * wrong — a won deal is the *outcome* of a sale, not a demo being
+   * delivered. That made the "Demo → Proposal" ratio nonsense: it
+   * was actually `wonDeals ÷ deals-currently-in-demo-stage`.
+   *
+   * Now:
+   *   upcomingDemos   — future meeting activities (demo subject)
+   *                     scheduled but not yet completed
+   *   completedDemos  — meeting activities with demo in subject
+   *                     that actually completed in the period
+   *   demoToProposalRate — of demos held in the period, what % of
+   *                     the underlying deals now sit past the demo
+   *                     stage? Uses stage order, not close status.
+   *
+   * Only meeting-type activities count: a task or email with "demo"
+   * in its subject is not a demo being held.
    */
   async getDemoStats(
     filters: DashboardFiltersDto,
     userId: string,
     userRole: string,
   ) {
-    // Find demo-related stages
+    const { start, end } = this.getDateRange(filters);
+    const now = new Date();
+
+    // Demo-named stages drive the deal-side stage detection.
     const demoStages = await this.stageRepo
       .createQueryBuilder('s')
-      .where('s.name LIKE :demo', { demo: '%demo%' })
-      .orWhere('s.name LIKE :pres', { pres: '%presentation%' })
+      .where('s.name ILIKE :demo', { demo: '%demo%' })
+      .orWhere('s.name ILIKE :pres', { pres: '%presentation%' })
       .getMany();
-
     const demoStageIds = demoStages.map((s) => s.id);
+    const demoStageMinOrder =
+      demoStages.length > 0
+        ? Math.min(...demoStages.map((s) => s.order ?? 0))
+        : null;
 
-    if (demoStageIds.length === 0) {
-      return {
-        upcomingDemos: 0,
-        completedDemos: 0,
-        demoToProposalRate: 0,
-        demoDeals: [],
-      };
+    // ----- Upcoming demos: scheduled DEMO_BOOKING activities ------
+    // Replaces the old `subject ILIKE '%demo%'` predicate which was
+    // brittle and inflated counts on seed data with [DEMO] prefixes.
+    const upcomingQb = this.activityRepo
+      .createQueryBuilder('a')
+      .leftJoinAndSelect('a.deal', 'deal')
+      .leftJoinAndSelect('deal.school', 'school')
+      .leftJoinAndSelect('a.assigned_to', 'owner')
+      .where("a.type = 'demo_booking'")
+      .andWhere("a.status NOT IN ('completed','cancelled')")
+      .andWhere('a.due_at >= :now', { now });
+
+    if (userRole === 'sales_rep')
+      upcomingQb.andWhere(
+        '(a.assigned_to_id = :uid OR a.created_by_id = :uid)',
+        { uid: userId },
+      );
+    if (filters.salesRepId)
+      upcomingQb.andWhere(
+        '(a.assigned_to_id = :rep OR a.created_by_id = :rep)',
+        { rep: filters.salesRepId },
+      );
+    if (filters.province)
+      upcomingQb.andWhere('school.province = :prov', {
+        prov: filters.province,
+      });
+
+    const upcoming = await upcomingQb.orderBy('a.due_at', 'ASC').getMany();
+
+    // ----- Completed demos: DEMO_DELIVERY activities completed in window
+    const completedQb = this.activityRepo
+      .createQueryBuilder('a')
+      .leftJoin('a.deal', 'deal')
+      .leftJoin('deal.school', 'school')
+      .where("a.type = 'demo_delivery'")
+      .andWhere("a.status = 'completed'")
+      .andWhere('a.completed_at >= :start', { start })
+      .andWhere('a.completed_at <= :end', { end });
+
+    if (userRole === 'sales_rep')
+      completedQb.andWhere(
+        '(a.assigned_to_id = :uid OR a.created_by_id = :uid)',
+        { uid: userId },
+      );
+    if (filters.salesRepId)
+      completedQb.andWhere(
+        '(a.assigned_to_id = :rep OR a.created_by_id = :rep)',
+        { rep: filters.salesRepId },
+      );
+    if (filters.province)
+      completedQb.andWhere('school.province = :prov', {
+        prov: filters.province,
+      });
+
+    const completedDemoActs = await completedQb.getMany();
+    const completedDemos = completedDemoActs.length;
+
+    // ----- Demo → proposal conversion -----
+    // Of the deals that had a demo completed in the window, how
+    // many have since advanced PAST the demo stage (to proposal or
+    // beyond)? Requires the deal to still exist and to live in a
+    // stage whose `order` > demoStageMinOrder (or already closed).
+    let demoToProposalRate = 0;
+    if (
+      completedDemos > 0 &&
+      demoStageMinOrder !== null &&
+      demoStageIds.length > 0
+    ) {
+      const dealIds = Array.from(
+        new Set(
+          completedDemoActs
+            .map((a) => a.deal_id)
+            .filter((id): id is string => !!id),
+        ),
+      );
+      if (dealIds.length > 0) {
+        const advanced = await this.dealRepo
+          .createQueryBuilder('d')
+          .leftJoin('d.current_stage', 'stage')
+          .where('d.id IN (:...ids)', { ids: dealIds })
+          .andWhere(
+            '(stage.order > :minOrder OR d.closeStatus <> :ongoing)',
+            { minOrder: demoStageMinOrder, ongoing: DealCloseStatus.ONGOING },
+          )
+          .getCount();
+        demoToProposalRate = (advanced / dealIds.length) * 100;
+      }
     }
 
-    const { start, end } = this.getDateRange(filters);
-
-    const qb = this.dealRepo
-      .createQueryBuilder('d')
-      .leftJoinAndSelect('d.school', 'school')
-      .leftJoinAndSelect('d.current_stage', 'stage')
-      .leftJoinAndSelect('d.assigned_user', 'owner')
-      .where('d.current_stage_id IN (:...ids)', { ids: demoStageIds })
-      .andWhere('d.closeStatus = :ongoing', {
-        ongoing: DealCloseStatus.ONGOING,
-      });
-
-    if (userRole === 'sales_rep')
-      qb.andWhere('d.assigned_to = :uid', { uid: userId });
-    if (filters.salesRepId)
-      qb.andWhere('d.assigned_to = :rep', { rep: filters.salesRepId });
-    if (filters.province)
-      qb.andWhere('school.province = :prov', { prov: filters.province });
-
-    const upcomingDeals = await qb.getMany();
-
-    // Completed demos (won in period)
-    const completedQuery = this.dealRepo
-      .createQueryBuilder('d')
-      .where('d.closeStatus = :won', { won: DealCloseStatus.WON })
-      .andWhere('d.actualCloseDate >= :start', { start })
-      .andWhere('d.actualCloseDate <= :end', { end });
-
-    if (userRole === 'sales_rep')
-      completedQuery.andWhere('d.assigned_to = :uid', { uid: userId });
-    if (filters.salesRepId)
-      completedQuery.andWhere('d.assigned_to = :rep', {
-        rep: filters.salesRepId,
-      });
-
-    const completedDemos = await completedQuery.getCount();
-    const demoToProposalRate =
-      upcomingDeals.length > 0
-        ? (completedDemos / upcomingDeals.length) * 100
-        : 0;
-
-    const demoDeals = upcomingDeals.slice(0, 10).map((d) => ({
-      id: d.id,
-      dealName: d.title,
-      schoolName: d.school?.name || 'Unknown',
-      scheduledDate: d.currentStageSince?.toISOString() || null,
-      stageName: d.current_stage?.name || 'Unknown',
-      ownerName: d.assigned_user
-        ? `${d.assigned_user.first_name} ${d.assigned_user.last_name}`
-        : 'Unknown',
+    const demoDeals = upcoming.slice(0, 10).map((a) => ({
+      id: a.id,
+      dealName: a.deal?.title || a.subject || '—',
+      schoolName: a.deal?.school?.name || 'Unknown',
+      scheduledDate: a.due_at?.toISOString() || null,
+      stageName: 'Demo',
+      ownerName: a.assigned_to
+        ? `${a.assigned_to.first_name} ${a.assigned_to.last_name}`
+        : 'Unassigned',
     }));
 
+    let dealsInDemoStage = 0;
+    if (demoStageIds.length > 0) {
+      const demoStageQb = this.dealRepo
+        .createQueryBuilder('d')
+        .leftJoin('d.school', 'school')
+        .where('d.current_stage_id IN (:...ids)', { ids: demoStageIds })
+        .andWhere('d.closeStatus = :ongoing', {
+          ongoing: DealCloseStatus.ONGOING,
+        });
+
+      if (userRole === 'sales_rep') {
+        demoStageQb.andWhere('d.assigned_to = :uid', { uid: userId });
+      }
+      if (filters.salesRepId) {
+        demoStageQb.andWhere('d.assigned_to = :rep', {
+          rep: filters.salesRepId,
+        });
+      }
+      if (filters.province) {
+        demoStageQb.andWhere('school.province = :prov', {
+          prov: filters.province,
+        });
+      }
+
+      dealsInDemoStage = await demoStageQb.getCount();
+    }
+
     return {
-      upcomingDemos: upcomingDeals.length,
+      upcomingDemos: upcoming.length,
       completedDemos,
       demoToProposalRate: Math.round(demoToProposalRate * 10) / 10,
       demoDeals,
+      // deal-stage count kept as metadata for clients that still
+      // want the "deals sitting in demo stage" number.
+      dealsInDemoStage,
     };
   }
 
@@ -691,6 +825,11 @@ export class DashboardService {
     userId: string,
     userRole: string,
   ) {
+    // Phase A.3: high-value cut-off is admin-tunable so growth/SMB
+    // segments can show a different bar than enterprise without code.
+    const highValueThreshold = await this.complianceSettings.getNumber(
+      'high_value_threshold',
+    );
     const qb = this.dealRepo
       .createQueryBuilder('d')
       .leftJoinAndSelect('d.school', 'school')
@@ -698,7 +837,7 @@ export class DashboardService {
       .leftJoinAndSelect('d.assigned_user', 'owner')
       .where('d.closeStatus = :ongoing', { ongoing: DealCloseStatus.ONGOING })
       .andWhere('d.value >= :threshold', {
-        threshold: DEFAULT_HIGH_VALUE_THRESHOLD,
+        threshold: highValueThreshold,
       });
 
     if (userRole === 'sales_rep')
@@ -712,12 +851,17 @@ export class DashboardService {
 
     const deals = await qb.getMany();
     const now = new Date();
+    const fallbackSlaDays = Math.max(
+      1,
+      Math.round(await this.complianceSettings.getNumber('stale_deal_days')),
+    );
 
     return deals.map((d) => {
       const daysInStage = d.currentStageSince
         ? this.diffDays(now, new Date(d.currentStageSince))
         : 0;
-      const slaDays = d.current_stage?.sla_days || 7;
+      const stageSlaDays = d.current_stage?.sla_days ?? 0;
+      const slaDays = stageSlaDays > 0 ? stageSlaDays : fallbackSlaDays;
 
       return {
         id: d.id,
@@ -730,7 +874,7 @@ export class DashboardService {
           : 'Unknown',
         daysInStage,
         slaDays,
-        isBreached: daysInStage > slaDays,
+        isBreached: d.sla_breached || daysInStage > slaDays,
       };
     });
   }
@@ -795,9 +939,16 @@ export class DashboardService {
       (s, r) => s + Number(r.value || 0),
       0,
     );
-    const monthlyTarget = DEFAULT_MONTHLY_TARGET;
-    const expectedWinRate = DEFAULT_EXPECTED_WIN_RATE;
-    const requiredPipeline = monthlyTarget / expectedWinRate;
+    // Phase A.3 — same admin knobs as Executive KPIs above so funnel
+    // health and pipeline-coverage cards never disagree.
+    const monthlyTarget = await this.complianceSettings.getNumber(
+      'monthly_revenue_target',
+    );
+    const expectedWinRate = await this.complianceSettings.getNumber(
+      'expected_win_rate',
+    );
+    const requiredPipeline =
+      expectedWinRate > 0 ? monthlyTarget / expectedWinRate : 0;
     const coverageRatio =
       requiredPipeline > 0 ? (totalPipeline / requiredPipeline) * 100 : 0;
 
@@ -899,12 +1050,15 @@ export class DashboardService {
     const qb = this.leadRepo
       .createQueryBuilder('l')
       .leftJoinAndSelect('l.stage', 'stage')
+      .leftJoin('l.school', 'school')
       .where('l.deleted_at IS NULL');
 
     if (userRole === 'sales_rep')
       qb.andWhere('l.assigned_to = :uid', { uid: userId });
     if (filters.salesRepId)
       qb.andWhere('l.assigned_to = :rep', { rep: filters.salesRepId });
+    if (filters.province)
+      qb.andWhere('school.province = :prov', { prov: filters.province });
 
     const result = await qb
       .select('l.status', 'status')
@@ -919,60 +1073,72 @@ export class DashboardService {
   }
 
   /**
-   * SLA Compliance - Stage aging / breach tracking
+   * SLA Compliance - lead SLA tracking
    */
   async getSLACompliance(
     filters: DashboardFiltersDto,
     userId: string,
     userRole: string,
   ) {
-    const qb = this.dealRepo
-      .createQueryBuilder('d')
-      .leftJoinAndSelect('d.school', 'school')
-      .leftJoinAndSelect('d.current_stage', 'stage')
-      .leftJoinAndSelect('d.assigned_user', 'owner')
-      .where('d.closeStatus = :ongoing', { ongoing: DealCloseStatus.ONGOING });
+    const qb = this.leadRepo
+      .createQueryBuilder('l')
+      .leftJoinAndSelect('l.school', 'school')
+      .where('l.deleted_at IS NULL')
+      .andWhere('l.status NOT IN (:...terminalStatuses)', {
+        terminalStatuses: ['Converted', 'Disqualified'],
+      });
 
     if (userRole === 'sales_rep')
-      qb.andWhere('d.assigned_to = :uid', { uid: userId });
+      qb.andWhere('l.assigned_to = :uid', { uid: userId });
     if (filters.salesRepId)
-      qb.andWhere('d.assigned_to = :rep', { rep: filters.salesRepId });
+      qb.andWhere('l.assigned_to = :rep', { rep: filters.salesRepId });
     if (filters.province)
       qb.andWhere('school.province = :prov', { prov: filters.province });
 
-    const deals = await qb.getMany();
+    const leads = await qb.getMany();
     const now = new Date();
+    const atRiskWindowMs = 24 * 60 * 60 * 1000;
 
-    const breached = deals
-      .map((d) => {
-        const daysInStage = d.currentStageSince
-          ? this.diffDays(now, new Date(d.currentStageSince))
-          : 0;
-        const slaDays = d.current_stage?.sla_days || 7;
+    const breachedLeads = leads
+      .filter(
+        (lead) =>
+          lead.sla_breached ||
+          (!!lead.current_sla_due_date &&
+            new Date(lead.current_sla_due_date).getTime() < now.getTime()),
+      )
+      .map((lead) => {
+        const due = lead.current_sla_due_date
+          ? new Date(lead.current_sla_due_date)
+          : now;
+        const daysOverdue = Math.max(0, this.diffDays(now, due));
         return {
-          id: d.id,
-          dealName: d.title,
-          schoolName: d.school?.name || 'Unknown',
-          stageName: d.current_stage?.name || 'Unknown',
-          ownerName: d.assigned_user
-            ? `${d.assigned_user.first_name} ${d.assigned_user.last_name}`
-            : 'Unknown',
-          daysInStage,
-          slaDays,
-          isBreached: daysInStage > slaDays,
+          id: lead.id,
+          leadName: lead.lead_name,
+          stage: lead.status,
+          daysOverdue,
         };
       })
-      .filter((d) => d.isBreached)
-      .sort((a, b) => b.daysInStage - a.daysInStage);
+      .sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+    const breachedIds = new Set(breachedLeads.map((lead) => lead.id));
+    const atRisk = leads.filter((lead) => {
+      if (breachedIds.has(lead.id) || !lead.current_sla_due_date) return false;
+      const dueAt = new Date(lead.current_sla_due_date).getTime();
+      return dueAt >= now.getTime() && dueAt <= now.getTime() + atRiskWindowMs;
+    }).length;
+
+    const total = leads.length;
+    const breached = breachedLeads.length;
+    const onTrack = Math.max(total - breached - atRisk, 0);
 
     return {
-      totalActive: deals.length,
-      totalBreached: breached.length,
-      breachRate:
-        deals.length > 0
-          ? Math.round((breached.length / deals.length) * 1000) / 10
-          : 0,
-      breachedDeals: breached,
+      onTrack,
+      atRisk,
+      breached,
+      total,
+      complianceRate:
+        total > 0 ? Math.round(((total - breached) / total) * 1000) / 10 : 100,
+      breachedLeads,
     };
   }
 
@@ -988,6 +1154,7 @@ export class DashboardService {
 
     const leadQb = this.leadRepo
       .createQueryBuilder('l')
+      .leftJoin('l.school', 'school')
       .where('l.created_at >= :start', { start })
       .andWhere('l.created_at <= :end', { end })
       .andWhere('l.deleted_at IS NULL');
@@ -996,6 +1163,8 @@ export class DashboardService {
       leadQb.andWhere('l.assigned_to = :uid', { uid: userId });
     if (filters.salesRepId)
       leadQb.andWhere('l.assigned_to = :rep', { rep: filters.salesRepId });
+    if (filters.province)
+      leadQb.andWhere('school.province = :prov', { prov: filters.province });
 
     const leads = await leadQb.getMany();
     const totalLeads = leads.length;
@@ -1009,6 +1178,7 @@ export class DashboardService {
     // Won deals in period
     const wonQb = this.dealRepo
       .createQueryBuilder('d')
+      .leftJoin('d.school', 'school')
       .where('d.closeStatus = :won', { won: DealCloseStatus.WON })
       .andWhere('d.actualCloseDate >= :start', { start })
       .andWhere('d.actualCloseDate <= :end', { end });
@@ -1017,6 +1187,8 @@ export class DashboardService {
       wonQb.andWhere('d.assigned_to = :uid', { uid: userId });
     if (filters.salesRepId)
       wonQb.andWhere('d.assigned_to = :rep', { rep: filters.salesRepId });
+    if (filters.province)
+      wonQb.andWhere('school.province = :prov', { prov: filters.province });
 
     const wonDeals = await wonQb.getCount();
     const demoToSaleRate = totalLeads > 0 ? (wonDeals / totalLeads) * 100 : 0;
@@ -1047,8 +1219,12 @@ export class DashboardService {
     const overdueQb = this.activityRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.lead', 'lead')
+      .leftJoin('lead.school', 'school')
       .leftJoinAndSelect('a.assigned_to', 'assignee')
       .where('a.due_at < :now', { now })
+      .andWhere('a.type IN (:...actionableTypes)', {
+        actionableTypes: ACTIONABLE_ACTIVITY_TYPES,
+      })
       .andWhere('a.status NOT IN (:...done)', {
         done: ['completed', 'cancelled'],
       })
@@ -1060,6 +1236,10 @@ export class DashboardService {
       overdueQb.andWhere('a.assigned_to_id = :rep', {
         rep: filters.salesRepId,
       });
+    if (filters.province)
+      overdueQb.andWhere('school.province = :prov', {
+        prov: filters.province,
+      });
 
     const overdue = await overdueQb
       .orderBy('a.due_at', 'ASC')
@@ -1070,9 +1250,13 @@ export class DashboardService {
     const dueTodayQb = this.activityRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.lead', 'lead')
+      .leftJoin('lead.school', 'school')
       .leftJoinAndSelect('a.assigned_to', 'assignee')
       .where('a.due_at >= :start', { start: this.startOfDay(now) })
       .andWhere('a.due_at <= :end', { end: todayEnd })
+      .andWhere('a.type IN (:...actionableTypes)', {
+        actionableTypes: ACTIONABLE_ACTIVITY_TYPES,
+      })
       .andWhere('a.status NOT IN (:...done)', {
         done: ['completed', 'cancelled'],
       })
@@ -1084,14 +1268,23 @@ export class DashboardService {
       dueTodayQb.andWhere('a.assigned_to_id = :rep', {
         rep: filters.salesRepId,
       });
+    if (filters.province)
+      dueTodayQb.andWhere('school.province = :prov', {
+        prov: filters.province,
+      });
 
     const dueToday = await dueTodayQb.getCount();
 
     // Due in next 7 days
     const dueWeekQb = this.activityRepo
       .createQueryBuilder('a')
+      .leftJoin('a.lead', 'lead')
+      .leftJoin('lead.school', 'school')
       .where('a.due_at > :today', { today: todayEnd })
       .andWhere('a.due_at <= :week', { week: in7 })
+      .andWhere('a.type IN (:...actionableTypes)', {
+        actionableTypes: ACTIONABLE_ACTIVITY_TYPES,
+      })
       .andWhere('a.status NOT IN (:...done)', {
         done: ['completed', 'cancelled'],
       })
@@ -1102,6 +1295,10 @@ export class DashboardService {
     if (filters.salesRepId)
       dueWeekQb.andWhere('a.assigned_to_id = :rep', {
         rep: filters.salesRepId,
+      });
+    if (filters.province)
+      dueWeekQb.andWhere('school.province = :prov', {
+        prov: filters.province,
       });
 
     const dueIn7Days = await dueWeekQb.getCount();
@@ -1185,15 +1382,27 @@ export class DashboardService {
       .leftJoin('lead.school', 'school')
       .where('lead.deleted_at IS NULL')
       .andWhere('q.qualification_needs IS NOT NULL')
-      .select('q.qualification_needs')
-      .getMany();
+      .select('q.qualification_needs');
+
+    if (userRole === 'sales_rep')
+      qualWithNeeds.andWhere('lead.assigned_to = :uid', { uid: userId });
+    if (filters.salesRepId)
+      qualWithNeeds.andWhere('lead.assigned_to = :rep', {
+        rep: filters.salesRepId,
+      });
+    if (filters.province)
+      qualWithNeeds.andWhere('school.province = :prov', {
+        prov: filters.province,
+      });
+
+    const scopedQualWithNeeds = await qualWithNeeds.getMany();
 
     // Aggregate qualification_needs across all leads
     const needsMap = new Map<
       string,
       { name: string; count: number; totalValue: number }
     >();
-    for (const q of qualWithNeeds) {
+    for (const q of scopedQualWithNeeds) {
       if (q.qualification_needs) {
         for (const need of q.qualification_needs) {
           const existing = needsMap.get(need.id);
@@ -1220,6 +1429,7 @@ export class DashboardService {
     const distribution = await this.qualificationRepo
       .createQueryBuilder('q')
       .leftJoin('q.lead', 'lead')
+      .leftJoin('lead.school', 'school')
       .where('lead.deleted_at IS NULL')
       .select(
         `CASE
@@ -1231,8 +1441,20 @@ export class DashboardService {
         'bucket',
       )
       .addSelect('COUNT(*)', 'count')
-      .groupBy('bucket')
-      .getRawMany();
+      .groupBy('bucket');
+
+    if (userRole === 'sales_rep')
+      distribution.andWhere('lead.assigned_to = :uid', { uid: userId });
+    if (filters.salesRepId)
+      distribution.andWhere('lead.assigned_to = :rep', {
+        rep: filters.salesRepId,
+      });
+    if (filters.province)
+      distribution.andWhere('school.province = :prov', {
+        prov: filters.province,
+      });
+
+    const distributionRows = await distribution.getRawMany();
 
     return {
       total: Number(stats?.total || 0),
@@ -1245,7 +1467,7 @@ export class DashboardService {
         withBudget: Number(stats?.withBudget || 0),
         withContact: Number(stats?.withContact || 0),
       },
-      scoreDistribution: distribution.map((d) => ({
+      scoreDistribution: distributionRows.map((d) => ({
         bucket: d.bucket,
         count: Number(d.count),
       })),
@@ -1272,14 +1494,33 @@ export class DashboardService {
         { docType: 'Quote' },
       )
       .innerJoin('users', 'u', 'q.owner_id = u.id')
+      .leftJoin('deals', 'd', 'q.deal_id = d.id')
+      .leftJoin('schools', 'school', 'q.school_id = school.id')
       .where('di.product_id IS NOT NULL')
-      .andWhere('di.created_at BETWEEN :start AND :end', { start, end });
+      .andWhere('di.created_at BETWEEN :start AND :end', { start, end })
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where('q.status = :acceptedStatus', {
+              acceptedStatus: 'Accepted',
+            })
+            .orWhere('q.po_received = TRUE')
+            .orWhere('d.close_status = :wonStatus', {
+              wonStatus: DealCloseStatus.WON,
+            }),
+        ),
+      );
 
     if (role === 'sales_rep') {
       baseQb.andWhere('q.owner_id = :userId', { userId });
     } else if (filters.salesRepId) {
       baseQb.andWhere('q.owner_id = :salesRepId', {
         salesRepId: filters.salesRepId,
+      });
+    }
+    if (filters.province) {
+      baseQb.andWhere('school.province = :province', {
+        province: filters.province,
       });
     }
 
@@ -1313,25 +1554,53 @@ export class DashboardService {
         { docType: 'Quote' },
       )
       .innerJoin('users', 'u', 'q.owner_id = u.id')
+      .leftJoin('deals', 'd', 'q.deal_id = d.id')
+      .leftJoin('schools', 'school', 'q.school_id = school.id')
       .select('di.product_id', 'product_id')
       .addSelect("CONCAT(u.first_name, ' ', u.last_name)", 'rep_name')
       .addSelect('SUM(di.quantity)', 'count')
       .addSelect('SUM(di.total)', 'value')
       .where('di.product_id IN (:...productIds)', { productIds })
       .andWhere('di.created_at BETWEEN :start AND :end', { start, end })
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where('q.status = :acceptedStatus', {
+              acceptedStatus: 'Accepted',
+            })
+            .orWhere('q.po_received = TRUE')
+            .orWhere('d.close_status = :wonStatus', {
+              wonStatus: DealCloseStatus.WON,
+            }),
+        ),
+      )
       .groupBy('di.product_id')
       .addGroupBy('q.owner_id')
       .addGroupBy('u.first_name')
       .addGroupBy('u.last_name')
-      .orderBy('SUM(di.total)', 'DESC')
-      .getRawMany();
+      .orderBy('SUM(di.total)', 'DESC');
+
+    if (role === 'sales_rep') {
+      byRepRows.andWhere('q.owner_id = :userId', { userId });
+    } else if (filters.salesRepId) {
+      byRepRows.andWhere('q.owner_id = :salesRepId', {
+        salesRepId: filters.salesRepId,
+      });
+    }
+    if (filters.province) {
+      byRepRows.andWhere('school.province = :province', {
+        province: filters.province,
+      });
+    }
+
+    const scopedByRepRows = await byRepRows.getRawMany();
 
     // Step 3: Assemble response
     const repsByProduct = new Map<
       string,
       Array<{ name: string; count: number; value: number }>
     >();
-    for (const row of byRepRows) {
+    for (const row of scopedByRepRows) {
       const list = repsByProduct.get(row.product_id) || [];
       list.push({
         name: row.rep_name,

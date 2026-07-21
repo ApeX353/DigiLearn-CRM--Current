@@ -101,6 +101,18 @@ const api = {
       .get(`/leads/${leadId}/reversal-requests`, { params })
       .then((res) => extractList(res.data)),
 
+  /**
+   * Phase C.2 — manager queue feed across all leads.
+   */
+  listAll: (params?: {
+    status?: LeadReversalRequestStatus;
+    kind?: "status_reversal" | "reassignment" | "tactical_disqualify";
+    limit?: number;
+  }): Promise<LeadReversalRequest[]> =>
+    apiClientAuth
+      .get(`/lead-reversal-requests`, { params })
+      .then((res) => extractList(res.data)),
+
   create: (
     leadId: string,
     data: CreateLeadReversalRequestDto,
@@ -121,8 +133,12 @@ const api = {
     requestId: string,
     data: RejectLeadReversalRequestDto,
   ): Promise<LeadReversalDecisionResult> =>
+    // Server has a single decision endpoint that handles both
+    // approved and rejected — it dispatches based on the
+    // `decision` field in the body. Reject is just an approve call
+    // with `decision: 'rejected'`.
     apiClientAuth
-      .post(`/lead-reversal-requests/${requestId}/reject`, data)
+      .post(`/lead-reversal-requests/${requestId}/approve`, data)
       .then((res) => extractDecisionResult(res.data)),
 };
 
@@ -134,6 +150,32 @@ export function useLeadReversalRequests(
     queryKey: leadReversalRequestsKeys.byLeadId(leadId, options?.status),
     queryFn: () => api.list(leadId, options),
     enabled: !!leadId,
+  });
+}
+
+/** Phase C.2 — cross-lead queue for managers. */
+export function useAllLeadReversalRequests(opts?: {
+  status?: LeadReversalRequestStatus;
+  kind?: "status_reversal" | "reassignment" | "tactical_disqualify";
+  limit?: number;
+  enabled?: boolean;
+}) {
+  return useQuery({
+    queryKey: [
+      ...leadReversalRequestsKeys.all,
+      "list-all",
+      opts?.status ?? "all",
+      opts?.kind ?? "all",
+      opts?.limit ?? 100,
+    ] as const,
+    queryFn: () =>
+      api.listAll({
+        status: opts?.status,
+        kind: opts?.kind,
+        limit: opts?.limit,
+      }),
+    enabled: opts?.enabled ?? true,
+    staleTime: 30 * 1000,
   });
 }
 

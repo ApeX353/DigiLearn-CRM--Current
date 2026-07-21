@@ -17,6 +17,7 @@ import { AddStageDialog } from "~/components/pipelines/add-stage-dialog";
 import { PipelineDialog } from "~/components/pipelines/pipeline-dialog";
 import LeadSLAConfigContent from "~/components/leads/lead-sla-config-content";
 import TargetsConfigContent from "~/components/admin/targets-config-content";
+import ComplianceControlsContent from "~/components/admin/compliance-controls-content";
 import { useSettings, useSetSettings } from "~/api/settings/use-settings";
 import {
   useNotificationPreferences,
@@ -204,6 +205,7 @@ export default function SettingsPage() {
           <TabsTrigger value="notifications" data-testid="settings-notifications-tab">Notifications</TabsTrigger>
           <TabsTrigger value="lead-sla-config" data-testid="lead-sla-config-tab">Lead SLA Config</TabsTrigger>
           <TabsTrigger value="targets-config" data-testid="targets-config-tab">Targets Config</TabsTrigger>
+          <TabsTrigger value="compliance-controls" data-testid="compliance-controls-tab">Compliance &amp; Controls</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
@@ -423,6 +425,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="targets-config" data-testid="targets-config">
           <TargetsConfigContent/>
+        </TabsContent>
+        <TabsContent value="compliance-controls" data-testid="compliance-controls">
+          <ComplianceControlsContent/>
         </TabsContent>
       </Tabs>
 </section>

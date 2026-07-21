@@ -12,8 +12,8 @@ import {
 import { Task } from './tasks.entity';
 
 @Entity('task_comments')
-@Index('idx_task', ['task_id'])
-@Index('idx_commented_by', ['commented_by_id'])
+@Index('idx_task_comments_task', ['task_id'])
+@Index('idx_task_comments_commented_by', ['commented_by_id'])
 export class TaskComment {
   @PrimaryGeneratedColumn('uuid')
   id: string;

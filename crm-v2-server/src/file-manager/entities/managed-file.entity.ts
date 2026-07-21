@@ -46,7 +46,7 @@ export class ManagedFile {
   @Column({ type: 'enum', enum: FILE_ENTITY_TYPES })
   entity_type: FileEntityType;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   entity_id: string;
 
   // ===== OWNERSHIP =====

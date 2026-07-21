@@ -81,7 +81,7 @@ export class ActivityLogsController {
   }
 
   @Get('entity/:entity/:entityId')
-  @Roles('admin', 'sales_manager')
+  @Roles('admin', 'sales_manager', 'sales_rep')
   @ApiOperation({ summary: 'Get activity logs for a specific entity' })
   @ApiParam({
     name: 'entity',

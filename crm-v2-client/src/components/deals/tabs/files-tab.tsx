@@ -88,7 +88,9 @@ export function FilesTab({
       <Card>
         <CardHeader>
           <CardTitle>Files</CardTitle>
-          <CardDescription>Upload and store deal documents</CardDescription>
+          <CardDescription>
+            Upload and store documents for this {entity}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <FileUpload

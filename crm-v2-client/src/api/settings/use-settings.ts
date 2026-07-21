@@ -20,7 +20,7 @@ const settingsApi = {
     apiClientAuth.get("/settings/all").then((res) => res.data),
 
   // Get public settings
-  getPublicSettings: (): Promise<SettingsResponse> =>
+  getPublicSettings: (): Promise<ApiResponse<SettingsResponse>> =>
     apiClientAuth.get("/settings/public").then((res) => res.data),
 
   // Get settings by category

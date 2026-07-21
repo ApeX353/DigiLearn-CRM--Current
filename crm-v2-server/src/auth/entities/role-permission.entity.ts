@@ -25,10 +25,10 @@ export class RolePermission {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   role_id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   permission_id: string;
 
   @Column({ type: 'text', nullable: true })

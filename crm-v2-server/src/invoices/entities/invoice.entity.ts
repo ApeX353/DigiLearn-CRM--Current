@@ -39,35 +39,35 @@ export class Invoice {
   // RELATIONS
   // ========================
 
-  @Column({ name: 'person_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'person_id', type: 'uuid', nullable: true })
   person_id: string | null;
 
   @ManyToOne(() => Contact, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'person_id' })
   person: Contact | null;
 
-  @Column({ name: 'deal_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'deal_id', type: 'uuid', nullable: true })
   deal_id: string | null;
 
   @ManyToOne(() => Deal, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'deal_id' })
   deal: Deal | null;
 
-  @Column({ name: 'owner_id', type: 'varchar', length: 36 })
+  @Column({ name: 'owner_id', type: 'uuid' })
   owner_id: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'owner_id' })
   owner: User;
 
-  @Column({ name: 'quote_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'quote_id', type: 'uuid', nullable: true })
   quote_id: string | null;
 
   @ManyToOne(() => Quote, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'quote_id' })
   quote: Quote | null;
 
-  @Column({ name: 'school_id', type: 'varchar', length: 36 })
+  @Column({ name: 'school_id', type: 'uuid' })
   school_id: string;
 
   @ManyToOne(() => School, { onDelete: 'CASCADE' })
@@ -132,7 +132,7 @@ export class Invoice {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
-  @Column({ name: 'payment_term_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'payment_term_id', type: 'uuid', nullable: true })
   payment_term_id: string | null;
 
   @ManyToOne(() => PaymentTerm, { nullable: true, onDelete: 'SET NULL' })
@@ -141,8 +141,7 @@ export class Invoice {
 
   @Column({
     name: 'parent_invoice_id',
-    type: 'varchar',
-    length: 36,
+    type: 'uuid',
     nullable: true,
   })
   parent_invoice_id: string | null;

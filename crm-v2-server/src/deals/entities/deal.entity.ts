@@ -32,42 +32,51 @@ export enum DealCloseStatus {
 @Index(['current_stage_id'])
 @Index(['assigned_to'])
 export class Deal {
-  @PrimaryColumn('varchar', { length: 36 })
+  @PrimaryColumn('uuid')
   id: string;
 
   /* ========================
      RELATIONS
   ======================== */
 
-  @Column({ name: 'lead_id', type: 'varchar', length: 36 })
+  @Column({ name: 'lead_id', type: 'uuid' })
   lead_id: string;
 
   @ManyToOne(() => Lead, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'lead_id' })
   lead: Lead;
 
-  @Column({ name: 'school_id', type: 'varchar', length: 36 })
+  @Column({ name: 'school_id', type: 'uuid' })
   school_id: string;
 
   @ManyToOne(() => School, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'school_id' })
   school: School;
 
-  @Column({ name: 'current_stage_id', type: 'varchar', length: 36 })
+  /** Carried over from the source lead on conversion so campaign ROI
+   *  reporting can attribute won deals back to the campaign. */
+  @Column({ name: 'source_campaign_id', type: 'uuid', nullable: true })
+  source_campaign_id: string | null;
+
+  @ManyToOne('Campaign', { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'source_campaign_id' })
+  source_campaign: any;
+
+  @Column({ name: 'current_stage_id', type: 'uuid' })
   current_stage_id: string;
 
   @ManyToOne(() => Stage, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'current_stage_id' })
   current_stage: Stage;
   
-  @Column({ name: 'pipeline_id', type: 'varchar', length: 36 })
+  @Column({ name: 'pipeline_id', type: 'uuid' })
   pipeline_id: string;
 
   @ManyToOne(() => Pipeline, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'pipeline_id' })
   pipeline: Pipeline;
 
-  @Column({ name: 'assigned_to', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'assigned_to', type: 'uuid', nullable: true })
   assigned_to: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
@@ -155,6 +164,23 @@ export class Deal {
     default: DealCloseStatus.ONGOING,
   })
   closeStatus: DealCloseStatus;
+
+  /* ========================
+     STAGE-AGE SLA (Phase A.4)
+     Mirrors the lead.sla_breached / last_breached_at pattern. The
+     scheduler flips `sla_breached` true when `currentStageSince` is
+     older than the stage's `sla_days`, and notifies the assigned
+     rep's manager once per breach (it bumps `last_breached_at` so
+     repeat checks don't spam). When the deal advances to a new
+     stage, its writer should reset both fields back to their initial
+     state so the next stage starts a fresh clock.
+  ======================== */
+
+  @Column({ name: 'sla_breached', type: 'boolean', default: false })
+  sla_breached: boolean;
+
+  @Column({ name: 'last_breached_at', type: 'timestamp', nullable: true })
+  last_breached_at: Date | null;
 
   /* ========================
      TIMESTAMPS

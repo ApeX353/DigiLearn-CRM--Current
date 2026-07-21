@@ -3,7 +3,14 @@ export interface ActivityLog {
   entity: string;
   entity_id: string;
   action: ActivityAction;
+  summary?: string;
   actioned_by: string;
+  user?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
   actioned_by_user?: {
     id: string;
     first_name: string;
@@ -11,6 +18,9 @@ export interface ActivityLog {
     email: string;
   };
   details?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  old_values?: Record<string, unknown>;
+  new_values?: Record<string, unknown>;
   created_at: string;
 }
 

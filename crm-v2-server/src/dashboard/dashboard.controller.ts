@@ -2,11 +2,72 @@ import { Controller, Get, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { DashboardFiltersDto } from './dto/dashboard-filters.dto';
+import {
+  DisciplineMetricsService,
+  type MetricWindow,
+} from './discipline-metrics.service';
+import { ActivityDisciplineService } from './activity-discipline.service';
+import { ComplianceReportService } from './compliance-report.service';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Dashboard')
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(
+    private readonly dashboardService: DashboardService,
+    private readonly disciplineMetrics: DisciplineMetricsService,
+    private readonly activityDiscipline: ActivityDisciplineService,
+    private readonly complianceReport: ComplianceReportService,
+  ) {}
+
+  /**
+   * Phase E — admin/manager-only compliance report endpoint. Returns
+   * org totals + per-rep breakdown vs the configured Compliance &
+   * Controls thresholds. The frontend renders this on the new
+   * /admin/compliance-report page. JwtAuthGuard + RolesGuard are
+   * registered globally in app.module.ts, so we only need @Roles.
+   */
+  @Get('compliance-report')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'Compliance report — org totals + per-rep pass/fail vs targets',
+  })
+  async getComplianceReport(@Query() filters: DashboardFiltersDto) {
+    const data = await this.complianceReport.compute(filters);
+    return { data, status: 'success' };
+  }
+
+  @Get('discipline-metrics')
+  @ApiOperation({
+    summary:
+      'Four-category discipline metrics (volume/quality/discipline/progression)',
+  })
+  async getDisciplineMetrics(
+    @Query('window') window: string | undefined,
+    @Query('user_id') userId: string | undefined,
+    @Req() req: any,
+  ) {
+    // Self-scope when the caller is a sales_rep unless they
+    // explicitly asked for a team view. Managers/admins see team-wide
+    // by default and can filter by user_id.
+    const callerId = req.user?.id || req.user?.sub;
+    const roles = req.user?.roles || [];
+    const isManager = roles.some((r: any) =>
+      ['admin', 'sales_manager'].includes(r?.name || r),
+    );
+    const resolvedUser = userId
+      ? userId
+      : isManager
+        ? undefined
+        : callerId;
+    const w = (
+      ['week', 'mtd', 'quarter', 'year'].includes(window ?? '')
+        ? window
+        : 'mtd'
+    ) as MetricWindow;
+    const data = await this.disciplineMetrics.compute(w, resolvedUser);
+    return { data, status: 'success' };
+  }
 
   private getUserInfo(req: any): { userId: string; role: string } {
     const userId = req.user?.id || req.user?.sub || '';
@@ -19,6 +80,35 @@ export class DashboardController {
       roles[0] ||
       'sales_rep';
     return { userId, role };
+  }
+
+  @Get('activity-discipline')
+  @ApiOperation({
+    summary:
+      'Activity Discipline bundle — volume / quality / progression / at-risk / per-rep',
+  })
+  async getActivityDiscipline(
+    @Query() filters: DashboardFiltersDto,
+    @Req() req: any,
+  ) {
+    // Self-scope the payload for sales_rep callers unless they
+    // deliberately asked for a teammate; managers see team-wide by
+    // default (matching the discipline-metrics behaviour above).
+    const callerId = req.user?.id || req.user?.sub;
+    const roles = req.user?.roles || [];
+    const isManager = roles.some((r: any) =>
+      ['admin', 'sales_manager', 'manager'].includes(r?.name || r),
+    );
+    const scoped: DashboardFiltersDto = {
+      ...filters,
+      salesRepId: filters.salesRepId
+        ? filters.salesRepId
+        : isManager
+          ? undefined
+          : callerId,
+    };
+    const data = await this.activityDiscipline.compute(scoped);
+    return { data, status: 'success' };
   }
 
   @Get('kpis')
@@ -212,5 +302,21 @@ export class DashboardController {
       data,
       status: 'success',
     };
+  }
+
+  // Alias — frontend's dashboard widget queries `/top-performing-products`
+  // but the canonical route above is `/top-selling-products`. Instead of
+  // renaming either side (both names read naturally from their own
+  // perspective) we route both to the same handler. Eliminates the 404
+  // the browser was throwing on every dashboard load.
+  @Get('top-performing-products')
+  @ApiOperation({
+    summary: 'Alias of /top-selling-products — matches the frontend hook.',
+  })
+  async getTopPerformingProducts(
+    @Query() filters: DashboardFiltersDto,
+    @Req() req: any,
+  ) {
+    return this.getTopSellingProducts(filters, req);
   }
 }

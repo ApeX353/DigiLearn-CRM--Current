@@ -23,6 +23,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
+    // Skip JWT validation if API key guard already authenticated the user
+    const request = context.switchToHttp().getRequest();
+    if (request.user && request.user.id) {
+      return true;
+    }
+
     return super.canActivate(context);
   }
 }

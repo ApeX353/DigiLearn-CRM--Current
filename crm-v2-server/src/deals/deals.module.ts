@@ -15,8 +15,10 @@ import { User } from '../users/entities/user.entity';
 import { ActivityLogsModule } from '../activity-logs/activity-logs.module';
 import { AuthModule } from '../auth/auth.module';
 import { QuotesModule } from '../quotes/quotes.module';
+import { LeadsModule } from '../leads/leads.module';
 import { DealHealthCalculationService } from './deal-health-calculation.service';
 import { DealRollbackRequestsController } from './deal-rollback-requests.controller';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -34,9 +36,14 @@ import { DealRollbackRequestsController } from './deal-rollback-requests.control
     ]),
     ActivityLogsModule,
     QuotesModule,
+    forwardRef(() => LeadsModule),
     forwardRef(() => AuthModule),
+    SettingsModule,
   ],
   controllers: [DealsController, DealRollbackRequestsController],
+  // NotificationsGateway comes from the global NotificationsGatewayModule
+  // — it must NOT be re-provided here or a second socket.io instance is
+  // created and real-time pushes break.
   providers: [DealsService, DealHealthCalculationService],
   exports: [DealsService],
 })

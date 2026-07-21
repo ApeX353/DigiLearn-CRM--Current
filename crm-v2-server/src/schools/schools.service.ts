@@ -135,12 +135,25 @@ export class SchoolsService {
   async findAll(
     querySchoolDto: QuerySchoolDto,
   ): Promise<Pagination<School>> {
-    const { page = '1', limit = '10', search, school_type, province, region, include_inactive } = querySchoolDto;
+    // Default page size was '10'; bumped to '25' so any caller that
+    // omits `limit` — health checks, curl probes, the Scalar API
+    // playground, any client that forgets the query param — gets the
+    // same page size the Schools management page now uses. Belt-and-
+    // braces: the frontend already sends an explicit `limit=25`.
+    const { page = '1', limit = '25', search, school_type, province, region, include_inactive } = querySchoolDto;
 
-    const queryBuilder = this.schoolRepository
-      .createQueryBuilder('school')
-      .leftJoinAndSelect('school.contacts', 'contacts')
-      .leftJoinAndSelect('school.leads', 'leads');
+    // Previously this query did:
+    //   .leftJoinAndSelect('school.contacts', 'contacts')
+    //   .leftJoinAndSelect('school.leads', 'leads')
+    // That multiplied the SQL result by (contacts × leads) for every
+    // school. `nestjs-typeorm-paginate` then counted and sliced those
+    // joined rows, so `totalItems` was inflated (84 for 55 distinct
+    // schools) and pages 2+ came up short (19 / 10 instead of 25 / 5).
+    // The list view doesn't need eager child collections — the school
+    // detail page fetches them separately — so we drop the joins
+    // here. Pagination now operates on distinct schools and every
+    // page returns exactly `limit` rows (except the final one).
+    const queryBuilder = this.schoolRepository.createQueryBuilder('school');
 
     if (!include_inactive) {
       queryBuilder.andWhere('school.is_active = :isActive', { isActive: true });
@@ -148,7 +161,7 @@ export class SchoolsService {
 
     if (search) {
       queryBuilder.andWhere(
-        '(school.name LIKE :search OR school.city LIKE :search OR school.region LIKE :search)',
+        '(school.name ILIKE :search OR school.city ILIKE :search OR CAST(school.region AS TEXT) ILIKE :search)',
         { search: `%${search}%` },
       );
     }

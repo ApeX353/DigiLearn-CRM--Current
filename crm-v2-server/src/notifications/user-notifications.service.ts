@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -13,6 +14,7 @@ import {
   MarkAsReadDto,
   QueryNotificationDto,
 } from './dto';
+import { NotificationsGateway } from './notifications.gateway';
 
 export interface UserNotificationResponse extends Notification {
   isRead: boolean;
@@ -25,6 +27,8 @@ export class UserNotificationsService {
     private readonly notificationRepository: Repository<Notification>,
     @InjectRepository(UserNotification)
     private readonly userNotificationRepository: Repository<UserNotification>,
+    @Optional()
+    private readonly gateway?: NotificationsGateway,
   ) {}
 
   /**
@@ -33,12 +37,54 @@ export class UserNotificationsService {
   async create(
     createNotificationDto: CreateNotificationDto,
   ): Promise<Notification> {
+    // Reuse an existing row when a dedupe key is supplied and already
+    // present. The `dedupe_key` column is uniquely indexed and callers
+    // (e.g. SLA breach checks that run on a schedule) rely on it to
+    // avoid re-raising the same alert every tick.
+    if (createNotificationDto.dedupeKey) {
+      const existing = await this.notificationRepository.findOne({
+        where: { dedupe_key: createNotificationDto.dedupeKey },
+      });
+      if (existing) return existing;
+    }
+
+    // Explicit field mapping. The DTO is camelCase but the entity
+    // columns are snake_case, so the previous `{ ...dto }` spread
+    // silently dropped entity_id, action_url, dedupe_key, context_json
+    // and notification_options. That broke click-through navigation
+    // (no entity_id / action_url to route to) AND — because dedupe_key
+    // never persisted — duplicate suppression, so scheduled SLA checks
+    // piled up hundreds of identical unread notifications.
     const notification = this.notificationRepository.create({
-      ...createNotificationDto,
+      title: createNotificationDto.title,
+      message: createNotificationDto.message,
       channel: createNotificationDto.channel || 'in-app',
+      severity: createNotificationDto.severity ?? 'info',
+      entity: createNotificationDto.entity ?? null,
+      entity_id: createNotificationDto.entityId ?? null,
+      dedupe_key: createNotificationDto.dedupeKey ?? null,
+      action_url: createNotificationDto.actionUrl ?? null,
+      context_json: createNotificationDto.contextJson ?? null,
+      notification_options: createNotificationDto.notificationOptions ?? null,
     });
 
-    return this.notificationRepository.save(notification);
+    try {
+      return await this.notificationRepository.save(notification);
+    } catch (error: any) {
+      // Concurrent creators can race past the findOne check above and
+      // both attempt to insert the same dedupe_key. Postgres raises
+      // 23505 (unique_violation); fall back to the existing row.
+      const isUniqueViolation =
+        error?.code === '23505' ||
+        /duplicate key|ER_DUP_ENTRY/i.test(error?.message ?? '');
+      if (createNotificationDto.dedupeKey && isUniqueViolation) {
+        const existing = await this.notificationRepository.findOne({
+          where: { dedupe_key: createNotificationDto.dedupeKey },
+        });
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -48,6 +94,17 @@ export class UserNotificationsService {
     sendNotificationDto: SendNotificationDto,
   ): Promise<Notification> {
     const { userIds, ...notificationData } = sendNotificationDto;
+
+    // Dedup at the notification level: if this alert was already sent
+    // (same dedupe key), don't fan it out again — no new fan-out rows,
+    // no repeat real-time push. This is what stops scheduled SLA
+    // checks from re-notifying every tick.
+    if (notificationData.dedupeKey) {
+      const existing = await this.notificationRepository.findOne({
+        where: { dedupe_key: notificationData.dedupeKey },
+      });
+      if (existing) return existing;
+    }
 
     // Create the notification
     const notification = await this.create(notificationData);
@@ -62,6 +119,16 @@ export class UserNotificationsService {
     );
 
     await this.userNotificationRepository.save(userNotifications);
+
+    // Emit real-time notification via WebSocket
+    if (this.gateway) {
+      for (const userId of userIds) {
+        this.gateway.emitToUser(userId, 'notification:new', {
+          ...notification,
+          isRead: false,
+        });
+      }
+    }
 
     return notification;
   }

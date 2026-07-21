@@ -75,6 +75,22 @@ describe('DashboardService (leads contacted)', () => {
       userRepo as any,
       {} as any,
       settingsService as any,
+      // Phase A.3 — ComplianceSettingsService mock. Returns the
+      // documented defaults so the dashboard arithmetic stays
+      // identical to the legacy hard-coded values.
+      {
+        getNumber: async (k: string) =>
+          k === 'monthly_revenue_target'
+            ? 100000
+            : k === 'expected_win_rate'
+              ? 0.25
+              : k === 'high_value_threshold'
+                ? 20000
+                : k === 'daily_contacts_per_rep'
+                  ? 40
+                  : 0,
+        getBoolean: async () => false,
+      } as any,
     );
   });
 

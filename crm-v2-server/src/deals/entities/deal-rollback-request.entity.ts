@@ -30,21 +30,21 @@ export class DealRollbackRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ type: 'uuid' })
   deal_id: string;
 
   @ManyToOne(() => Deal, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'deal_id' })
   deal: Deal;
 
-  @Column({ name: 'from_stage_id', type: 'varchar', length: 36 })
+  @Column({ name: 'from_stage_id', type: 'uuid' })
   from_stage_id: string;
 
   @ManyToOne(() => Stage, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'from_stage_id' })
   from_stage: Stage;
 
-  @Column({ name: 'to_stage_id', type: 'varchar', length: 36 })
+  @Column({ name: 'to_stage_id', type: 'uuid' })
   to_stage_id: string;
 
   @ManyToOne(() => Stage, { onDelete: 'CASCADE' })
@@ -61,21 +61,21 @@ export class DealRollbackRequest {
   })
   status: DealRollbackRequestStatus;
 
-  @Column({ name: 'requested_by_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'requested_by_id', type: 'uuid', nullable: true })
   requested_by_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'requested_by_id' })
   requested_by: User | null;
 
-  @Column({ name: 'approved_by_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'approved_by_id', type: 'uuid', nullable: true })
   approved_by_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'approved_by_id' })
   approved_by: User | null;
 
-  @Column({ name: 'rejected_by_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'rejected_by_id', type: 'uuid', nullable: true })
   rejected_by_id: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })

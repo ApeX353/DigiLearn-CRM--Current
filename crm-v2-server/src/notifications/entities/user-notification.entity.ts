@@ -11,10 +11,10 @@ import type { Notification } from './notification.entity';
 
 @Entity('user_notifications')
 export class UserNotification {
-  @PrimaryColumn({ type: 'varchar', length: 255 })
+  @PrimaryColumn({ type: 'uuid' })
   userId: string;
 
-  @PrimaryColumn({ type: 'varchar', length: 255 })
+  @PrimaryColumn({ type: 'uuid' })
   notificationId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
@@ -27,6 +27,6 @@ export class UserNotification {
   @JoinColumn({ name: 'notificationId' })
   notification: Relation<Notification>;
 
-  @Column({ type: 'tinyint', width: 3, default: 0 })
-  isRead: number; // MySQL TINYINT(3) for boolean
+  @Column({ type: 'smallint', default: 0 })
+  isRead: number;
 }

@@ -64,6 +64,11 @@ export interface LeadQualificationCriteria {
 
 export interface UpdateLeadQualificationDto {
   needs?: string;
+  // Product snapshots backing the needs string. The backend's
+  // qualify-lead MVD gate requires this array to be non-empty
+  // ("boards/products required") — the human-readable `needs`
+  // string alone does not satisfy it.
+  qualification_needs?: QualificationNeeds[];
   plan_type?: string;
   timeline_type?: TimelineType;
   specific_date?: string;

@@ -14,7 +14,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { format } from "date-fns";
 import {
   LEAD_SOURCES,
@@ -26,24 +26,17 @@ import { PROVINCES, type Province } from "~/api/schools";
 import { useAllStaff } from "~/api/staff";
 import { useCheckLeadSlaBreaches, useLeadSlaBreaches } from "~/api/sla";
 import PulsingAlert from "~/components/alerts/pusling-alert";
-import Container from "~/components/container";
 import ContentFilter from "~/components/content-filter";
 import { DataTable } from "~/components/data-table";
 import { DataTablePagination } from "~/components/data-table-pagination";
 import { AssignLeadsDialog } from "~/components/leads/assign-leads-dialog";
+import { LeadRowMarkers } from "~/components/leads/lead-row-markers";
 import { LeadsCsvImportModal } from "~/components/leads/leads-csv-import-modal";
 import { MergeSelectedLeadsDialog } from "~/components/leads/merge-selected-leads-dialog";
 import PageHeader from "~/components/page-header";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,23 +54,44 @@ import { useDebounce } from "~/hooks/use-debounce";
 
 type AssignmentStateFilter = "all" | "assigned" | "unassigned";
 
+// ---------------------------------------------------------------------------
+// Column defs — compacted to a single-line row rhythm.
+//
+// The previous Lead Name / Location / Contact cells stacked their content
+// vertically (`space-y-1`), which pushed every row to ~80px tall even when
+// the metadata would have fit comfortably on one line. That's the "loose
+// floating cards" feel the user called out against the Schools list, which
+// renders as a single line per row.
+//
+// New rhythm: main identity on one line; subordinate metadata on a second
+// tight line via `leading-tight`. Location and Contact collapse to single
+// lines with a mid-dot separator and truncation. Row height drops from
+// ~80px to ~44px — parity with the Schools list — without shrinking text.
+// ---------------------------------------------------------------------------
 const baseLeadColumns: ColumnDef<Lead>[] = [
   {
     accessorKey: "lead_name",
     header: "Lead Name",
     cell: ({ row }) => (
-      <>
-        <Link
-          to={`/leads/${row.original.id}`}
-          className="font-medium hover:underline text-primary"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {row.original.lead_name}
-        </Link>
-        <p className="text-xs text-muted-foreground">
-          Added&nbsp;{format(row.original.created_at, "MMM, dd")}
-        </p>
-      </>
+      <div className="min-w-0 leading-tight">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            to={`/leads/${row.original.id}`}
+            className="font-medium hover:underline text-primary truncate"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {row.original.lead_name}
+          </Link>
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            Added&nbsp;{format(row.original.created_at, "MMM d")}
+          </span>
+        </div>
+        {/* Indicator pills stay on a tight second row so the row height
+            only adds the pill height (~18px), not a full line of text. */}
+        <div className="mt-0.5">
+          <LeadRowMarkers lead={row.original} compact />
+        </div>
+      </div>
     ),
   },
   {
@@ -96,15 +110,17 @@ const baseLeadColumns: ColumnDef<Lead>[] = [
     accessorKey: "school",
     header: "Location",
     cell: ({ row }) => (
-      <div className="text-sm">
+      <div className="min-w-0 text-xs leading-tight">
         <Link
           to={`/schools/${row.original.school?.id}`}
-          className="font-medium hover:underline text-primary"
+          className="font-medium hover:underline text-primary truncate block"
           onClick={(e) => e.stopPropagation()}
         >
           {row.original.school?.name || "-"}
         </Link>
-        <p>{row.original.school?.province || "-"}</p>
+        <span className="text-muted-foreground truncate block">
+          {row.original.school?.province || "-"}
+        </span>
       </div>
     ),
   },
@@ -115,11 +131,15 @@ const baseLeadColumns: ColumnDef<Lead>[] = [
       const contact = row.original.primary_contact;
       if (!contact) return <div className="text-muted-foreground">-</div>;
       return (
-        <div className="text-sm">
-          <div className="font-medium">
+        <div className="min-w-0 text-xs leading-tight">
+          <div className="font-medium truncate">
             {contact.first_name} {contact.last_name}
           </div>
-          <div className="text-muted-foreground">{contact.phone}</div>
+          {contact.phone && (
+            <div className="text-muted-foreground truncate">
+              {contact.phone}
+            </div>
+          )}
         </div>
       );
     },
@@ -141,6 +161,31 @@ const baseLeadColumns: ColumnDef<Lead>[] = [
     },
   },
   {
+    accessorKey: "temperature",
+    header: "Temp",
+    cell: ({ row }) => {
+      const temp = row.original.temperature;
+      const score = row.original.temperature_score;
+      if (!temp) return <div className="text-muted-foreground">-</div>;
+      const colors = {
+        hot: "bg-red-500",
+        warm: "bg-amber-500",
+        cold: "bg-blue-500",
+      };
+      return (
+        <div className="flex items-center gap-1.5">
+          <span className={cn("w-2 h-2 rounded-full", colors[temp])} />
+          <span className="text-xs font-medium capitalize">{temp}</span>
+          {score !== null && (
+            <span className="text-[10px] text-muted-foreground">
+              {score}
+            </span>
+          )}
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: "assigned",
     header: "Assigned To",
     cell: ({ row }) => {
@@ -155,6 +200,58 @@ const baseLeadColumns: ColumnDef<Lead>[] = [
   },
 ];
 
+/**
+ * Compact counts bar rendered above the filter row.
+ *
+ *   Total: 120    Showing 25    Selected 3
+ *
+ * - `Total` is the unfiltered lead inventory the user can see.
+ * - `Showing` reflects the currently-applied filter + search + tab
+ *   combination. Equals `Total` when no filter is active.
+ * - `Selected` only renders when the bulk-selection bar is active.
+ *
+ * The bar stays horizontal and uses tabular-nums so the numbers don't
+ * dance as the user types in the search box.
+ */
+function LeadsCountBar({
+  totalCount,
+  filteredCount,
+  selectedCount,
+}: {
+  totalCount: number;
+  filteredCount: number;
+  selectedCount: number;
+}) {
+  const isFiltered = filteredCount !== totalCount;
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      <span>
+        <span className="font-medium text-foreground tabular">
+          Total: {totalCount.toLocaleString()}
+        </span>
+        <span className="sr-only"> leads</span>
+      </span>
+      {isFiltered && (
+        <span className="tabular">
+          Showing{" "}
+          <span className="font-medium text-foreground">
+            {filteredCount.toLocaleString()}
+          </span>{" "}
+          filtered leads
+        </span>
+      )}
+      {selectedCount > 0 && (
+        <span className="tabular">
+          Selected{" "}
+          <span className="font-medium text-foreground">
+            {selectedCount.toLocaleString()}
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function LeadsManagementPage() {
   const [leadFilter, setLeadFilter] = useState<LeadStatus | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<LeadSource | "all">("all");
@@ -165,7 +262,14 @@ export default function LeadsManagementPage() {
   const [assignmentStateFilter, setAssignmentStateFilter] =
     useState<AssignmentStateFilter>("all");
   const [showBreachedOnly, setShowBreachedOnly] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [temperatureFilter, setTemperatureFilter] = useState<"all" | "hot" | "warm" | "cold">("all");
+  // Seed the search box from `?search=` — the global topbar search
+  // routes here with that param, and without this the page silently
+  // ignored it and showed the unfiltered list.
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
@@ -195,9 +299,16 @@ export default function LeadsManagementPage() {
     assignment_state:
       assignmentStateFilter === "all" ? undefined : assignmentStateFilter,
     sla_breached: showBreachedOnly ? true : undefined,
+    temperature: temperatureFilter === "all" ? undefined : temperatureFilter,
     assigned_to: assignedToFilter === "all" ? undefined : assignedToFilter,
     search: debouncedSearchTerm,
   });
+  // Unfiltered total — cheap second query asking the server for page
+  // 1 with `limit: 1`. Only the `meta.totalItems` is consumed; the
+  // rows are discarded. Kept independent of the filter bundle so the
+  // Total count stays stable as the rep narrows the Showing view.
+  const { data: totalsData } = useLeads({ page: 1, limit: 1 });
+  const unfilteredTotalCount = totalsData?.meta?.totalItems ?? 0;
   const { data: staff } = useAllStaff({
     page: 1,
     limit: 15,
@@ -324,23 +435,35 @@ export default function LeadsManagementPage() {
     <div>
       <PageHeader
         title="Leads"
-        subtitle="Manage and track your sales leads"
+        // Subtitle "Manage and track your sales leads" removed — the
+        // breadcrumb (`Home › Leads`) and the list itself already
+        // communicate what this page is. The subtitle string was one
+        // full row of decorative text pushing every operational row
+        // down.
+        wide
         actions={
           <div className="flex gap-x-2">
-            <Button variant="outline" onClick={() => setImportModalOpen(true)}>
-              <Upload className="h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={() => setImportModalOpen(true)}>
+              <Upload className="h-4 w-4 mr-1.5" />
               Import CSV
             </Button>
-            <Button asChild>
+            <Button size="sm" asChild>
               <Link to="/leads/new">
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 mr-1.5" />
                 Add Lead
               </Link>
             </Button>
           </div>
         }
       />
-      <Container className="space-y-6 p-4">
+      {/* Full-width content shell. `space-y-4` was creating 16px
+          gaps between SLA alert / tabs / card / filter row / table —
+          four of those in a row stacked up to ~64px of empty space
+          circled by the user. Tightened to `space-y-2` (8px) and the
+          redundant wrapping Card was removed below so the filters and
+          table sit right under the tabs instead of inside a
+          double-framed box with its own padding + title. */}
+      <section className="space-y-2 px-3 md:px-4 pb-4 pt-1">
         {breachedCount > 0 && !showBreachedOnly && (
           <PulsingAlert
             icon={Flame}
@@ -382,26 +505,30 @@ export default function LeadsManagementPage() {
           </TabsList>
         </Tabs>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {leadFilter === "New"
-                ? "Open Leads"
-                : leadFilter === "Contacted"
-                  ? "Contacted Leads"
-                  : leadFilter === "Qualified"
-                    ? "Qualified Leads"
-                    : leadFilter === "Nurture"
-                      ? "Nurtured Leads"
-                      : leadFilter === "Disqualified"
-                        ? "Disqualified Leads"
-                        : leadFilter === "Converted"
-                          ? "Converted Leads"
-                          : "All Leads"}
-            </CardTitle>
-            <CardDescription>{leads.length} leads found</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        {/* Was a `<Card>` wrapper with its own `<CardHeader>` that
+            duplicated the currently-selected tab label ("All Leads",
+            "Contacted Leads" etc.) and echoed the row count already
+            visible in the pagination strip. That entire header block
+            + the Card's default `py-4 px-4` contributed the biggest
+            chunk of the dead space circled by the user. Filters and
+            table now render directly inside the page section. The
+            `space-y-6` that used to live on CardContent is preserved
+            as a tighter `space-y-3` below so the filter row and
+            table still breathe visually. */}
+        {/* Counts row — spec'd as part of the management-control
+            pass. "Total" is every lead in the DB the rep is allowed
+            to see (ignores active filters), "Showing" is the count
+            after the current filter/search/tab combination, "Selected"
+            only appears while a bulk-action row is active. Total comes
+            from a separate unfiltered query so it remains stable as
+            the rep narrows the view. */}
+        <LeadsCountBar
+          totalCount={unfilteredTotalCount}
+          filteredCount={data?.meta?.totalItems ?? 0}
+          selectedCount={selectedCount}
+        />
+
+        <div className="space-y-3">
             <ContentFilter
               search={{
                 onChange: setSearchTerm,
@@ -482,6 +609,18 @@ export default function LeadsManagementPage() {
                         label: `${staff.first_name} ${staff.last_name}`,
                         value: staff.id,
                       })),
+                    ],
+                  },
+                  {
+                    label: "Temperature",
+                    value: temperatureFilter,
+                    onValueChange: (value: string) =>
+                      setTemperatureFilter(value as "all" | "hot" | "warm" | "cold"),
+                    options: [
+                      { label: "All Temps", value: "all" },
+                      { label: "🔴 Hot", value: "hot" },
+                      { label: "🟡 Warm", value: "warm" },
+                      { label: "🔵 Cold", value: "cold" },
                     ],
                   },
                 ],
@@ -618,9 +757,8 @@ export default function LeadsManagementPage() {
                 />
               </div>
             )}
-          </CardContent>
-        </Card>
-      </Container>
+        </div>
+      </section>
       <AssignLeadsDialog
         open={assignDialogOpen}
         onOpenChange={setAssignDialogOpen}

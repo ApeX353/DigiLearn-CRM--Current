@@ -8,8 +8,12 @@ export class DatabaseConfigService implements TypeOrmOptionsFactory {
   constructor(private configService: ConfigService) {}
 
   createTypeOrmOptions(): TypeOrmModuleOptions {
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production' ||
+      process.env.NODE_ENV === 'production';
+
     return {
-      type: 'mysql',
+      type: (this.configService.get<string>('DB_TYPE') || 'postgres') as any,
       host: this.configService.get<string>('DATABASE_HOST'),
       port: this.configService.get<number>('DATABASE_PORT'),
       username: this.configService.get<string>('DATABASE_USERNAME'),
@@ -19,39 +23,39 @@ export class DatabaseConfigService implements TypeOrmOptionsFactory {
       // Auto-load entities from project root (src in dev, dist in prod)
       entities: [join(__dirname, '..', '**/*.entity{.ts,.js}')],
 
-      // // Migrations
-      // migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
-      // migrationsRun: false,
+      // Migrations — run automatically at boot in production. The
+      // Docker CMD is just `bun dist/main`, so this is the only place
+      // a fresh production database gets its schema (baseline
+      // 1700000000000-InitialSchema + guarded incrementals). In dev,
+      // run them explicitly with `npm run migration:run`.
+      migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
+      migrationsRun: isProduction || this.getBoolean('DB_RUN_MIGRATIONS', false),
 
       // Synchronize - ONLY true in development
-      synchronize:
-        this.configService.get<boolean>('DB_SYNCHRONIZE') ||
-        process.env.NODE_ENV !== 'production',
+      synchronize: !isProduction && this.getBoolean('DB_SYNCHRONIZE', true),
 
       autoLoadEntities: true,
 
       // Logging
-      logging:
-        this.configService.get<boolean>('DB_LOGGING') ||
-        process.env.NODE_ENV === 'production',
+      logging: this.getBoolean('DB_LOGGING', false),
 
-      extra:
-        process.env.NODE_ENV === 'production'
-          ? {
-              connectionLimit: 10,
-              waitForConnections: true,
-              queueLimit: 0,
-
-              // Keep connections alive
-              enableKeepAlive: true,
-              keepAliveInitialDelay: 0,
-
-              // Timeouts
-              connectTimeout: 60000, // 60 seconds
-              acquireTimeout: 60000,
-              timeout: 60000,
-            }
-          : {},
+      // Real node-postgres (pg) pool options. The previous config used
+      // mysql2 key names (connectionLimit/enableKeepAlive/connectTimeout/…)
+      // which pg SILENTLY IGNORES — so TCP keepalive was OFF and behind
+      // CapRover/Docker NAT idle connections died unnoticed, throwing on the
+      // next query (500s on login, and 503 via validate after the hardening).
+      // Applied in dev AND prod (keepAlive was off in both).
+      extra: {
+        max: 10,
+        keepAlive: true, // load-bearing: pg calls socket.setKeepAlive(true)
+        keepAliveInitialDelayMillis: 10000, // well below the ~900s NAT idle timeout
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000, // fail fast on acquisition, don't hang
+        allowExitOnIdle: false,
+        statement_timeout: 30000,
+        query_timeout: 30000,
+        maxUses: 7500,
+      },
 
       // Automatic reconnection
       poolSize: 10,
@@ -61,5 +65,12 @@ export class DatabaseConfigService implements TypeOrmOptionsFactory {
       retryAttempts: 3,
       retryDelay: 3000,
     };
+  }
+
+  private getBoolean(key: string, fallback: boolean): boolean {
+    const value = this.configService.get<string | boolean>(key);
+    if (value === undefined || value === null || value === '') return fallback;
+    if (typeof value === 'boolean') return value;
+    return value.toLowerCase() === 'true';
   }
 }

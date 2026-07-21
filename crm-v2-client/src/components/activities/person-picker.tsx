@@ -1,4 +1,4 @@
-import { useLeadStakeholders } from "~/api/leads";
+import { useLead, useLeadStakeholders } from "~/api/leads";
 import type { Contact } from "~/api/contacts";
 import {
   Select,
@@ -54,8 +54,27 @@ export function PersonPicker(props: PersonPickerProps) {
   const { data: stakeholdersResponse, isLoading } = useLeadStakeholders(
     leadId || ""
   );
+  const { data: leadResponse, isLoading: isLeadLoading } = useLead(
+    leadId || "",
+  );
 
-  const stakeholders = stakeholdersResponse?.data || [];
+  const directStakeholders = stakeholdersResponse?.data || [];
+  const primaryContact = leadResponse?.data?.primary_contact;
+  const stakeholders =
+    directStakeholders.length > 0
+      ? directStakeholders
+      : primaryContact
+        ? [
+            {
+              id: `primary-${primaryContact.id}`,
+              contact_id: primaryContact.id,
+              contact: primaryContact,
+              role: primaryContact.role ?? "Other",
+              decision_role: "decision_maker",
+              is_primary: true,
+            },
+          ]
+        : [];
 
   const displayLabel = label || "Person Contacted";
 
@@ -72,7 +91,7 @@ export function PersonPicker(props: PersonPickerProps) {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || isLeadLoading) {
     return (
       <div>
         <Label>
@@ -93,7 +112,8 @@ export function PersonPicker(props: PersonPickerProps) {
           {displayLabel} {required && <span className="text-destructive">*</span>}
         </Label>
         <p className="text-sm text-muted-foreground mt-1">
-          No stakeholders found for this lead
+          No stakeholders found for this lead. Add contacts before logging
+          contact-specific calls, emails, meetings, or WhatsApp activity.
         </p>
       </div>
     );
@@ -140,7 +160,7 @@ export function PersonPicker(props: PersonPickerProps) {
               <label
                 key={stakeholder.id}
                 className={cn(
-                  "flex items-center gap-2 cursor-pointer",
+                  "flex flex-wrap items-center gap-2 cursor-pointer",
                   disabled && "opacity-50 cursor-not-allowed",
                 )}
               >

@@ -24,6 +24,17 @@ export class RolesGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Public routes (e.g. /book/:slug) carry no user at all — the JWT
+    // guard already skipped them via the same metadata key. Without
+    // this check every @Public endpoint 403'd on the "User not
+    // authenticated" branch below, which broke the entire public
+    // booking flow.
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     // Check if roles check should be skipped (e.g., for auth endpoints like logout)
     const skipRolesCheck = this.reflector.getAllAndOverride<boolean>(
       SKIP_ROLES_CHECK_KEY,

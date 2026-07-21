@@ -84,13 +84,20 @@ const schoolColumns: ColumnDef<School>[] = [
   },
 ];
 
+// Module-level page-size constant. Kept OUTSIDE the component so it
+// can't be captured in React state that Vite HMR would preserve
+// across module reloads — the previous `useState({ pageSize: 10 })`
+// state was what kept the live page stuck at 10 rows even after
+// the initializer was bumped to 25. Any code path that reads
+// `SCHOOLS_PAGE_SIZE` picks up a change instantly on HMR.
+const SCHOOLS_PAGE_SIZE = 25;
+
 export default function SchoolsManagementPage() {
   const navigate = useNavigate();
   const [isAddSchoolOpen, setIsAddSchoolOpen] = useState(false);
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  // Pagination: ONLY pageIndex lives in state. pageSize is sourced
+  // from the module constant so it can never go stale via HMR.
+  const [pageIndex, setPageIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [provinceFilter, setProvinceFilter] = useState<Province | "all">("all");
   const [schoolTypeFilter, setSchoolTypeFilter] = useState<SchoolType | "all">(
@@ -98,8 +105,8 @@ export default function SchoolsManagementPage() {
   );
 
   const { data, isLoading } = useSchools({
-    page: pagination.pageIndex + 1,
-    limit: pagination.pageSize,
+    page: pageIndex + 1,
+    limit: SCHOOLS_PAGE_SIZE,
     search: searchQuery || undefined,
     province: provinceFilter !== "all" ? provinceFilter : undefined,
     school_type: schoolTypeFilter !== "all" ? schoolTypeFilter : undefined,
@@ -191,9 +198,22 @@ export default function SchoolsManagementPage() {
             manualPagination
             enablePagination
             pageCount={data?.meta?.totalPages}
-            pageIndex={pagination.pageIndex}
-            pageSize={pagination.pageSize}
-            onPaginationChange={setPagination}
+            pageIndex={pageIndex}
+            pageSize={SCHOOLS_PAGE_SIZE}
+            // TanStack passes an updater function — we only surface
+            // pageIndex changes back to state; pageSize stays pinned
+            // to the module constant. If TanStack ever proposes a
+            // different pageSize (it won't, since we don't expose a
+            // selector), we ignore it.
+            onPaginationChange={(updater) => {
+              setPageIndex((prev) => {
+                const next =
+                  typeof updater === "function"
+                    ? updater({ pageIndex: prev, pageSize: SCHOOLS_PAGE_SIZE })
+                    : updater;
+                return next.pageIndex;
+              });
+            }}
             renderPagination={(table) => <DataTablePagination table={table} />}
             getRowId={(row) => row.id}
             onRowClick={(row) => navigate(`/schools/${row.original.id}`)}

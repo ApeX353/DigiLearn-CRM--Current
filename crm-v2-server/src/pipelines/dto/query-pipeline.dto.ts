@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsBoolean, IsNumberString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 
 export class QueryPipelineDto {
   @ApiPropertyOptional({ default: 1, description: 'Page number' })
@@ -20,7 +21,8 @@ export class QueryPipelineDto {
 
   @ApiPropertyOptional({ description: 'Include inactive pipelines' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_inactive?: boolean;
 }

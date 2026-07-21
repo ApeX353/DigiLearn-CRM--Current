@@ -6,7 +6,7 @@ import { Entity, Index, PrimaryGeneratedColumn, Column, CreateDateColumn, Update
 import { Activity } from "./activity.entity";
 
 @Entity('notes')
-@Index('idx_activity', ['activity_id'])
+@Index('idx_notes_activity', ['activity_id'])
 export class Note {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -19,6 +19,16 @@ export class Note {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   tags: string; // Comma-separated or JSON
+
+  /**
+   * Section 3 of the activity spec: notes are strictly internal. This
+   * column always resolves to TRUE — kept as a column (rather than a
+   * hard-coded literal) so that a future product decision to expose
+   * "public notes" can flip this per-row without a schema change.
+   * Until that day arrives, the create DTO forces it to TRUE.
+   */
+  @Column({ type: 'boolean', default: true })
+  is_internal: boolean;
 
   @CreateDateColumn()
   created_at: Date;

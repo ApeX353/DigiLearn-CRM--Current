@@ -3,6 +3,12 @@ import { apiClientAuth } from "~/api/axios";
 import type { Paginated } from "../common-api-type";
 import type { ActivityLog, ActivityLogParams } from "./types";
 
+interface EntityActivityLogResponse {
+  success: boolean;
+  data: ActivityLog[];
+  count: number;
+}
+
 export const activityLogKeys = {
   all: ["activity-logs"] as const,
   list: (params?: ActivityLogParams) =>
@@ -18,7 +24,7 @@ const activityLogApi = {
   getByEntity: (
     entity: string,
     entityId: string
-  ): Promise<Paginated<ActivityLog[]>> =>
+  ): Promise<EntityActivityLogResponse> =>
     apiClientAuth
       .get(`/activity-logs/entity/${entity}/${entityId}`)
       .then((res) => res.data),

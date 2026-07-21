@@ -7,7 +7,8 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+ import { toBool } from '../../common/transformers/to-bool';
 import { LEAD_SOURCES, LEAD_STATUSES } from '../constants';
 import type { LeadSource, LeadStatus } from '../constants';
 import { PROVINCES } from '../../schools/constants';
@@ -66,19 +67,35 @@ export class QueryLeadDto {
 
   @ApiPropertyOptional({ description: 'Include deleted leads' })
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_deleted?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter by SLA breached state' })
   @IsOptional()
-  @Transform(({ value }) =>
-    value === true || value === 'true'
-      ? true
-      : value === false || value === 'false'
-        ? false
-        : value,
-  )
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
   @IsBoolean()
   sla_breached?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['hot', 'warm', 'cold'],
+    description: 'Filter by temperature',
+  })
+  @IsOptional()
+  @IsString()
+  temperature?: string;
+
+  @ApiPropertyOptional({
+    description: 'Sort by field (e.g., temperature_score)',
+  })
+  @IsOptional()
+  @IsString()
+  sort_by?: string;
+
+  @ApiPropertyOptional({ enum: ['ASC', 'DESC'], description: 'Sort order' })
+  @IsOptional()
+  @IsString()
+  sort_order?: 'ASC' | 'DESC';
 }

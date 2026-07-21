@@ -1,6 +1,7 @@
 import { useSettingsContext } from "~/providers/settings-provider";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import { Link } from "react-router";
+import { GraduationCap } from "lucide-react";
 
 export const DashboardHeader = () => {
   const settings = useSettingsContext();
@@ -12,14 +13,22 @@ export const DashboardHeader = () => {
     <div className="space-y-3">
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size="lg" asChild>
-            <Link to="/">
-              {/* <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <BookOpen className="size-4" />
-              </div> */}
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{companyName}</span>
-                <span className="truncate text-xs">CRM</span>
+          <SidebarMenuButton
+            size="lg"
+            asChild
+            className="data-[slot=sidebar-menu-button]:!p-1.5"
+          >
+            <Link to="/" className="flex items-center gap-2.5">
+              <div className="bg-gradient-to-br from-primary to-[oklch(0.43_0.2_280)] text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-md shadow-sm">
+                <GraduationCap className="h-[1.125rem] w-[1.125rem]" />
+              </div>
+              <div className="grid flex-1 text-left leading-tight min-w-0">
+                <span className="truncate text-sm font-semibold tracking-tight">
+                  {companyName}
+                </span>
+                <span className="truncate text-[11px] text-sidebar-foreground/60 uppercase tracking-wider">
+                  Sales CRM
+                </span>
               </div>
             </Link>
           </SidebarMenuButton>

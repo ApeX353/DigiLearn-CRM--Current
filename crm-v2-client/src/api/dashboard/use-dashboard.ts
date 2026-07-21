@@ -16,6 +16,7 @@ import type {
   LeadConversionData,
   NurtureFollowUpsData,
   QualificationOverviewData,
+  ActivityDisciplineData,
 } from "./types";
 import type { ApiResponse } from "../common-api-type";
 
@@ -50,6 +51,8 @@ export const dashboardKeys = {
     [...dashboardKeys.all, "nurture-follow-ups", filters] as const,
   qualificationOverview: (filters: DashboardFilters) =>
     [...dashboardKeys.all, "qualification-overview", filters] as const,
+  activityDiscipline: (filters: DashboardFilters) =>
+    [...dashboardKeys.all, "activity-discipline", filters] as const,
 };
 
 // API functions
@@ -128,6 +131,13 @@ const dashboardApi = {
   ): Promise<ApiResponse<QualificationOverviewData>> =>
     apiClientAuth
       .get("/dashboard/qualification-overview", { params: filters })
+      .then((res) => res.data),
+
+  getActivityDiscipline: (
+    filters: DashboardFilters
+  ): Promise<ApiResponse<ActivityDisciplineData>> =>
+    apiClientAuth
+      .get("/dashboard/activity-discipline", { params: filters })
       .then((res) => res.data),
 };
 
@@ -223,11 +233,15 @@ export function useLeadsByStage(filters: DashboardFilters) {
   });
 }
 
-export function useSLACompliance(filters: DashboardFilters) {
+export function useSLACompliance(
+  filters: DashboardFilters,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: dashboardKeys.slaCompliance(filters),
     queryFn: () => dashboardApi.getSLACompliance(filters),
     staleTime: 5 * 60 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -252,5 +266,17 @@ export function useQualificationOverview(filters: DashboardFilters) {
     queryKey: dashboardKeys.qualificationOverview(filters),
     queryFn: () => dashboardApi.getQualificationOverview(filters),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useActivityDiscipline(
+  filters: DashboardFilters,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: dashboardKeys.activityDiscipline(filters),
+    queryFn: () => dashboardApi.getActivityDiscipline(filters),
+    staleTime: 2 * 60 * 1000, // refresh more aggressively — discipline data is the point
+    enabled: options?.enabled ?? true,
   });
 }

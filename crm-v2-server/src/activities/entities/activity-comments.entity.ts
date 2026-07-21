@@ -13,9 +13,9 @@ import {
 import { Activity } from './activity.entity';
 
 @Entity('activity_comments')
-@Index('idx_activity', ['activity_id'])
-@Index('idx_commented_by', ['commented_by_id'])
-@Index('idx_parent', ['parent_comment_id'])
+@Index('idx_activity_comments_activity', ['activity_id'])
+@Index('idx_activity_comments_commented_by', ['commented_by_id'])
+@Index('idx_activity_comments_parent', ['parent_comment_id'])
 export class ActivityComment {
   @PrimaryGeneratedColumn('uuid')
   id: string;

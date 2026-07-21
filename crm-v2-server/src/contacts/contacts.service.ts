@@ -48,6 +48,8 @@ export class ContactsService {
       preferred_contact_method,
       is_primary,
       include_inactive,
+      stakeholder_type,
+      is_sales_lead,
     } = queryContactDto;
 
     const queryBuilder = this.contactRepository
@@ -87,6 +89,18 @@ export class ContactsService {
     if (is_primary !== undefined) {
       queryBuilder.andWhere('contact.is_primary = :isPrimary', {
         isPrimary: is_primary,
+      });
+    }
+
+    if (stakeholder_type) {
+      queryBuilder.andWhere('contact.stakeholder_type = :stakeholderType', {
+        stakeholderType: stakeholder_type,
+      });
+    }
+
+    if (is_sales_lead !== undefined) {
+      queryBuilder.andWhere('contact.is_sales_lead = :isSalesLead', {
+        isSalesLead: is_sales_lead,
       });
     }
 

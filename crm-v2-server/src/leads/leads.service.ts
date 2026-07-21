@@ -5,6 +5,9 @@ import {
   InternalServerErrorException,
   ForbiddenException,
   ConflictException,
+  Optional,
+  Inject,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In } from 'typeorm';
@@ -46,11 +49,17 @@ import { User } from '../users/entities/user.entity';
 import { Deal } from '../deals/entities/deal.entity';
 import { Quote } from '../quotes/entities/quote.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
+import { Activity, ActivityType } from '../activities/entities/activity.entity';
 import { DocumentItem } from '../document-items/entities/document-item.entity';
 import { AppliedPaymentTerm } from '../payment-terms/entities/applied-payment-term.entity';
+import { EmailSequenceService } from '../email-sequences/email-sequence.service';
+import { ComplianceSettingsService } from '../settings/compliance-settings.service';
+import { isTacticalDisqualifyReason } from './constants/reasons';
+import { LEAD_STATUSES } from './constants/lead-statuses';
 
 @Injectable()
 export class LeadsService {
+  private readonly logger = new Logger(LeadsService.name);
   private static readonly LEAD_CONDITION_KEY_MAP: Record<string, string> = {
     id: 'id',
     ownerId: 'assigned_to',
@@ -89,6 +98,10 @@ export class LeadsService {
     private readonly leadSlaRepository: Repository<LeadSLA>,
     @InjectRepository(LeadReversalRequest)
     private readonly leadReversalRequestRepository: Repository<LeadReversalRequest>,
+    private readonly complianceSettings: ComplianceSettingsService,
+    @Optional()
+    @Inject(EmailSequenceService)
+    private readonly emailSequenceService?: EmailSequenceService,
   ) {}
 
   async create(createLeadDto: CreateLeadDto, userId: string): Promise<Lead> {
@@ -160,7 +173,7 @@ export class LeadsService {
           .where('LOWER(TRIM(school.name)) = LOWER(TRIM(:schoolName))', {
             schoolName: leadInfo.school_name,
           })
-          .andWhere('LOWER(TRIM(school.province)) = LOWER(TRIM(:province))', {
+          .andWhere('LOWER(TRIM(school.province::text)) = LOWER(TRIM(:province))', {
             province: leadInfo.province,
           })
           .andWhere('LOWER(TRIM(school.city)) = LOWER(TRIM(:city))', {
@@ -304,6 +317,7 @@ export class LeadsService {
         current_sla_due_date: addHours(new Date(), slaConfig.sla_hours),
         estimated_value: leadInfo.estimated_value,
         notes: leadInfo.notes,
+        source_campaign_id: leadInfo.source_campaign_id ?? null,
       });
 
       const savedLead = await manager.save(Lead, newLead);
@@ -424,7 +438,10 @@ export class LeadsService {
       assignment_state,
       include_deleted,
       sla_breached,
-      province
+      province,
+      temperature,
+      sort_by,
+      sort_order,
     } = queryLeadDto;
 
     const queryBuilder = this.leadRepository
@@ -483,6 +500,10 @@ export class LeadsService {
       });
     }
 
+    if (temperature) {
+      queryBuilder.andWhere('lead.temperature = :temperature', { temperature });
+    }
+
     if (ability) {
       this.abilityScopeService.applyScopeToQueryBuilder(queryBuilder, ability, {
         action: Action.READ,
@@ -492,7 +513,11 @@ export class LeadsService {
       });
     }
 
-    queryBuilder.orderBy('lead.created_at', 'DESC');
+    if (sort_by === 'temperature_score') {
+      queryBuilder.orderBy('lead.temperature_score', sort_order || 'DESC');
+    } else {
+      queryBuilder.orderBy('lead.created_at', 'DESC');
+    }
 
     const options: IPaginationOptions = {
       page: parseInt(page, 10),
@@ -500,6 +525,54 @@ export class LeadsService {
     };
 
     return paginate<Lead>(queryBuilder, options);
+  }
+
+  /**
+   * Accurate per-status lead totals for the lead-list tab badges.
+   *
+   * Fixes phase-1 BUG-003 at the source: the tab counts were derived
+   * from the current page of results, so every tab showed a wrong
+   * (page-sized) number. This returns the real total for each status
+   * in a single grouped query, every status seeded to 0 so the UI
+   * always renders every tab, plus an `All` total. Honours soft-delete
+   * and the caller's CASL scope so a rep sees only their own counts.
+   *
+   * NOTE: the separate "selecting a stage tab returns 0 leads" symptom
+   * is a CLIENT issue — the backend `findAll` status filter is correct
+   * (`lead.status = :status`) and `QueryLeadDto` validates `status`
+   * against LEAD_STATUSES. The client must send an exact enum value
+   * (e.g. "Contacted", not "contacted"/"all"); "All" carries no status.
+   */
+  async getStatusCounts(
+    ability?: AppAbility,
+  ): Promise<Record<string, number>> {
+    const qb = this.leadRepository
+      .createQueryBuilder('lead')
+      .select('lead.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('lead.deleted_at IS NULL')
+      .groupBy('lead.status');
+
+    if (ability) {
+      this.abilityScopeService.applyScopeToQueryBuilder(qb, ability, {
+        action: Action.READ,
+        subject: 'Lead',
+        queryAlias: 'lead',
+        conditionKeyMap: LeadsService.LEAD_CONDITION_KEY_MAP,
+      });
+    }
+
+    const rows = await qb.getRawMany<{ status: string; count: string }>();
+
+    const counts: Record<string, number> = {};
+    for (const s of LEAD_STATUSES) counts[s] = 0;
+    let total = 0;
+    for (const r of rows) {
+      counts[r.status] = Number(r.count);
+      total += Number(r.count);
+    }
+    counts.All = total;
+    return counts;
   }
 
   async findOne(id: string, ability?: AppAbility): Promise<Lead> {
@@ -671,15 +744,106 @@ export class LeadsService {
     id: string,
     updateLeadDto: UpdateLeadDto,
     userId: string,
+    userRoles: string[] = [],
   ): Promise<Lead> {
     const lead = await this.findOne(id);
 
-    const {disqualify_reason, nurture_reason, other_value, ...rest} = updateLeadDto;
+    const { disqualify_reason, nurture_reason, other_value, ...rest } =
+      updateLeadDto;
+    const requestedStatus = (rest as Partial<Lead>).status;
+    const statusChanged =
+      requestedStatus !== undefined && requestedStatus !== lead.status;
+
+    if (requestedStatus !== undefined) {
+      delete (rest as Partial<Lead>).status;
+    }
+
+    // ----- Phase A.1: tactical-disqualify approval gate ----------
+    // Block sales reps from applying tactical disqualify reasons (no
+    // budget / not interested / can't reach / Other) without an
+    // approved LeadReversalRequest{kind:'tactical_disqualify'}.
+    //
+    // Bypass conditions (any one is sufficient):
+    //   1. The compliance switch is OFF (admin opted out org-wide).
+    //   2. The caller is admin or sales_manager — managers always
+    //      retain direct authority.
+    //   3. The reason is in the `admin` bucket (duplicate, school
+    //      closed, wrong contact, already-has-solution).
+    //   4. An approved tactical_disqualify request exists for this
+    //      lead — the rep got pre-authorisation.
+    //
+    // This runs BEFORE persisting so the lead state never moves into
+    // 'Disqualified' on a denied request.
+    const wantsDisqualify =
+      requestedStatus === 'Disqualified' || !!disqualify_reason;
+    const isManagerOrAdmin =
+      userRoles.includes('admin') || userRoles.includes('sales_manager');
+
+    if (
+      wantsDisqualify &&
+      !isManagerOrAdmin &&
+      isTacticalDisqualifyReason(disqualify_reason)
+    ) {
+      const enforce = await this.complianceSettings.getBoolean(
+        'tactical_disqualify_requires_approval',
+      );
+      if (enforce) {
+        const approved = await this.leadReversalRequestRepository.findOne({
+          where: {
+            lead_id: id,
+            kind: 'tactical_disqualify',
+            status: 'approved',
+          },
+        });
+        if (!approved) {
+          throw new ForbiddenException(
+            `Tactical disqualify reason "${disqualify_reason}" requires manager approval. ` +
+              `Please submit a tactical disqualify request via the lead detail page.`,
+          );
+        }
+      }
+    }
+
+    // ----- Phase A.2: rep-self-reassignment approval gate --------
+    // Block sales reps from changing `assigned_to` on a lead through
+    // PATCH /leads/:id without an approved reassignment request, OR
+    // unless the org-wide `allow_self_reassign` switch is on. Sales
+    // managers and admins are unaffected — the dedicated PATCH
+    // /leads/:id/assign endpoint already restricts itself to those
+    // roles, but PATCH /leads/:id is rep-callable so a determined
+    // rep could otherwise dump leads through the back door.
+    const incomingAssignee = (rest as Partial<Lead>).assigned_to;
+    const reassignAttempt =
+      incomingAssignee !== undefined &&
+      incomingAssignee !== null &&
+      incomingAssignee !== lead.assigned_to;
+
+    if (reassignAttempt && !isManagerOrAdmin) {
+      const allow = await this.complianceSettings.getBoolean(
+        'allow_self_reassign',
+      );
+      if (!allow) {
+        const approved = await this.leadReversalRequestRepository.findOne({
+          where: {
+            lead_id: id,
+            kind: 'reassignment',
+            status: 'approved',
+          },
+        });
+        if (!approved) {
+          throw new ForbiddenException(
+            'Sales reps cannot reassign leads directly. ' +
+              'Please submit a reassignment request for manager approval.',
+          );
+        }
+      }
+    }
+    // -------------------------------------------------------------
 
     const oldValues = { ...lead };
     Object.assign(lead, rest);
 
-    if(disqualify_reason === 'Other' || nurture_reason === 'Other') {
+    if (disqualify_reason === 'Other' || nurture_reason === 'Other') {
       lead.reason = other_value ?? null;
     } else {
       lead.reason = disqualify_reason || nurture_reason || null;
@@ -689,16 +853,29 @@ export class LeadsService {
     // we need if the lead is set to nartured, slas nolonger apply, or SLA is set to follow-up date
     // we want the lead if set to disqualified slas nolonger apply.
 
-    const updatedLead = await this.leadRepository.save(lead);
+    const hasNonStatusChanges =
+      Object.keys(rest).length > 0 ||
+      disqualify_reason !== undefined ||
+      nurture_reason !== undefined ||
+      other_value !== undefined;
 
-    await this.activityLogsService.logUpdate(
-      'Lead',
-      updatedLead.id,
-      oldValues,
-      updatedLead,
-      userId,
-      `Updated lead: ${updatedLead.lead_name}`,
-    );
+    let updatedLead = lead;
+    if (hasNonStatusChanges) {
+      updatedLead = await this.leadRepository.save(lead);
+
+      await this.activityLogsService.logUpdate(
+        'Lead',
+        updatedLead.id,
+        oldValues,
+        updatedLead,
+        userId,
+        `Updated lead: ${updatedLead.lead_name}`,
+      );
+    }
+
+    if (statusChanged) {
+      return this.updateStatus(id, requestedStatus as string, userId);
+    }
 
     return this.findOne(updatedLead.id);
   }
@@ -758,22 +935,57 @@ export class LeadsService {
       throw new NotFoundException(`Lead with ID ${leadId} not found`);
     }
 
-    if (lead.status !== 'Converted') {
-      throw new BadRequestException(
-        'Lead reversal requests can only be submitted for converted leads',
-      );
-    }
+    // Default `kind` is `status_reversal` for backwards compatibility
+    // — older clients don't send the field and expect the original
+    // semantics (request to roll back from Converted).
+    const kind = dto.kind ?? 'status_reversal';
 
-    if (dto.status === 'Converted') {
-      throw new BadRequestException(
-        'Requested status for reversal cannot be Converted',
-      );
+    // Per-kind validation. Each kind has its own pre-conditions.
+    if (kind === 'status_reversal') {
+      if (lead.status !== 'Converted') {
+        throw new BadRequestException(
+          'Status-reversal requests can only be submitted for converted leads',
+        );
+      }
+      if (!dto.status) {
+        throw new BadRequestException(
+          'status_reversal requests require a target `status`',
+        );
+      }
+      if (dto.status === 'Converted') {
+        throw new BadRequestException(
+          'Requested status for reversal cannot be Converted',
+        );
+      }
+    } else if (kind === 'reassignment') {
+      if (!dto.proposed_assignee_id) {
+        throw new BadRequestException(
+          'reassignment requests require `proposed_assignee_id`',
+        );
+      }
+    } else if (kind === 'tactical_disqualify') {
+      // Tactical disqualify: caller wants to disqualify with a soft
+      // reason. The lead must still be live (not already Converted /
+      // Disqualified) — once it's Disqualified there's nothing to
+      // approve, and once it's Converted the status_reversal flow
+      // applies instead.
+      if (lead.status === 'Disqualified') {
+        throw new BadRequestException(
+          'Lead is already Disqualified — no approval needed',
+        );
+      }
+      if (lead.status === 'Converted') {
+        throw new BadRequestException(
+          'Use a status_reversal request to roll back a Converted lead before disqualifying',
+        );
+      }
     }
 
     const existingPendingRequest = await this.leadReversalRequestRepository.findOne(
       {
         where: {
           lead_id: leadId,
+          kind,
           status: 'pending',
         },
       },
@@ -781,13 +993,20 @@ export class LeadsService {
 
     if (existingPendingRequest) {
       throw new ConflictException(
-        'A pending reversal request already exists for this lead',
+        `A pending ${kind} request already exists for this lead`,
       );
     }
 
     const reversalRequest = this.leadReversalRequestRepository.create({
       lead_id: leadId,
-      requested_status: dto.status,
+      kind,
+      // For non-status_reversal kinds, `requested_status` is captured
+      // for audit-trail readability but the review handler only acts
+      // on it for the status_reversal kind.
+      requested_status:
+        dto.status ??
+        (kind === 'tactical_disqualify' ? 'Disqualified' : lead.status),
+      proposed_assignee_id: dto.proposed_assignee_id ?? null,
       reason: dto.reason.trim(),
       notes: dto.notes?.trim() || null,
       status: 'pending',
@@ -800,15 +1019,51 @@ export class LeadsService {
     const savedRequest =
       await this.leadReversalRequestRepository.save(reversalRequest);
 
+    // Manager-friendly audit summary. Snake_case enums and bare UUIDs
+    // are unreadable; convert to the same labels the queue UI uses.
+    const friendlyKind = this.friendlyKindLabel(kind);
+    let summary = `${friendlyKind} request submitted for "${lead.lead_name}"`;
+    if (kind === 'reassignment' && dto.proposed_assignee_id) {
+      const target = await this.usersRepository.findOne({
+        where: { id: dto.proposed_assignee_id },
+        select: ['id', 'first_name', 'last_name', 'email'],
+      });
+      if (target) {
+        const targetName =
+          [target.first_name, target.last_name].filter(Boolean).join(' ').trim() ||
+          target.email ||
+          target.id;
+        summary += ` → propose ${targetName}`;
+      }
+    }
     await this.activityLogsService.logCreate(
       'Lead',
       lead.id,
       { reversal_request: savedRequest },
       userId,
-      `Submitted lead reversal request for ${lead.lead_name}`,
+      summary,
     );
 
     return savedRequest;
+  }
+
+  /**
+   * Manager-friendly label for a reversal request kind. Used in
+   * audit summaries, queue badges, and any user-visible string.
+   * Keep in sync with `KIND_BADGE` in
+   * `client/src/pages/admin/approval-queue-page.tsx`.
+   */
+  private friendlyKindLabel(
+    kind: 'status_reversal' | 'reassignment' | 'tactical_disqualify',
+  ): string {
+    switch (kind) {
+      case 'tactical_disqualify':
+        return 'Soft-reason disqualification';
+      case 'reassignment':
+        return 'Reassignment';
+      case 'status_reversal':
+        return 'Reopen / status reversal';
+    }
   }
 
   async findReversalRequestsByLead(
@@ -819,6 +1074,94 @@ export class LeadsService {
       relations: ['requested_by', 'reviewed_by'],
       order: { created_at: 'DESC' },
     });
+  }
+
+  /**
+   * Phase C.2 — manager queue feed. Cross-lead listing of reversal
+   * requests filterable by `status` and/or `kind`. Eager-loads the
+   * lead + the proposed assignee so the manager UI can render a
+   * single-row summary without N+1 lookups.
+   */
+  async findReversalRequests(opts: {
+    status?: 'pending' | 'approved' | 'rejected';
+    kind?: 'status_reversal' | 'reassignment' | 'tactical_disqualify';
+    limit?: number;
+  }): Promise<LeadReversalRequest[]> {
+    const qb = this.leadReversalRequestRepository
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.requested_by', 'requested_by')
+      .leftJoinAndSelect('r.reviewed_by', 'reviewed_by')
+      .leftJoin(Lead, 'lead', 'lead.id = r.lead_id')
+      .addSelect([
+        'lead.id',
+        'lead.lead_name',
+        'lead.status',
+        'lead.assigned_to',
+      ])
+      .orderBy('r.created_at', 'DESC');
+
+    if (opts.status) qb.andWhere('r.status = :s', { s: opts.status });
+    if (opts.kind) qb.andWhere('r.kind = :k', { k: opts.kind });
+    qb.take(opts.limit ?? 100);
+
+    // Hand-roll the join so we can attach `lead_summary` to each row
+    // for the manager UI without forcing the entity relation graph
+    // to declare a Lead manyToOne (lead_id is plain uuid here).
+    const raw = await qb.getRawAndEntities();
+    const rows = raw.entities.map((entity, i) => {
+      const r = raw.raw[i];
+      const summary = r
+        ? {
+            id: r.lead_id,
+            lead_name: r.lead_lead_name ?? null,
+            status: r.lead_status ?? null,
+            assigned_to: r.lead_assigned_to ?? null,
+          }
+        : null;
+      (entity as unknown as { lead_summary?: typeof summary }).lead_summary =
+        summary;
+      return entity;
+    });
+
+    // Resolve proposed_assignee_id → friendly name in one batch lookup
+    // so the manager queue can render "→ Grace Mutasa" without N+1.
+    // Only matters for reassignment rows.
+    const targetIds = Array.from(
+      new Set(
+        rows
+          .filter((r) => r.kind === 'reassignment' && r.proposed_assignee_id)
+          .map((r) => r.proposed_assignee_id as string),
+      ),
+    );
+    if (targetIds.length > 0) {
+      const targets = await this.usersRepository.find({
+        where: { id: In(targetIds) },
+        select: ['id', 'first_name', 'last_name', 'email'],
+      });
+      const byId = new Map(targets.map((u) => [u.id, u]));
+      for (const row of rows) {
+        if (row.kind === 'reassignment' && row.proposed_assignee_id) {
+          const u = byId.get(row.proposed_assignee_id);
+          (row as unknown as {
+            proposed_assignee_summary?: {
+              id: string;
+              name: string;
+              email: string | null;
+            };
+          }).proposed_assignee_summary = u
+            ? {
+                id: u.id,
+                name:
+                  [u.first_name, u.last_name].filter(Boolean).join(' ').trim() ||
+                  u.email ||
+                  u.id,
+                email: u.email ?? null,
+              }
+            : undefined;
+        }
+      }
+    }
+    return rows;
   }
 
   async findReversalRequestById(id: string): Promise<LeadReversalRequest> {
@@ -858,8 +1201,31 @@ export class LeadsService {
     }
 
     if (dto.decision === 'approved') {
-      await this.removeLeadDealsAndDependents(request.lead_id);
-      await this.updateStatus(request.lead_id, request.requested_status, userId);
+      // Per-kind side effects on approval. status_reversal mutates
+      // the lead immediately; the others just unlock a future action
+      // by the rep (the rep will then call PATCH /leads/:id with the
+      // disqualify reason or assign their lead).
+      if (request.kind === 'status_reversal') {
+        await this.removeLeadDealsAndDependents(request.lead_id);
+        await this.updateStatus(
+          request.lead_id,
+          request.requested_status,
+          userId,
+        );
+      } else if (request.kind === 'reassignment') {
+        // Honour the requested target user immediately so the rep
+        // doesn't have to make a second call.
+        if (request.proposed_assignee_id) {
+          await this.assignLead(
+            request.lead_id,
+            request.proposed_assignee_id,
+            userId,
+          );
+        }
+      }
+      // tactical_disqualify: no immediate side-effect. The approval
+      // simply unlocks the gate in `update()` for any subsequent
+      // disqualify call by the rep.
       request.status = 'approved';
     } else {
       request.status = 'rejected';
@@ -871,13 +1237,25 @@ export class LeadsService {
 
     const saved = await this.leadReversalRequestRepository.save(request);
 
+    // Manager-friendly summary so the lead's audit trail reads
+    // naturally: "Soft-reason disqualification request approved"
+    // rather than "Reversal request <uuid> approved".
+    const friendlyKind = this.friendlyKindLabel(saved.kind);
+    const decisionLabel = saved.status === 'approved' ? 'approved' : 'rejected';
+    let summary = `${friendlyKind} request ${decisionLabel}`;
+    if (saved.review_note) {
+      const trimmed = saved.review_note.length > 60
+        ? saved.review_note.slice(0, 57) + '…'
+        : saved.review_note;
+      summary += ` — "${trimmed}"`;
+    }
     await this.activityLogsService.logUpdate(
       'Lead',
       request.lead_id,
       { reversal_request_status: 'pending' },
       { reversal_request_status: saved.status },
       userId,
-      `Reversal request ${saved.id} ${saved.status}`,
+      summary,
     );
 
     return this.findReversalRequestById(saved.id);
@@ -951,15 +1329,47 @@ export class LeadsService {
     status: string,
     userId: string,
   ): Promise<Lead> {
-    const lead = await this.findOne(id);
+    const updatedLead = await this.transitionStatus(
+      this.leadRepository.manager,
+      id,
+      status,
+      userId,
+    );
+
+    return this.findOne(updatedLead.id);
+  }
+
+  async updateStatusInTransaction(
+    manager: EntityManager,
+    id: string,
+    status: string,
+    userId: string,
+  ): Promise<Lead> {
+    return this.transitionStatus(manager, id, status, userId);
+  }
+
+  private async transitionStatus(
+    manager: EntityManager,
+    id: string,
+    status: string,
+    userId: string,
+  ): Promise<Lead> {
+    const lead = await manager.findOne(Lead, { where: { id } });
+    if (!lead) {
+      throw new NotFoundException(`Lead with ID ${id} not found`);
+    }
     const oldStatus = lead.status;
 
     if (oldStatus === status) return lead;
 
+    if (status === 'Qualified') {
+      await this.assertMinimumViableDataForQualification(manager, id);
+    }
+
     const now = new Date();
 
     // Close current SLA history record
-    await this.leadSlaHistoryRepository
+    await manager
       .createQueryBuilder()
       .update(LeadSLAHistory)
       .set({ exited_status_at: now, sla_met: !lead.sla_breached })
@@ -969,7 +1379,7 @@ export class LeadsService {
       .execute();
 
     // Look up SLA config for new status
-    const slaConfig = await this.leadSlaRepository.findOne({
+    const slaConfig = await manager.findOne(LeadSLA, {
       where: { status: status as any, is_active: true },
     });
 
@@ -981,12 +1391,13 @@ export class LeadsService {
       lead.converted_at = now;
     }
 
-    const updatedLead = await this.leadRepository.save(lead);
+    const updatedLead = await manager.save(Lead, lead);
 
     // Create new SLA history record if config exists
     if (slaConfig) {
-      await this.leadSlaHistoryRepository.save(
-        this.leadSlaHistoryRepository.create({
+      await manager.save(
+        LeadSLAHistory,
+        manager.create(LeadSLAHistory, {
           lead_id: updatedLead.id,
           status: updatedLead.status,
           entered_status_at: now,
@@ -1005,7 +1416,115 @@ export class LeadsService {
       `Changed lead status from ${oldStatus} to ${status}`,
     );
 
-    return this.findOne(updatedLead.id);
+    // Trigger email sequences for this status change
+    if (this.emailSequenceService) {
+      this.emailSequenceService
+        .triggerSequence(`lead_status_change_to_${status}`, updatedLead.id)
+        .catch((err) =>
+          this.logger.error(`Failed to trigger email sequence: ${err.message}`),
+        );
+    }
+
+    return updatedLead;
+  }
+
+  private async assertMinimumViableDataForQualification(
+    manager: EntityManager,
+    leadId: string,
+  ): Promise<void> {
+    const lead = await manager.findOne(Lead, {
+      where: { id: leadId },
+      relations: [
+        'school',
+        'primary_contact',
+        'stakeholders',
+        'stakeholders.contact',
+      ],
+    });
+    if (!lead) {
+      throw new NotFoundException(`Lead with ID ${leadId} not found`);
+    }
+
+    const qualification = await manager.findOne(LeadQualificationCriteria, {
+      where: { lead_id: leadId },
+    });
+
+    const contacts = [
+      lead.primary_contact,
+      ...(lead.stakeholders || []).map((s) => s.contact),
+    ].filter((contact): contact is Contact => !!contact);
+
+    const hasContactPerson = contacts.some(
+      (contact) =>
+        this.hasText(contact.first_name) || this.hasText(contact.last_name),
+    );
+    const hasContactChannel = contacts.some(
+      (contact) =>
+        this.hasText(contact.phone) ||
+        this.hasText(contact.whatsapp_number) ||
+        this.hasText(contact.email),
+    );
+    const hasDecisionMaker =
+      (lead.stakeholders || []).some(
+        (stakeholder) =>
+          stakeholder.decision_role === DecisionRole.DECISION_MAKER,
+      ) || this.hasText(qualification?.decision_maker_name);
+
+    const hasNeed =
+      this.hasText(qualification?.needs) ||
+      !!qualification?.qualification_needs?.length;
+    const hasBudgetOrPlan =
+      !!qualification?.has_budget ||
+      qualification?.budget_amount != null ||
+      this.hasText(qualification?.budget_indicator) ||
+      this.hasText(qualification?.plan_type);
+    const hasProductsRequired = !!qualification?.qualification_needs?.length;
+    const hasTimeline =
+      !!qualification?.has_timeline ||
+      this.hasText(qualification?.timeline_type) ||
+      !!qualification?.specific_date;
+
+    const openNextAction = await manager
+      .getRepository(Activity)
+      .createQueryBuilder('activity')
+      .where('activity.lead_id = :leadId', { leadId })
+      .andWhere('activity.type IN (:...types)', {
+        types: [
+          ActivityType.TASK,
+          ActivityType.CALL,
+          ActivityType.EMAIL,
+          ActivityType.MEETING,
+          ActivityType.WHATSAPP,
+        ],
+      })
+      .andWhere("activity.status NOT IN ('completed','cancelled')")
+      .andWhere('activity.completed_at IS NULL')
+      .andWhere('activity.due_at IS NOT NULL')
+      .andWhere('activity.due_at >= :now', { now: new Date() })
+      .getCount();
+
+    const missing: string[] = [];
+    if (!this.hasText(lead.school?.name) && !this.hasText(lead.lead_name)) {
+      missing.push('school name');
+    }
+    if (!hasContactPerson) missing.push('contact person');
+    if (!hasContactChannel) missing.push('phone/WhatsApp/email');
+    if (!hasDecisionMaker) missing.push('decision-maker status');
+    if (!hasNeed) missing.push('interest/need');
+    if (!hasBudgetOrPlan) missing.push('budget or payment plan');
+    if (!hasProductsRequired) missing.push('boards/products required');
+    if (!hasTimeline) missing.push('timeline');
+    if (openNextAction === 0) missing.push('future next action');
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Cannot qualify lead until Minimum Viable Data is complete: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  private hasText(value: unknown): boolean {
+    return typeof value === 'string' && value.trim().length > 0;
   }
 
   async findRelatedLeads(
@@ -1083,7 +1602,8 @@ export class LeadsService {
         queryAlias: 'lead',
         conditionKeyMap: LeadsService.LEAD_CONDITION_KEY_MAP,
       });
-    }
+  }
+
     qb.orderBy('lead.created_at', 'DESC');
 
     const relatedLeads = await qb.getMany();
@@ -1132,6 +1652,20 @@ export class LeadsService {
     }
 
     const oldAssignee = lead.assigned_to;
+    // Resolve the previous owner's name for the audit summary so the
+    // log doesn't dump raw UUIDs at the manager.
+    const oldUser = oldAssignee
+      ? await this.usersRepository.findOne({
+          where: { id: oldAssignee },
+          select: ['id', 'first_name', 'last_name', 'email'],
+        })
+      : null;
+    const fmt = (u: typeof user | null) =>
+      !u
+        ? 'Unassigned'
+        : [u.first_name, u.last_name].filter(Boolean).join(' ').trim() ||
+          u.email ||
+          u.id;
 
     lead.assigned_to = assignedTo;
     lead.assignee = user;
@@ -1143,7 +1677,7 @@ export class LeadsService {
       { assigned_to: oldAssignee },
       { assigned_to: assignedTo },
       userId,
-      `Reassigned lead from ${oldAssignee || 'unassigned'} to ${assignedTo}`,
+      `Reassigned lead from ${fmt(oldUser)} to ${fmt(user)}`,
     );
 
     return this.findOne(id);

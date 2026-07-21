@@ -3,8 +3,8 @@ import { Entity, Index, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyTo
 import { Activity } from "./activity.entity";
 
 @Entity('activity_attachments')
-@Index('idx_activity', ['activity_id'])
-@Index('idx_uploaded_by', ['uploaded_by_id'])
+@Index('idx_activity_attachments_activity', ['activity_id'])
+@Index('idx_activity_attachments_uploaded_by', ['uploaded_by_id'])
 export class ActivityAttachment {
   @PrimaryGeneratedColumn('uuid')
   id: string;

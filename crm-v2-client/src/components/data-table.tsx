@@ -87,7 +87,12 @@ export function DataTable<TData, TValue>({
   data,
   // Pagination
   enablePagination = true,
-  pageSize = 10,
+  // Default bumped from 10 → 25 so any caller that doesn't pass an
+  // explicit pageSize matches the Schools list behaviour and the
+  // backend's new default. Lists that genuinely want a smaller page
+  // can still opt in by passing `pageSize={10}` (or lower) at the
+  // call site.
+  pageSize = 25,
   pageIndex = 0,
   onPaginationChange,
   manualPagination = false,
@@ -248,8 +253,8 @@ export function DataTable<TData, TValue>({
     <div className="space-y-4">
       {renderToolbar && renderToolbar(table)}
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className="min-w-[640px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

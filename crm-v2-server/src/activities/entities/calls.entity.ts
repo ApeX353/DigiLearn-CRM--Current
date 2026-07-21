@@ -21,9 +21,9 @@ export enum CallOutcome {
 }
 
 @Entity('calls')
-@Index('idx_activity', ['activity_id'], { unique: true})
-@Index('idx_outcome', ['outcome'])
-@Index('idx_outcome_tag', ['outcome_id'])
+@Index('idx_calls_activity', ['activity_id'], { unique: true})
+@Index('idx_calls_outcome', ['outcome'])
+@Index('idx_calls_outcome_tag', ['outcome_id'])
 export class Call {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -34,11 +34,19 @@ export class Call {
   @Column({ type: 'varchar', length: 50 })
   phone_number: string;
 
+  /**
+   * Nullable — a call SCHEDULED for the future has no outcome yet.
+   * Outcome is captured when the call is marked complete, enforced
+   * by the activity-level `completion_outcome` gate. Previously
+   * NOT NULL, which 400'd every create-with-scheduled-call path
+   * (notably the follow-up-prompt-dialog's call case).
+   */
   @Column({
     type: 'enum',
     enum: CallOutcome,
+    nullable: true,
   })
-  outcome: CallOutcome;
+  outcome: CallOutcome | null;
 
   @Column({ type: 'uuid', nullable: true })
   outcome_id: string; // Reference to CallOutcome table

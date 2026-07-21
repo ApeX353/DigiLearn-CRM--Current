@@ -178,7 +178,15 @@ const setupResponseInterceptor = (instance: AxiosInstance) => {
       }
 
       if (error.response?.status === 404) {
-        console.error("Resource not found");
+        // 404 on a read endpoint is often an optional widget source
+        // (e.g. feature-gated reports, notification preferences before
+        // first save). Keep it visible as a warn — not an error — so
+        // the console stays signal-rich during normal use but we still
+        // get breadcrumbs when debugging. Logs include the URL so
+        // missing-endpoint regressions are still diagnosable.
+        console.warn(
+          `[api] 404 Not Found: ${originalRequest?.method?.toUpperCase() ?? "GET"} ${requestUrl}`,
+        );
       }
 
       if (error.response?.status === 500) {
@@ -198,16 +206,23 @@ setupResponseInterceptor(apiClientAuth);
 export const handleApiError = (error: unknown): string => {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<{
-      message?: string;
-      error?: string;
+      message?: string | string[];
+      error?: string | string[];
     }>;
 
     if (axiosError.response) {
-      return (
-        axiosError.response.data?.message ||
-        axiosError.response.data?.error ||
-        "An error occurred"
-      );
+      const message =
+        axiosError.response.data?.message || axiosError.response.data?.error;
+
+      if (Array.isArray(message)) {
+        return message.join("; ");
+      }
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+
+      return "An error occurred";
     }
 
     if (axiosError.request) {

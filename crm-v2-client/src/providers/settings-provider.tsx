@@ -1,8 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { useAuthStore } from "~/stores/use-auth-store";
-import { useAllSettings } from "~/api/settings";
+import { usePublicSettings } from "~/api/settings";
 import type { Setting } from "~/api/settings";
-import { Skeleton } from "~/components/ui/skeleton";
 
 type SettingValue = string | number | boolean | object;
 
@@ -18,13 +16,13 @@ interface SettingsContextValue {
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
-
-  const { data: settingsData, isLoading } = useAllSettings(isAuthenticated);
-
-  const settings = settingsData?.data || [];
-
-  const settingsMap = new Map(settings?.map((s) => [s.key, s.value]));
+  const { data: settingsData, isLoading } = usePublicSettings();
+  const publicSettings = settingsData?.data || {};
+  const settings = Object.entries(publicSettings).map(([key, value]) => ({
+    key,
+    value,
+  })) as Setting[];
+  const settingsMap = new Map(Object.entries(publicSettings));
 
   const getSetting = (key: string): SettingValue | undefined =>
     settingsMap.get(key);
@@ -43,21 +41,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const val = settingsMap.get(key);
     return typeof val === "boolean" ? val : fallback;
   };
-
-  if (isLoading && isAuthenticated) {
-    return (
-      <div className="w-full h-screen flex gap-x-6">
-        <div className="w-md h-full md:block hidden py-6">
-          <Skeleton className="h-full" />
-        </div>
-        <div className="flex-1 h-screen py-6 space-y-6 max-w-7xl mx-auto">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-12" />
-          <Skeleton className="h-6 w-3xl" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <SettingsContext.Provider

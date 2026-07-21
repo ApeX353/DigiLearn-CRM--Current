@@ -8,9 +8,11 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
   HttpStatus,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { LeadsService } from './leads.service';
 import { LeadQualificationService } from './services/lead-qualification.service';
 import {
@@ -109,6 +111,52 @@ export class LeadsController {
       meta: leads.meta,
       links: leads.links,
     };
+  }
+
+  @Get('status-counts')
+  @CheckPermission('read', 'Lead')
+  @ApiOperation({
+    summary: 'Accurate per-status lead totals for the list tab badges',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Per-status counts (plus an All total) retrieved successfully',
+  })
+  async getStatusCounts(@CaslAbility() ability: AppAbility) {
+    const counts = await this.leadsService.getStatusCounts(ability);
+    return { success: true, data: counts };
+  }
+
+  @Get('export')
+  @Roles('admin', 'sales_manager', 'sales_rep')
+  @ApiOperation({ summary: 'Export leads as CSV' })
+  async exportCsv(
+    @Res() res: Response,
+  ) {
+    const result = await this.leadsService.findAll({ limit: '1000' } as any);
+    const leads = result.items;
+
+    const headers = ['Lead Name', 'Status', 'School', 'Province', 'Contact', 'Phone', 'Source', 'Assigned To', 'Created At'];
+    const rows = leads.map((lead: any) => [
+      lead.lead_name || '',
+      lead.status || '',
+      lead.school?.name || '',
+      lead.school?.province || '',
+      lead.primary_contact ? `${lead.primary_contact.first_name || ''} ${lead.primary_contact.last_name || ''}`.trim() : '',
+      lead.primary_contact?.phone || '',
+      lead.source || '',
+      lead.assignee ? `${lead.assignee.first_name || ''} ${lead.assignee.last_name || ''}`.trim() : '',
+      lead.created_at ? new Date(lead.created_at).toISOString().split('T')[0] : '',
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: string[]) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="leads-export-${Date.now()}.csv"`);
+    res.send(csvContent);
   }
 
   @Get(':id')
@@ -234,8 +282,15 @@ export class LeadsController {
     @Param('id') id: string,
     @Body() updateLeadDto: UpdateLeadDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
-    const lead = await this.leadsService.update(id, updateLeadDto, userId);
+    const userRoles = (currentUser?.roles || []).map((r) => r.name);
+    const lead = await this.leadsService.update(
+      id,
+      updateLeadDto,
+      userId,
+      userRoles,
+    );
     return {
       success: true,
       message: 'Lead updated successfully',
@@ -379,4 +434,51 @@ export class LeadsController {
       data: lead,
     };
   }
+
+  // ========================
+  // Bulk Operations
+  // ========================
+
+  @Patch('bulk-update')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Bulk update leads (assign, status change, or delete)' })
+  async bulkUpdate(
+    @Body() body: { leadIds: string[]; action: 'assign' | 'status' | 'delete'; assigneeId?: string; status?: string },
+    @CurrentUser('id') userId: string,
+  ) {
+    const { leadIds, action, assigneeId, status } = body;
+    let updated = 0;
+
+    for (const leadId of leadIds) {
+      try {
+        switch (action) {
+          case 'assign':
+            if (assigneeId) {
+              await this.leadsService.assignLead(leadId, assigneeId, userId);
+              updated++;
+            }
+            break;
+          case 'status':
+            if (status) {
+              await this.leadsService.updateStatus(leadId, status, userId);
+              updated++;
+            }
+            break;
+          case 'delete':
+            await this.leadsService.remove(leadId, userId);
+            updated++;
+            break;
+        }
+      } catch {
+        // Skip individual failures in bulk ops
+      }
+    }
+
+    return {
+      success: true,
+      message: `Bulk ${action} completed: ${updated}/${leadIds.length} leads updated`,
+      updated,
+    };
+  }
+
 }

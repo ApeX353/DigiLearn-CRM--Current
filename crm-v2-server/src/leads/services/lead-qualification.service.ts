@@ -14,15 +14,29 @@ import {
   UpdateLeadQualificationDto,
   QueryLeadQualificationDto,
 } from '../dto';
+import { ComplianceSettingsService } from '../../settings/compliance-settings.service';
 
-const QUALIFICATION_THRESHOLD = 80; // Score >= 80 = qualified
+// Phase A.3: the qualification cut-off score is now sourced from
+// `compliance.thresholds.qualification_score` so admins can lower the
+// bar (e.g. early-stage market) or raise it (e.g. enterprise launch)
+// from Admin Settings → Compliance & Controls. Default 80.
 
 @Injectable()
 export class LeadQualificationService {
   constructor(
     @InjectRepository(LeadQualificationCriteria)
     private readonly qualificationRepo: Repository<LeadQualificationCriteria>,
+    private readonly complianceSettings: ComplianceSettingsService,
   ) {}
+
+  /**
+   * Resolve the qualification cut-off score from Compliance & Controls
+   * (admin-tunable). Cached 30s in ComplianceSettingsService — safe to
+   * call from inside hot create/update paths.
+   */
+  private async getQualificationThreshold(): Promise<number> {
+    return this.complianceSettings.getNumber('qualification_score_min');
+  }
 
   /**
    * Create a new lead qualification record
@@ -52,7 +66,7 @@ export class LeadQualificationService {
       lead_id: dto.lead_id,
       needs: dto.needs ?? null,
       qualification_needs: dto.qualification_needs ?? null,
-      has_needs: !!dto.needs,
+      has_needs: !!dto.needs || !!dto.qualification_needs?.length,
       plan_type: dto.plan_type ?? null,
       has_plan_type: !!dto.plan_type,
       timeline_type: dto.timeline_type ?? null,
@@ -70,8 +84,9 @@ export class LeadQualificationService {
 
     // Calculate score and qualification status
     qualification.qualification_score = this.calculateScore(qualification);
+    const threshold = await this.getQualificationThreshold();
     qualification.is_qualified =
-      qualification.qualification_score >= QUALIFICATION_THRESHOLD;
+      qualification.qualification_score >= threshold;
 
     return await this.qualificationRepo.save(qualification);
   }
@@ -193,10 +208,13 @@ export class LeadQualificationService {
     // Update data fields and derive boolean flags from them
     if (dto.needs !== undefined) {
       qualification.needs = dto.needs ?? null;
-      qualification.has_needs = !!dto.needs;
     }
     if (dto.qualification_needs !== undefined) {
       qualification.qualification_needs = dto.qualification_needs ?? null;
+    }
+    if (dto.needs !== undefined || dto.qualification_needs !== undefined) {
+      qualification.has_needs =
+        !!qualification.needs || !!qualification.qualification_needs?.length;
     }
     if (dto.plan_type !== undefined) {
       qualification.plan_type = dto.plan_type ?? null;
@@ -255,8 +273,9 @@ export class LeadQualificationService {
 
     // Recalculate score
     qualification.qualification_score = this.calculateScore(qualification);
+    const threshold = await this.getQualificationThreshold();
     qualification.is_qualified =
-      qualification.qualification_score >= QUALIFICATION_THRESHOLD;
+      qualification.qualification_score >= threshold;
 
     return await this.qualificationRepo.save(qualification);
   }
