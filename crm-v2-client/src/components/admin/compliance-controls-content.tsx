@@ -27,6 +27,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useSettings, useSetSettings } from "~/api/settings";
+import { FeatureGuard } from "~/guards/feature-guard";
 
 /**
  * Compliance & Controls tab (Phase A.3 of the compliance hardening
@@ -992,31 +993,35 @@ const ComplianceControlsContent = () => {
             />
           </div>
 
-          {/* Auto-assign engine (admin + sales manager) */}
-          <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-            <div className="space-y-1">
-              <Label
-                htmlFor="cc-auto-assign-enabled"
-                className="flex items-center gap-2 text-base font-medium"
-              >
-                <UsersRound className="h-4 w-4 text-muted-foreground" />
-                Auto-assign new leads to reps
-              </Label>
-              <p className="text-xs text-muted-foreground max-w-xl">
-                When <strong>on</strong>, the auto-assignment engine
-                automatically distributes unassigned leads to the
-                least-loaded active sales rep (checked every 15 minutes).
-                When <strong>off</strong> (default), leads stay unassigned
-                until a manager assigns them manually.
-              </p>
+          {/* Auto-assign engine — admin only (nkululeko's permission level) */}
+          <FeatureGuard allowedRoles={["admin"]}>
+            <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <div className="space-y-1">
+                <Label
+                  htmlFor="cc-auto-assign-enabled"
+                  className="flex items-center gap-2 text-base font-medium"
+                >
+                  <UsersRound className="h-4 w-4 text-muted-foreground" />
+                  Auto-assign new leads to reps
+                </Label>
+                <p className="text-xs text-muted-foreground max-w-xl">
+                  When <strong>on</strong>, the auto-assignment engine
+                  automatically distributes unassigned leads to the
+                  least-loaded active sales rep (checked every 15 minutes).
+                  When <strong>off</strong> (default), leads stay unassigned
+                  until a manager assigns them manually. Admin-only.
+                </p>
+              </div>
+              <Switch
+                id="cc-auto-assign-enabled"
+                data-testid="cc-auto-assign-enabled"
+                checked={autoAssignEnabled}
+                onCheckedChange={(v) =>
+                  handleBoolChange(setAutoAssignEnabled, v)
+                }
+              />
             </div>
-            <Switch
-              id="cc-auto-assign-enabled"
-              data-testid="cc-auto-assign-enabled"
-              checked={autoAssignEnabled}
-              onCheckedChange={(v) => handleBoolChange(setAutoAssignEnabled, v)}
-            />
-          </div>
+          </FeatureGuard>
 
           {/* Tactical disqualify requires approval */}
           <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">

@@ -32,7 +32,7 @@ export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get()
-  @Roles('admin', 'sales_manager')
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all settings (key-value pairs)' })
   @ApiResponse({
@@ -152,7 +152,7 @@ export class SettingsController {
   }
 
   @Post('bulk')
-  @Roles('admin', 'sales_manager')
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Set multiple settings at once' })
   @ApiResponse({
