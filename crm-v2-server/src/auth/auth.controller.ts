@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Ip,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -90,6 +91,12 @@ export class AuthController {
     @Ip() ipAddress: string,
     @Req() req: Request,
   ) {
+    // This CRM has no self-service signup: accounts are provisioned by
+    // admins via the users module. The endpoint stays only for bootstrap
+    // tooling and must be explicitly enabled per environment.
+    if (process.env.ALLOW_PUBLIC_REGISTRATION !== 'true') {
+      throw new ForbiddenException('Public registration is disabled');
+    }
     return this.authService.register(
       registerDto,
       ipAddress,
