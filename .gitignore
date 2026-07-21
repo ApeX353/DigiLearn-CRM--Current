@@ -1,0 +1,21 @@
+# Local-only notes — never track
+CODEBASE-FINDINGS.local.md
+*.local.md
+
+# Secrets — never track
+.env
+.env.*
+!.env.example
+
+# Live database dump (real customer data) — never track
+db-backup/
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log

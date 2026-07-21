@@ -1,0 +1,18 @@
+Dear {{clientName}},
+
+Please find attached quotation {{documentNumber}} for your review.
+
+Quote Number: {{documentNumber}}
+Total: {{total}}
+{{#validUntil}}Valid Until: {{validUntil}}{{/validUntil}}
+
+If you have any questions or would like to proceed, please don't hesitate to contact us.
+
+We look forward to hearing from you.
+
+Kind regards,
+{{companyName}}
+
+---
+This is an automated message. The quotation document is attached to this email.
+(c) {{year}} {{companyName}}. All rights reserved.

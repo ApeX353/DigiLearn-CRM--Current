@@ -1,0 +1,532 @@
+﻿import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import Modal from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "~/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
+import { Calendar } from "~/components/ui/calendar";
+import { cn } from "~/lib/utils";
+import {
+  addPaymentFormSchema,
+  invoiceKeys,
+  PAYMENT_METHODS,
+  useAddPayment,
+  useInvoice,
+  type AddPaymentFormValues,
+  type Invoice,
+  type InvoicePaymentRecord,
+  type InvoicePaymentRecordResponse,
+} from "~/api/invoices";
+import { useAllocatePayment } from "~/api/payment-terms";
+import { schoolsKeys } from "~/api/schools";
+import { useCurrency } from "~/hooks/use-currency";
+
+interface AddPaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  invoice: Invoice;
+  defaultAmount?: number;
+  description?: string;
+}
+
+const getCreatedPaymentId = (
+  response?: InvoicePaymentRecord | InvoicePaymentRecordResponse,
+) => {
+  if (!response) return null;
+  const payload =
+    (response as InvoicePaymentRecordResponse).data ??
+    (response as InvoicePaymentRecord);
+
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "id" in payload &&
+    typeof payload.id === "string"
+  ) {
+    return payload.id;
+  }
+
+  return null;
+};
+
+const getInvoiceOutstanding = (targetInvoice?: Invoice | null) =>
+  Math.max(
+    Number(targetInvoice?.total || 0) - Number(targetInvoice?.amount_paid || 0),
+    0,
+  );
+
+const getInvoiceSortValue = (value?: string) => {
+  if (!value) return Number.MAX_SAFE_INTEGER;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+};
+
+const sortPayableInvoices = (left: Invoice, right: Invoice) => {
+  const dueDateDifference =
+    getInvoiceSortValue(left.due_date) - getInvoiceSortValue(right.due_date);
+  if (dueDateDifference !== 0) {
+    return dueDateDifference;
+  }
+
+  return left.invoice_number.localeCompare(right.invoice_number);
+};
+
+const formatInvoiceDueDate = (value?: string) => {
+  if (!value) return "No due date";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "No due date";
+  return format(parsed, "PPP");
+};
+
+export function AddPaymentModal({
+  isOpen,
+  onClose,
+  invoice,
+  defaultAmount,
+  description,
+}: AddPaymentModalProps) {
+  const queryClient = useQueryClient();
+  const { formatCurrency } = useCurrency();
+  const addPayment = useAddPayment();
+  const allocatePayment = useAllocatePayment();
+  const detailInvoiceId = isOpen ? invoice.id : "";
+  const { data: invoiceDetail, isLoading: isInvoiceDetailLoading } = useInvoice(detailInvoiceId);
+  const resolvedInvoice = invoiceDetail ?? invoice;
+  const isSummaryInvoice = Boolean(
+    invoiceDetail?.is_summary_invoice ?? invoice.is_summary_invoice,
+  );
+  const payableChildren = useMemo(
+    () =>
+      isSummaryInvoice
+        ? [...(resolvedInvoice.child_invoices ?? [])]
+            .filter((childInvoice) => getInvoiceOutstanding(childInvoice) > 0)
+            .sort(sortPayableInvoices)
+        : [],
+    [isSummaryInvoice, resolvedInvoice.child_invoices],
+  );
+  const [selectedChildInvoiceId, setSelectedChildInvoiceId] = useState("");
+  const selectedChildInvoice = useMemo(
+    () =>
+      payableChildren.find(
+        (childInvoice) => childInvoice.id === selectedChildInvoiceId,
+      ) ?? payableChildren[0] ?? null,
+    [payableChildren, selectedChildInvoiceId],
+  );
+  const targetInvoice = isSummaryInvoice ? selectedChildInvoice : resolvedInvoice;
+  const outstanding = getInvoiceOutstanding(targetInvoice);
+  const initialAmount =
+    defaultAmount && defaultAmount > 0
+      ? Math.min(defaultAmount, outstanding)
+      : outstanding;
+  const isLoadingChildInvoices =
+    isSummaryInvoice && isInvoiceDetailLoading && !invoiceDetail;
+
+  const form = useForm<AddPaymentFormValues>({
+    resolver: zodResolver(addPaymentFormSchema),
+    defaultValues: {
+      amount: initialAmount,
+      payment_method: "Cash",
+      payment_date: new Date(),
+      reference_number: "",
+      notes: "",
+    },
+  });
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedChildInvoiceId("");
+      return;
+    }
+
+    if (!isSummaryInvoice) {
+      setSelectedChildInvoiceId("");
+      return;
+    }
+
+    const hasSelectedInvoice = payableChildren.some(
+      (childInvoice) => childInvoice.id === selectedChildInvoiceId,
+    );
+
+    if (!hasSelectedInvoice) {
+      setSelectedChildInvoiceId(payableChildren[0]?.id ?? "");
+    }
+  }, [isOpen, isSummaryInvoice, payableChildren, selectedChildInvoiceId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    form.reset({
+      amount: initialAmount,
+      payment_method: "Cash",
+      payment_date: new Date(),
+      reference_number: "",
+      notes: "",
+    });
+  }, [form, initialAmount, isOpen, targetInvoice?.id]);
+
+  const invalidateRelatedQueries = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.all }),
+      queryClient.invalidateQueries({ queryKey: ["payments"] }),
+      queryClient.invalidateQueries({ queryKey: ["payment-terms"] }),
+      queryClient.invalidateQueries({ queryKey: ["deals"] }),
+      queryClient.invalidateQueries({ queryKey: schoolsKeys.all }),
+    ]);
+  };
+
+  const onSubmit = async (values: AddPaymentFormValues) => {
+    if (isLoadingChildInvoices) {
+      toast.error("Child invoices are still loading");
+      return;
+    }
+
+    if (!targetInvoice) {
+      toast.error(
+        isSummaryInvoice
+          ? "Select a child invoice to apply this payment"
+          : "Invoice details are unavailable",
+      );
+      return;
+    }
+
+    if (outstanding <= 0) {
+      toast.error(
+        isSummaryInvoice
+          ? "The selected child invoice has no outstanding balance"
+          : "This invoice has no outstanding balance",
+      );
+      return;
+    }
+
+    if (values.amount > outstanding) {
+      form.setError("amount", {
+        message: `Amount cannot exceed outstanding balance of ${formatCurrency(outstanding)}`,
+      });
+      return;
+    }
+
+    try {
+      const reference = values.reference_number || undefined;
+      const paymentResponse = await addPayment.mutateAsync({
+        data: {
+          invoice_id: targetInvoice.id,
+          amount: values.amount,
+          payment_method: values.payment_method,
+          method: values.payment_method,
+          payment_date: values.payment_date.toISOString(),
+          reference_number: reference,
+          reference,
+          notes: values.notes || undefined,
+        },
+      });
+      const paymentId = getCreatedPaymentId(paymentResponse);
+      let hasShownOutcomeToast = false;
+
+      if (paymentId) {
+        try {
+          await allocatePayment.mutateAsync({ paymentId });
+          toast.success("Payment recorded and allocated using FIFO");
+          hasShownOutcomeToast = true;
+        } catch (allocationError) {
+          const status = axios.isAxiosError(allocationError)
+            ? allocationError.response?.status
+            : undefined;
+
+          if (status === 401 || status === 403) {
+            toast.warning(
+              "Payment recorded. FIFO auto-allocation requires admin or sales manager access.",
+            );
+          } else {
+            toast.warning(
+              "Payment recorded, but FIFO allocation did not complete. Please retry from the invoice schedule.",
+            );
+          }
+
+          hasShownOutcomeToast = true;
+        }
+      }
+
+      await invalidateRelatedQueries();
+
+      if (!hasShownOutcomeToast) {
+        toast.success("Payment recorded successfully");
+      }
+
+      form.reset();
+      onClose();
+    } catch {
+      toast.error("Failed to record payment");
+    }
+  };
+
+  const isSubmitting = addPayment.isPending || allocatePayment.isPending;
+  const isSubmitDisabled =
+    isSubmitting ||
+    isLoadingChildInvoices ||
+    !targetInvoice ||
+    outstanding <= 0 ||
+    (isSummaryInvoice && payableChildren.length === 0);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Record Payment"
+      description={
+        description ||
+        `Record a payment for invoice ${resolvedInvoice.invoice_number}`
+      }
+      size="sm"
+    >
+      {isSummaryInvoice && (
+        <div className="mb-4 rounded-lg border bg-muted/40 p-4 space-y-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Apply Payment To</p>
+            <p className="text-xs text-muted-foreground">
+              Summary invoice {resolvedInvoice.invoice_number} cannot receive
+              payments directly. Choose the child invoice that should receive
+              this payment.
+            </p>
+          </div>
+
+          {isLoadingChildInvoices ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading child invoices...
+            </div>
+          ) : payableChildren.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              All child invoices for this summary invoice are fully paid.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <FormLabel>Child Invoice *</FormLabel>
+              <Select
+                value={selectedChildInvoiceId}
+                onValueChange={setSelectedChildInvoiceId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a child invoice" />
+                </SelectTrigger>
+                <SelectContent>
+                  {payableChildren.map((childInvoice) => (
+                    <SelectItem key={childInvoice.id} value={childInvoice.id}>
+                      {`${childInvoice.invoice_number} • ${formatCurrency(getInvoiceOutstanding(childInvoice))} outstanding • Due ${formatInvoiceDueDate(childInvoice.due_date)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-lg bg-muted/50 p-4 mb-4 space-y-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Payment Invoice</span>
+          <span className="font-medium">
+            {targetInvoice?.invoice_number ?? "--"}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Invoice Total</span>
+          <span className="font-medium">
+            {formatCurrency(Number(targetInvoice?.total || 0))}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Amount Paid</span>
+          <span className="font-medium">
+            {formatCurrency(Number(targetInvoice?.amount_paid || 0))}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm font-semibold border-t pt-1">
+          <span>Outstanding</span>
+          <span>{formatCurrency(outstanding)}</span>
+        </div>
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        Payments are allocated using FIFO, starting with the oldest outstanding
+        installment first.
+      </p>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid gap-4 grid-cols-2">
+            <FormField
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Amount *</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        $
+                      </span>
+                      <Input
+                        {...field}
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={outstanding}
+                        className="pl-7"
+                        onChange={(e) =>
+                          field.onChange(parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="payment_method"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Method *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid gap-4 grid-cols-2">
+            <FormField
+              control={form.control}
+              name="payment_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Date *</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground",
+                          )}
+                        >
+                          {field.value
+                            ? format(field.value, "PPP")
+                            : "Pick a date"}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => date > new Date()}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="reference_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Reference Number</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="e.g. TXN-12345" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Notes</FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    placeholder="Optional payment notes..."
+                    className="min-h-[80px] resize-none"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="flex gap-3 justify-end pt-2 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitDisabled}>
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Record Payment
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </Modal>
+  );
+}
+
+
+
+

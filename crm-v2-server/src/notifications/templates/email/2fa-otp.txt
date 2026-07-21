@@ -1,0 +1,24 @@
+Two-Factor Authentication Code
+
+Hello {{name}},
+
+Your verification code is:
+
+{{code}}
+
+This code will expire in {{expiryMinutes}} minutes.
+
+SECURITY NOTICE: Never share this code with anyone. {{appName}} will never ask you for this code via phone or email.
+
+If you didn't request this code, please secure your account immediately and contact our support team.
+
+{{#ipAddress}}
+Request Details:
+IP Address: {{ipAddress}}
+{{#location}}Location: {{location}}{{/location}}
+Time: {{timestamp}}
+{{/ipAddress}}
+
+---
+This is an automated message, please do not reply to this email.
+© {{year}} {{appName}}. All rights reserved.
