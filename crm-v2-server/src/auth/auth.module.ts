@@ -26,7 +26,13 @@ import { AuthController } from './auth.controller';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET_TOKEN') || 'your-secret-key-change-in-production',
+        secret: (() => {
+          const secret = configService.get<string>('JWT_SECRET_TOKEN');
+          if (!secret) {
+            throw new Error('JWT_SECRET_TOKEN environment variable is required');
+          }
+          return secret;
+        })(),
         signOptions: {
           expiresIn: `${configService.get('JWT_EXPIRATION') || 7}d`,
         },

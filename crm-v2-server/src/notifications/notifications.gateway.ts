@@ -55,9 +55,14 @@ export class NotificationsGateway
         return;
       }
 
-      const secret =
-        this.configService.get<string>('JWT_SECRET_TOKEN') ||
-        'your-secret-key-change-in-production';
+      const secret = this.configService.get<string>('JWT_SECRET_TOKEN');
+      if (!secret) {
+        // Never verify sockets against a guessable fallback key; the HTTP
+        // strategies already hard-fail at boot when the env var is missing.
+        this.logger.error('JWT_SECRET_TOKEN is not set; rejecting connection');
+        client.disconnect();
+        return;
+      }
 
       const payload = this.jwtService.verify(token as string, { secret });
 

@@ -21,12 +21,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectRepository(AuthSession)
     private authSessionRepository: Repository<AuthSession>,
   ) {
+    const secret = configService.get<string>('JWT_SECRET_TOKEN');
+    if (!secret) {
+      // Refuse to boot with a guessable signing key — a missing env var must
+      // be a hard failure, never a silent fallback anyone can forge tokens for.
+      throw new Error('JWT_SECRET_TOKEN environment variable is required');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('JWT_SECRET_TOKEN') ||
-        'your-secret-key-change-in-production',
+      secretOrKey: secret,
     });
   }
 
