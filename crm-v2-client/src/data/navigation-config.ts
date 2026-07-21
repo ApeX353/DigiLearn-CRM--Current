@@ -23,6 +23,7 @@ import {
   ClipboardCheck,
   Wallet,
   Megaphone,
+  Sparkles,
 } from "lucide-react";
 import type { Role } from "~/api/rbac";
 
@@ -33,6 +34,8 @@ export interface NavigationItem {
   children?: NavigationItem[];
   canView?: boolean;
   allowedRoles?: Role["name"][];
+  /** When true, the item is shown to every user regardless of role. */
+  alwaysVisible?: boolean;
 }
 
 export const NavigationConfig: NavigationItem[] = [
@@ -64,6 +67,24 @@ export const NavigationConfig: NavigationItem[] = [
     icon: GraduationCap,
     canView: false,
     allowedRoles: ["admin", "manager", "sales_manager", "sales_rep"],
+  },
+  {
+    title: "What's New",
+    url: "/whats-new",
+    icon: Sparkles,
+    canView: false,
+    // Shown to EVERY user regardless of role — release highlights for the
+    // whole team. alwaysVisible bypasses role filtering entirely, so it
+    // reaches roles that aren't otherwise enumerated (e.g. admin_support).
+    alwaysVisible: true,
+    allowedRoles: [
+      "admin",
+      "admin_support",
+      "manager",
+      "sales_manager",
+      "sales_rep",
+      "finance",
+    ],
   },
 
   // Sales Section

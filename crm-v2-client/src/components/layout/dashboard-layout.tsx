@@ -13,6 +13,7 @@ import {
   BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { NavigationConfig } from "~/data";
+import { useBreadcrumbStore } from "~/stores/use-breadcrumb-store";
 import { useNotificationSocket } from "~/hooks/use-notification-socket";
 import { useIsMobile } from "~/hooks/use-mobile";
 import { QuickAdd } from "../navigation/quick-add";
@@ -34,6 +35,8 @@ export default function DashboardLayout() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const pathSegments = location.pathname.split("/").filter(Boolean);
+  // Name published by a detail page (e.g. the lead's name on /leads/:id).
+  const breadcrumbLabel = useBreadcrumbStore((s) => s.label);
 
   // Resolve the current page title from the flat nav config, including children.
   const findTitle = (path: string): string | undefined => {
@@ -47,9 +50,23 @@ export default function DashboardLayout() {
     return undefined;
   };
 
+  const lastSegment = pathSegments[pathSegments.length - 1] ?? "";
+  const isIdSegment =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      lastSegment,
+    );
+
+  // For an id-style detail route, show the record name the page published
+  // (falling back to the humanized parent section, e.g. "leads" -> "Leads")
+  // instead of leaking the raw UUID into the breadcrumb. The stored label is
+  // only trusted for id routes so it can never leak onto other pages.
   const currentTitle =
     findTitle(location.pathname) ||
-    pathSegments[pathSegments.length - 1]?.replace(/-/g, " ") ||
+    (isIdSegment
+      ? breadcrumbLabel ||
+        pathSegments[pathSegments.length - 2]?.replace(/-/g, " ") ||
+        "Details"
+      : lastSegment.replace(/-/g, " ")) ||
     "Dashboard";
 
   return (

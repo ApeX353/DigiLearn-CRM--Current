@@ -29,16 +29,28 @@ const MainDashboardSidebar = ({
 
   const isActive = (path: string) => location.pathname === path;
 
+  // Role check for the nav that treats `admin_support` as `admin`: wherever an
+  // item is visible to admins, it is also visible to admin support. This keeps
+  // the per-item allowedRoles lists from having to enumerate admin_support
+  // everywhere, and matches admin_support being granted admin's permissions.
+  const canViewByRole = (allowedRoles?: NavigationItem["allowedRoles"]) => {
+    const roles = allowedRoles ?? [];
+    if (hasAnyRole(roles)) return true;
+    if (roles.includes("admin")) return hasAnyRole(["admin_support"]);
+    return false;
+  };
+
   // Recursively filter nav items according to the user's roles. A parent item
   // is kept if it has any visible children OR the user has a role that allows
-  // viewing the parent directly.
+  // viewing the parent directly. Items flagged alwaysVisible are shown to
+  // everyone regardless of role.
   const filterNav = (navItems: NavigationItem[]): NavigationItem[] => {
     const nav: NavigationItem[] = [];
 
     navItems.forEach((item) => {
       if (item.children?.length) {
         const filteredChildren = filterNav(item.children);
-        const hasRole = hasAnyRole(item?.allowedRoles || []);
+        const hasRole = item.alwaysVisible || canViewByRole(item.allowedRoles);
         if (hasRole || filteredChildren.length > 0) {
           nav.push({
             ...item,
@@ -47,7 +59,7 @@ const MainDashboardSidebar = ({
           });
         }
       } else {
-        if (hasAnyRole(item?.allowedRoles || [])) {
+        if (item.alwaysVisible || canViewByRole(item.allowedRoles)) {
           nav.push({ ...item, canView: true });
         }
       }

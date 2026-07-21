@@ -52,6 +52,7 @@ import RequisitionsPage from "./pages/requisitions/requisitions-page";
 import RequisitionDetailPage from "./pages/requisitions/requisition-detail-page";
 import CampaignsPage from "./pages/campaigns/campaigns-page";
 import CampaignDetailPage from "./pages/campaigns/campaign-detail-page";
+import WhatsNewPage from "./pages/whats-new/whats-new-page";
 
 function InvoiceScheduleAliasRedirect() {
   const { id } = useParams<{ id: string }>();
@@ -126,6 +127,7 @@ function App() {
             />
             <Route path="/activities" element={<ActivitiesPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/whats-new" element={<WhatsNewPage />} />
             <Route path="/admin/settings" element={<SettingsPage />} />
             <Route path="/admin/finance-plans" element={<FinancePlansPage />} />
             <Route path="/admin/products" element={<ProductsPage />} />

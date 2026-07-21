@@ -5,6 +5,7 @@ import { RecordDetailLayout } from "~/components/layout/record-detail-layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { useLead, isTerminalStatus } from "~/api/leads";
+import { useBreadcrumbStore } from "~/stores/use-breadcrumb-store";
 import {
   PeopleTab,
   TimelineTab,
@@ -139,6 +140,14 @@ const ViewLead = ({ id }: { id: string }) => {
 
   const { data: leadData, isLoading, error } = useLead(id);
   const lead = leadData?.data;
+
+  // Publish the lead's name to the top breadcrumb so it shows the name
+  // instead of the raw lead UUID; clear it when leaving the page.
+  const setBreadcrumbLabel = useBreadcrumbStore((s) => s.setLabel);
+  useEffect(() => {
+    setBreadcrumbLabel(lead?.lead_name ?? null);
+    return () => setBreadcrumbLabel(null);
+  }, [lead?.lead_name, setBreadcrumbLabel]);
   const currentUserId = useAuthStore((state) => state.user?.id);
   const canAdminOrSalesManager = useAnyRole(["admin", "sales_manager"]);
   const canReassignLead = canAdminOrSalesManager;

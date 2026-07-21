@@ -44,6 +44,27 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
     { role: 'admin', action: 'manage', subject: 'Product', conditions: null },
 
     // ========================
+    // Admin Support â€” same full access as admin. The role shipped in
+    // production with ZERO permission rows, so admin_support users could
+    // see nothing (empty CASL ability + no matching nav). Grant it the
+    // same manage-all set as admin.
+    // ========================
+    { role: 'admin_support', action: 'manage', subject: 'Dashboard', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Lead', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'LeadActivity', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Deal', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'User', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Company', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Report', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Quote', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Invoice', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Raffle', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'PaymentTerm', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Installment', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Payment', conditions: null },
+    { role: 'admin_support', action: 'manage', subject: 'Product', conditions: null },
+
+    // ========================
     // Manager â€” read-only on most entities
     // ========================
     { role: 'manager', action: 'read', subject: 'Dashboard', conditions: null },
@@ -201,6 +222,7 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
 
   const roleDescriptions: Record<string, string> = {
     admin: 'System administrator with full access',
+    admin_support: 'Admin support with full administrative access',
     manager: 'Manager with reporting and user access',
     'sales_manager': 'Sales manager with full sales access',
     sales_rep: 'Sales agent with limited access to own records',
