@@ -87,7 +87,17 @@ export class PaymentsService {
     return saved;
   }
 
-  async findAll(query: QueryPaymentDto): Promise<Pagination<Payment>> {
+  /**
+   * @param scopeUserId When set (sales reps), restricts results to payments
+   *   whose invoice is owned by this user. Payment has no owner column, so
+   *   ownership is reached through the joined invoice (invoice.owner_id).
+   *   Elevated roles (admin/admin_support/sales_manager/manager) pass
+   *   undefined and see everything.
+   */
+  async findAll(
+    query: QueryPaymentDto,
+    scopeUserId?: string,
+  ): Promise<Pagination<Payment>> {
     const { page = '1', limit = '10', invoice_id, start_date, end_date } = query;
 
     const qb = this.paymentRepository
@@ -95,6 +105,9 @@ export class PaymentsService {
       .leftJoinAndSelect('payment.invoice', 'invoice')
       .orderBy('payment.payment_date', 'DESC');
 
+    if (scopeUserId) {
+      qb.andWhere('invoice.owner_id = :scopeUserId', { scopeUserId });
+    }
     if (invoice_id) {
       qb.andWhere('payment.invoice_id = :invoice_id', { invoice_id });
     }
@@ -180,7 +193,7 @@ export class PaymentsService {
   // Payment Stats
   // ========================
 
-  async getPaymentStats() {
+  async getPaymentStats(scopeUserId?: string) {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
@@ -188,21 +201,32 @@ export class PaymentsService {
     const yearStart = new Date(now.getFullYear(), 0, 1);
 
     const buildStats = async (start: Date) => {
-      const result = await this.paymentRepository
+      const totalsQb = this.paymentRepository
         .createQueryBuilder('p')
         .select('COUNT(*)', 'totalPayments')
         .addSelect('COALESCE(SUM(p.amount), 0)', 'totalCollected')
         .addSelect('COALESCE(AVG(p.amount), 0)', 'averagePayment')
-        .where('p.payment_date >= :start', { start })
-        .getRawOne();
+        .where('p.payment_date >= :start', { start });
+      if (scopeUserId) {
+        totalsQb
+          .leftJoin('p.invoice', 'invoice')
+          .andWhere('invoice.owner_id = :scopeUserId', { scopeUserId });
+      }
+      const result = await totalsQb.getRawOne();
 
-      const byMethod = await this.paymentRepository
+      const byMethodQb = this.paymentRepository
         .createQueryBuilder('p')
         .select('p.method', 'method')
         .addSelect('COUNT(*)', 'count')
         .addSelect('COALESCE(SUM(p.amount), 0)', 'value')
         .where('p.payment_date >= :start', { start })
-        .andWhere('p.method IS NOT NULL')
+        .andWhere('p.method IS NOT NULL');
+      if (scopeUserId) {
+        byMethodQb
+          .leftJoin('p.invoice', 'invoice')
+          .andWhere('invoice.owner_id = :scopeUserId', { scopeUserId });
+      }
+      const byMethod = await byMethodQb
         .groupBy('p.method')
         .orderBy('SUM(p.amount)', 'DESC')
         .getRawMany();
@@ -230,6 +254,7 @@ export class PaymentsService {
 
   async getPaymentStatistics(
     query: Pick<QueryPaymentDto, 'start_date' | 'end_date'> = {},
+    scopeUserId?: string,
   ): Promise<PaymentStatistics> {
     const startDate = query.start_date
       ? this.startOfDay(new Date(query.start_date))
@@ -238,7 +263,7 @@ export class PaymentsService {
       ? this.endOfDay(new Date(query.end_date))
       : new Date();
 
-    const result = await this.paymentRepository
+    const statsQb = this.paymentRepository
       .createQueryBuilder('payment')
       .select('COUNT(*)', 'total_payments')
       .addSelect('COALESCE(SUM(payment.amount), 0)', 'total_amount')
@@ -251,8 +276,13 @@ export class PaymentsService {
         'total_unallocated',
       )
       .where('payment.payment_date >= :startDate', { startDate })
-      .andWhere('payment.payment_date <= :endDate', { endDate })
-      .getRawOne();
+      .andWhere('payment.payment_date <= :endDate', { endDate });
+    if (scopeUserId) {
+      statsQb
+        .leftJoin('payment.invoice', 'invoice')
+        .andWhere('invoice.owner_id = :scopeUserId', { scopeUserId });
+    }
+    const result = await statsQb.getRawOne();
 
     return {
       total_payments: Number(result?.total_payments || 0),

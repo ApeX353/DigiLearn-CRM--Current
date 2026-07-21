@@ -105,6 +105,19 @@ export const COMPLIANCE_SETTINGS = {
     description:
       'When false, sales reps can only request reassignment via manager approval. Sales managers and admins always retain direct authority.',
   },
+  // ----- Automation: lead auto-assignment engine -----
+  // Default OFF so assignment stays manual until an admin / sales
+  // manager explicitly turns the engine on. When enabled, the
+  // LeadAutoRouterService cron (every 15 min) round-robins unassigned
+  // leads to the least-loaded active sales rep.
+  auto_assign_enabled: {
+    key: 'compliance.policy.auto_assign_enabled',
+    type: 'boolean' as const,
+    default: false,
+    label: 'Auto-assign new leads to reps',
+    description:
+      'When on, the auto-assignment engine automatically distributes unassigned leads to the least-loaded active sales rep (checked every 15 minutes). When off, leads stay unassigned until a manager assigns them manually.',
+  },
   tactical_disqualify_requires_approval: {
     key: 'compliance.policy.tactical_disqualify_requires_approval',
     type: 'boolean' as const,

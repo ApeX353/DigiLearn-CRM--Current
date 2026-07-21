@@ -59,6 +59,7 @@ const COMPLIANCE_KEYS = [
   "compliance.targets.outcome_compliance_pct",
   "compliance.targets.next_step_compliance_pct",
   "compliance.policy.allow_self_reassign",
+  "compliance.policy.auto_assign_enabled",
   "compliance.policy.tactical_disqualify_requires_approval",
   "compliance.policy.enforce_outcome_on_completion",
   "compliance.policy.enforce_next_step_on_completion",
@@ -80,6 +81,7 @@ const DEFAULTS: Record<ComplianceKey, number | boolean> = {
   "compliance.targets.outcome_compliance_pct": 95,
   "compliance.targets.next_step_compliance_pct": 80,
   "compliance.policy.allow_self_reassign": false,
+  "compliance.policy.auto_assign_enabled": false,
   "compliance.policy.tactical_disqualify_requires_approval": true,
   "compliance.policy.enforce_outcome_on_completion": false,
   "compliance.policy.enforce_next_step_on_completion": false,
@@ -145,6 +147,9 @@ const ComplianceControlsContent = () => {
   // -------- Policy switches (boolean) ---------------------------
   const [allowSelfReassign, setAllowSelfReassign] = useState<boolean>(
     DEFAULTS["compliance.policy.allow_self_reassign"] as boolean,
+  );
+  const [autoAssignEnabled, setAutoAssignEnabled] = useState<boolean>(
+    DEFAULTS["compliance.policy.auto_assign_enabled"] as boolean,
   );
   const [tacticalDisqualifyApproval, setTacticalDisqualifyApproval] =
     useState<boolean>(
@@ -237,6 +242,12 @@ const ComplianceControlsContent = () => {
       toBoolean(
         settings["compliance.policy.allow_self_reassign"],
         DEFAULTS["compliance.policy.allow_self_reassign"] as boolean,
+      ),
+    );
+    setAutoAssignEnabled(
+      toBoolean(
+        settings["compliance.policy.auto_assign_enabled"],
+        DEFAULTS["compliance.policy.auto_assign_enabled"] as boolean,
       ),
     );
     setTacticalDisqualifyApproval(
@@ -397,6 +408,15 @@ const ComplianceControlsContent = () => {
             data_type: "boolean",
             description:
               "When false, sales reps must request reassignment via manager approval",
+            category: "compliance",
+            is_public: false,
+          },
+          {
+            key: "compliance.policy.auto_assign_enabled",
+            value: autoAssignEnabled,
+            data_type: "boolean",
+            description:
+              "When on, the auto-assignment engine distributes unassigned leads to the least-loaded active rep",
             category: "compliance",
             is_public: false,
           },
@@ -969,6 +989,32 @@ const ComplianceControlsContent = () => {
               data-testid="cc-allow-self-reassign"
               checked={allowSelfReassign}
               onCheckedChange={(v) => handleBoolChange(setAllowSelfReassign, v)}
+            />
+          </div>
+
+          {/* Auto-assign engine (admin + sales manager) */}
+          <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div className="space-y-1">
+              <Label
+                htmlFor="cc-auto-assign-enabled"
+                className="flex items-center gap-2 text-base font-medium"
+              >
+                <UsersRound className="h-4 w-4 text-muted-foreground" />
+                Auto-assign new leads to reps
+              </Label>
+              <p className="text-xs text-muted-foreground max-w-xl">
+                When <strong>on</strong>, the auto-assignment engine
+                automatically distributes unassigned leads to the
+                least-loaded active sales rep (checked every 15 minutes).
+                When <strong>off</strong> (default), leads stay unassigned
+                until a manager assigns them manually.
+              </p>
+            </div>
+            <Switch
+              id="cc-auto-assign-enabled"
+              data-testid="cc-auto-assign-enabled"
+              checked={autoAssignEnabled}
+              onCheckedChange={(v) => handleBoolChange(setAutoAssignEnabled, v)}
             />
           </div>
 

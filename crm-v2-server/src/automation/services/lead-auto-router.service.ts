@@ -5,6 +5,7 @@ import { DataSource, Repository } from 'typeorm';
 import { Lead } from '../../leads/entities/lead.entity';
 import { LeadSLA } from '../../leads/entities/lead-sla.entity';
 import { UserNotificationsService } from '../../notifications/user-notifications.service';
+import { ComplianceSettingsService } from '../../settings/compliance-settings.service';
 import {
   AUTOMATION_CRON,
   ROUTABLE_ROLES,
@@ -37,11 +38,22 @@ export class LeadAutoRouterService {
     private readonly leadSlaRepository: Repository<LeadSLA>,
     private readonly dataSource: DataSource,
     private readonly userNotificationsService: UserNotificationsService,
+    private readonly complianceSettings: ComplianceSettingsService,
   ) {}
 
   @Cron(AUTOMATION_CRON.unassignedRouting)
   async handleUnassignedLeadRouting(): Promise<void> {
     try {
+      // Engine is opt-in: admins / sales managers turn it on from the
+      // Settings → Compliance & Controls page. When off, leads stay
+      // unassigned for manual distribution.
+      const enabled = await this.complianceSettings.getBoolean(
+        'auto_assign_enabled',
+      );
+      if (!enabled) {
+        return;
+      }
+
       const repIds = await this.getRoutableRepIds();
       if (repIds.length === 0) {
         this.logger.warn(

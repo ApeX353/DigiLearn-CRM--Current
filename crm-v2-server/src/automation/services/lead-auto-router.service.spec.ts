@@ -59,12 +59,17 @@ describe('LeadAutoRouterService', () => {
 
     leadSlaRepo = { find: jest.fn().mockResolvedValue([]) };
     notifications = { sendToUsers: jest.fn().mockResolvedValue(undefined) };
+    // Engine enabled for these tests (the toggle defaults off in prod).
+    const complianceSettings = {
+      getBoolean: jest.fn().mockResolvedValue(true),
+    };
 
     service = new LeadAutoRouterService(
       leadRepo,
       leadSlaRepo,
       dataSource,
       notifications,
+      complianceSettings as never,
     );
   });
 

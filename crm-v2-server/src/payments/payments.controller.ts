@@ -52,8 +52,15 @@ export class PaymentsController {
     status: HttpStatus.OK,
     description: 'Payments retrieved successfully',
   })
-  async findAll(@Query() query: QueryPaymentDto) {
-    const result = await this.paymentsService.findAll(query);
+  async findAll(
+    @Query() query: QueryPaymentDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // Sales reps only see payments on invoices they own; elevated roles
+    // (admin/admin_support/sales_manager/manager) see everything.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const result = await this.paymentsService.findAll(query, scopeUserId);
     return {
       success: true,
       data: result.items,
@@ -69,8 +76,12 @@ export class PaymentsController {
     status: HttpStatus.OK,
     description: 'Payment stats retrieved successfully',
   })
-  async getStats() {
-    const data = await this.paymentsService.getPaymentStats();
+  async getStats(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.paymentsService.getPaymentStats(scopeUserId);
     return {
       success: true,
       data,
@@ -86,8 +97,13 @@ export class PaymentsController {
     status: HttpStatus.OK,
     description: 'Payment statistics retrieved successfully',
   })
-  getStatistics(@Query() query: QueryPaymentDto) {
-    return this.paymentsService.getPaymentStatistics(query);
+  getStatistics(
+    @Query() query: QueryPaymentDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    return this.paymentsService.getPaymentStatistics(query, scopeUserId);
   }
 
   @Get(':id')
