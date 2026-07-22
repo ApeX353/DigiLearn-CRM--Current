@@ -81,10 +81,12 @@ export class LeadsController {
   async createWithSchoolAndContacts(
     @Body() dto: CreateLeadWithSchoolContactsDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
   ) {
     const result = await this.leadsService.createWithSchoolAndContacts(
       dto,
       userId,
+      userRole,
     );
     return {
       success: true,

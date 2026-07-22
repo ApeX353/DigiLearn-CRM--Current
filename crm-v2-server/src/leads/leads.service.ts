@@ -129,6 +129,7 @@ export class LeadsService {
   async createWithSchoolAndContacts(
     input: CreateLeadWithSchoolContactsDto,
     userId: string,
+    userRole?: string,
   ): Promise<{
     lead: Lead;
     school: School;
@@ -306,6 +307,19 @@ export class LeadsService {
         );
       }
 
+      // New leads are NOT auto-assigned to whoever created them. A sales
+      // rep entering a lead leaves it UNASSIGNED for a sales manager to
+      // assign. Only a manager/admin may set the owner at creation (via
+      // leadInfo.assigned_to). This is a deliberate change from the old
+      // behaviour where every lead was assigned to its creator — reps were
+      // silently claiming every lead they typed in.
+      const isManagerRole =
+        userRole === 'admin' ||
+        userRole === 'sales_manager' ||
+        userRole === 'manager';
+      const assignedTo =
+        isManagerRole && leadInfo.assigned_to ? leadInfo.assigned_to : null;
+
       // ===== STEP 4: Create lead =====
       const newLead = manager.create(Lead, {
         lead_name: leadInfo.name,
@@ -313,7 +327,7 @@ export class LeadsService {
         primary_contact_id: newPrimaryContact.id,
         source: leadInfo.source,
         status: 'New',
-        assigned_to: userId,
+        assigned_to: assignedTo,
         current_sla_due_date: addHours(new Date(), slaConfig.sla_hours),
         estimated_value: leadInfo.estimated_value,
         notes: leadInfo.notes,
