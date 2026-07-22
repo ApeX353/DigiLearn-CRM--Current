@@ -6,6 +6,43 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-22 — "Last touch / Engagement" showed "No activity yet" incorrectly
+
+**Severity:** Medium · **Area:** Lead & deal detail — "At a glance" panel
+**Reported by:** doobsie (owner) — engagement/last-touch bug
+
+**Symptom.** The Engagement section of a lead (and deal) showed "No activity
+yet" for Last touch even when the record had many logged calls/WhatsApps.
+Deals showed "No activity yet" **always**.
+
+**Root cause (same family as the timeline bug).**
+- Lead: `pickPivotalActivities` in `lead-at-a-glance.tsx` derived Last touch
+  from `completed[0]` — completed activities **only**. Logged calls/WhatsApps
+  (status "scheduled", no due date) were excluded, so leads worked purely by
+  logged calls read as "No activity yet". `lastTouchDate` also only honoured
+  `completed_at`.
+- Deal: `view-deal-details.tsx` rendered `<DealAtAGlance deal={deal} />`
+  without ever passing `nextActivity` / `lastActivityAt`, so the panel had no
+  data and always showed "No activity yet".
+- Server side was already correct: `getLeadActivityStats` computes
+  `lastActivityAt` / `isStale` over ALL activities by `created_at`. Purely a
+  client defect.
+
+**Fix.**
+- Extracted a shared `pickPivotalActivities()` + `activityTouchDate()` into
+  `activity-kit.tsx`. Last touch = most recent activity that has actually
+  happened: any completed activity, or any open activity that is undated or
+  past-dated (a future-dated open item is a plan, not a touch). Effective
+  date = `completed_at → scheduled_at → created_at`.
+- `lead-at-a-glance.tsx` now uses the shared helper (local duplicate removed).
+- `view-deal-details.tsx` now fetches the deal's activities and passes
+  `nextActivity` + `lastActivityAt` into `DealAtAGlance`.
+
+**Verification.** Client typecheck clean. Leads/deals with logged (scheduled)
+calls now show a real Last-touch time and type instead of "No activity yet".
+
+---
+
 ## 2026-07-22 — Activity timeline hid ~63% of all logged activity
 
 **Severity:** High · **Area:** Activities / lead-deal-school-contact detail pages

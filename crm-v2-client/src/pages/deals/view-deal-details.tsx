@@ -41,6 +41,11 @@ import {
 import { CreateActivityModal } from "~/components/activities/create-activity-modal";
 import { ActivityTaskSheet } from "~/components/activities/activity-task-sheet";
 import { DealActivitiesTab } from "~/components/deals/tabs/activities-tab";
+import { useActivityList } from "~/api/activities";
+import {
+  pickPivotalActivities,
+  activityTouchDate,
+} from "~/components/activities/activity-kit";
 import { FilesTab } from "~/components/deals/tabs/files-tab";
 import { useCurrency } from "~/hooks/use-currency";
 import { toast } from "sonner";
@@ -147,6 +152,20 @@ export default function ViewDealDetailsPage() {
 
   const { data: deal, isLoading, error } = useDeal(id || "");
   const { data: rollbackRequests = [] } = useDealRollbackRequestsByDeal(id || "");
+
+  // Feed the "at a glance" panel with real activity: without this the deal
+  // page never passed nextActivity/lastActivityAt, so every deal showed
+  // "No activity yet". Same touch rule as leads (see pickPivotalActivities).
+  const { data: dealActivitiesData } = useActivityList({
+    deal_id: id || "",
+    limit: 50,
+    page: 1,
+  });
+  const { nextActivity: dealNextActivity, lastActivity: dealLastActivity } =
+    useMemo(
+      () => pickPivotalActivities(dealActivitiesData?.data ?? []),
+      [dealActivitiesData],
+    );
   const isReadonly = isDealReadonly(
     deal?.closeStatus ||
       (deal as { close_status?: string } | undefined)?.close_status ||
@@ -565,7 +584,13 @@ export default function ViewDealDetailsPage() {
       <RecordDetailLayout
         fillViewport={false}
         className="flex-1 min-h-0"
-        left={<DealAtAGlance deal={deal} />}
+        left={
+          <DealAtAGlance
+            deal={deal}
+            nextActivity={dealNextActivity}
+            lastActivityAt={activityTouchDate(dealLastActivity)}
+          />
+        }
         right={
         /* Default landing tab is Activities — the rep needs to see
             "what's next?" first. Overview keeps its full edit form

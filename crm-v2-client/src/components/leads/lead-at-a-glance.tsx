@@ -34,6 +34,8 @@ import { getActivityVisual } from "~/lib/activity-visuals";
 import {
   ActivitySignalLine,
   ActivityTypeIcon,
+  activityTouchDate,
+  pickPivotalActivities,
 } from "~/components/activities/activity-kit";
 import type { Lead } from "~/api/leads";
 import type { Activity } from "~/api/activities";
@@ -92,7 +94,7 @@ export function LeadAtAGlance({
   );
 
   const lastTouchDate =
-    (lastActivity?.completed_at && new Date(lastActivity.completed_at)) ||
+    activityTouchDate(lastActivity) ||
     (lead.last_action_at ? new Date(lead.last_action_at) : null) ||
     (lead.last_contacted_at ? new Date(lead.last_contacted_at) : null);
 
@@ -601,34 +603,6 @@ function QualificationStrip({ qualification }: QualificationStripProps) {
 /* ------------------------------------------------------------------ */
 /* Small pure helpers                                                  */
 /* ------------------------------------------------------------------ */
-
-function pickPivotalActivities(activities: Activity[]) {
-  const byDate = (a?: string | null, b?: string | null) => {
-    const ax = a ? new Date(a).getTime() : 0;
-    const bx = b ? new Date(b).getTime() : 0;
-    return ax - bx;
-  };
-
-  const scheduled = activities
-    .filter(
-      (a) =>
-        a.status !== "completed" &&
-        a.status !== "cancelled" &&
-        (a.scheduled_at || a.due_at),
-    )
-    .sort((a, b) =>
-      byDate(a.scheduled_at || a.due_at, b.scheduled_at || b.due_at),
-    );
-
-  const completed = activities
-    .filter((a) => a.status === "completed")
-    .sort((a, b) => byDate(b.completed_at, a.completed_at));
-
-  return {
-    nextActivity: scheduled[0] ?? null,
-    lastActivity: completed[0] ?? null,
-  };
-}
 
 function formatCurrency(value?: number | null) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {

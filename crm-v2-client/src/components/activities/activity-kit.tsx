@@ -71,6 +71,63 @@ import {
 import { cn } from "~/lib/utils";
 
 // =====================================================================
+// Pivotal-activity selection (shared by lead + deal "at a glance")
+// =====================================================================
+
+/**
+ * From a record's activity list, pick the NEXT planned step and the LAST
+ * touch — the two facts every "at a glance" panel shows.
+ *
+ * The last-touch rule is the important one: a touch is any activity that
+ * has already HAPPENED, which is NOT the same as `status === "completed"`.
+ * Logged calls, WhatsApps and notes are saved as status "scheduled" with
+ * no due date, yet they are real touches. Restricting last-touch to
+ * completed activities made leads/deals full of logged calls show
+ * "No activity yet" (≈63% of all activity was affected). An open activity
+ * counts as a past touch unless it is a genuinely future-dated step.
+ */
+export function pickPivotalActivities(activities: Activity[]): {
+  nextActivity: Activity | null;
+  lastActivity: Activity | null;
+} {
+  const time = (v?: string | null) => (v ? new Date(v).getTime() : 0);
+
+  const nextActivity =
+    activities
+      .filter(
+        (a) =>
+          a.status !== "completed" &&
+          a.status !== "cancelled" &&
+          (a.scheduled_at || a.due_at),
+      )
+      .sort(
+        (a, b) =>
+          time(a.scheduled_at || a.due_at) - time(b.scheduled_at || b.due_at),
+      )[0] ?? null;
+
+  const now = Date.now();
+  const touchTime = (a: Activity) =>
+    time(a.completed_at ?? a.scheduled_at ?? a.created_at);
+  const lastActivity =
+    activities
+      .filter((a) => {
+        if (a.status === "cancelled") return false;
+        if (a.status === "completed") return true;
+        const when = a.scheduled_at || a.due_at;
+        return !when || new Date(when).getTime() <= now;
+      })
+      .sort((a, b) => touchTime(b) - touchTime(a))[0] ?? null;
+
+  return { nextActivity, lastActivity };
+}
+
+/** Effective "touch" date for an activity: completed → scheduled → created. */
+export function activityTouchDate(a: Activity | null): Date | null {
+  if (!a) return null;
+  return new Date(a.completed_at ?? a.scheduled_at ?? a.created_at);
+}
+
+// =====================================================================
 // Type primitives
 // =====================================================================
 
