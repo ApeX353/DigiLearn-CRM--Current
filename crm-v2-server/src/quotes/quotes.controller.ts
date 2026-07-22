@@ -10,7 +10,10 @@ import {
   UseGuards,
   Patch,
   HttpStatus,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { QuotesService } from './quotes.service';
 import { CreateQuoteDto, CreateQuoteItemDto } from './dto/create-quote.dto';
@@ -107,6 +110,29 @@ export class QuotesController {
       success: true,
       data: quote,
     };
+  }
+
+  @Get(':id/pdf')
+  @CheckPermission('read', 'Quote')
+  @ApiOperation({
+    summary: 'Download the quote as a PDF, generated on the fly',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'PDF stream' })
+  async downloadPdf(
+    @Param('id') id: string,
+    @CaslAbility() ability: AppAbility,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    // Blob-free download: the PDF is generated in-process (pdfkit) and
+    // streamed straight to the browser, so downloads work even when
+    // Vercel Blob is not configured (previously the only path stored the
+    // PDF in Blob and served its URL — with no token, nothing downloaded).
+    const { buffer, fileName } = await this.quotesService.getPdf(id, ability);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+    });
+    return new StreamableFile(buffer);
   }
 
   @Put(':id')

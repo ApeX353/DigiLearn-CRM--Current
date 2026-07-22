@@ -175,6 +175,32 @@ Legend: 🔴 High · 🟠 Medium · 🟡 Low
 
 ---
 
+## Production observations (2026-07-22, read-only)
+
+- **Prod is in active use.** manakedube logged 12 real activities today on prod (calls with outcomes + dated follow-up next-steps). Read-only check, no writes to prod.
+- **Today's no-due-date activities are COMPLETED calls** — correct (a finished call needs no due date). They DO display (completed → "Done" feed shows even on prod's old code) and DO bump the lead's `last_contacted_at` (verified: today's leads show today's timestamps). So last-touch + hygiene read her as active on those leads. This specific activity is fine — no problem.
+- **Follow-up next-steps carry due dates** (the healthy pattern the system rewards).
+- **CAVEAT — prod runs the OLD build (`0a31c9f`).** None of this session's fixes are on prod (only staging). Consequences live on prod: (1) her HISTORICAL imported activities (bulk = scheduled/undated in the dump) are still HIDDEN by the timeline bug — only today's completed/dated items show; (2) R1 (sales_rep 500 on Quotes/Invoices) and the other E2E findings are all live. Recommendation: deploy the timeline/last-touch/notification fixes to prod when authorised, since it's actively used.
+
+## Feature spot-checks (2026-07-22 follow-up)
+
+### AUD1 🔴 Audit History is always empty — nothing writes to `audit_logs`
+- **Where:** `audit/audit.service.ts` (`log()` has ZERO callers anywhere), `audit/audit.controller.ts` (`/audit-logs`), client `components/audit/audit-timeline.tsx` + `api/audit/use-audit-logs.ts`. Table `audit_logs` EXISTS (no new table needed) but has 0 rows.
+- **Symptom:** Every record's "Audit History" tab is blank; `GET /audit-logs` returns 0. The read endpoints/UI/middleware are all in place, but no create/update/delete ever calls `auditService.log()`, so nothing is ever recorded.
+- **Roles:** all.
+- **Proposed fix:** (a) call `auditService.log()` on entity mutations or add a global TypeORM subscriber/interceptor; or (b) repoint the tab to the working `activity_logs` changelog (5,775 rows) surfaced as "Change history".
+
+### HYG1 🟠 Lead hygiene score unfairly penalises active reps (same last-touch family) + policy risk
+- **Where:** `lib/lead-hygiene.ts:78` (`lastTouchOk` reads stale `lead.last_contacted_at`), `:48` (`hasOpenActionableNextStep` requires a future `due_at`); shown in `components/leads/lead-control-panel.tsx`.
+- **Symptom:** Activity discipline (30/100) rewards due-dated scheduling, not actual contact. A rep who logged calls/WhatsApps today (status scheduled, no due date — 63% of real activity) still gets "No recent touch within SLA" (−6) and "No actionable next step scheduled" (−12), landing in the Poor band and reading like negligence.
+- **Roles:** all viewing a lead (managers see reps' leads).
+- **Proposed fix (technical):** derive `lastTouchOk` from the activities list (already passed in) like the fixed `pickPivotalActivities`, and count logged contact toward recency. **Policy note (owner decision):** whether the score should be visible to managers / drive accountability at all, since it measures scheduling hygiene, not effort.
+
+### Duplicates — ✅ works (verified)
+`/duplicates/peek/lead` correctly flags matches: phone `786023992` → 1 candidate (score 90), `772483193` → 3. RBAC correct (admin/sales_manager see the queue, sales_rep 403). The queue is empty only because the 1,721 leads were bulk-imported and never ran through the app's create-lead detection+record flow — it will populate as leads are created in-app. No fix needed.
+
+---
+
 ## Verified OK (checked, no bug)
 - **Public registration IS locked** — verified live: `POST /auth/register` with a valid body returns `403 "Public registration is disabled"` (gated by `ALLOW_PUBLIC_REGISTRATION`, unset on staging). The 5th auditor flagged this as open, but that was a false positive (it read the service without the controller gate). Note: it opens if someone sets `ALLOW_PUBLIC_REGISTRATION=true`.
 - Kanban drag/optimistic update + query invalidation; installment math (distribution/rounding); JWT representative-role scope bypass for admin/sales_manager; requisition approval state machine + per-currency rollups + divide-by-zero guards; SLA breach service; scheduling hold/confirm; notification socket hook; lead status-tab enum matching; qualification score math; global guard order (ApiKey→JWT→Roles).

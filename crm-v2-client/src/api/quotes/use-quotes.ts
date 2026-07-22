@@ -62,7 +62,35 @@ const quotesApi = {
     apiClientAuth
       .delete(`/quotes/${quoteId}/items/${itemId}`)
       .then((res) => res.data),
+
+  // Blob-free download — the server generates the PDF and streams it back.
+  downloadPdf: (id: string): Promise<Blob> =>
+    apiClientAuth
+      .get(`/quotes/${id}/pdf`, { responseType: "blob" })
+      .then((res) => res.data),
 };
+
+export function useDownloadQuotePdf() {
+  return useMutation({
+    mutationFn: async ({
+      id,
+      quoteNumber,
+    }: {
+      id: string;
+      quoteNumber?: string;
+    }) => {
+      const blob = await quotesApi.downloadPdf(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${quoteNumber || "quote"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+  });
+}
 
 export function useQuotes(params?: QuoteListParams) {
   return useQuery({

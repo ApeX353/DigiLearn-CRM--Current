@@ -338,6 +338,24 @@ export class QuotesService {
     return this.findOne(updatedQuote.id);
   }
 
+  /**
+   * Generate the quote PDF in-process and return the raw bytes — no Vercel
+   * Blob involved. Used by the download endpoint so quotes are downloadable
+   * even when Blob storage is not configured.
+   */
+  async getPdf(
+    id: string,
+    ability?: AppAbility,
+  ): Promise<{ buffer: Buffer; fileName: string }> {
+    const quote = await this.findOneWithItems(id, ability);
+    if (!quote) {
+      throw new NotFoundException(`Quote with ID ${id} not found`);
+    }
+    const buffer =
+      await this.documentGeneratorService.generateQuotePdf(quote);
+    return { buffer, fileName: `${quote.quote_number}.pdf` };
+  }
+
   private async generateAndSendQuote(
     quoteId: string,
     userId: string,

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   QUOTE_STATUSES,
   useQuote,
   useUpdateQuote,
+  useDownloadQuotePdf,
   type Quote,
   type QuoteStatus,
 } from "~/api/quotes";
@@ -103,9 +104,22 @@ export function QuotePreviewModal({
     [quoteResponse],
   );
 
+  const downloadPdf = useDownloadQuotePdf();
   const [nextStatus, setNextStatus] = useState<QuoteStatus | "">("");
   const [poReceived, setPoReceived] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const handleDownload = async () => {
+    if (!quote) return;
+    try {
+      await downloadPdf.mutateAsync({
+        id: quote.id,
+        quoteNumber: quote.quote_number,
+      });
+    } catch {
+      toast.error("Could not generate the PDF. Please try again.");
+    }
+  };
 
   useEffect(() => {
     if (!quote) return;
@@ -360,6 +374,18 @@ export function QuotePreviewModal({
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
                   Update Quote Status
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDownload}
+                  disabled={!quote || downloadPdf.isPending}
+                >
+                  {downloadPdf.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Download PDF
                 </Button>
               </div>
             </div>
