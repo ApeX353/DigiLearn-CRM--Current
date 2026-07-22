@@ -551,17 +551,17 @@ export class DealsService {
 
     // Emit pipeline update via WebSocket when stage changes
     if (newValues.stage) {
-      this.notificationsGateway.emitToRoom(
-        `pipeline:${deal.pipeline_id}`,
-        'pipeline:deal-updated',
-        {
-          dealId: id,
-          title: deal.title,
-          fromStage: oldValues.stage,
-          toStage: newValues.stage,
-          updatedBy: userId,
-        },
-      );
+      // Broadcast to all connected clients: the previous room-scoped emit
+      // (`pipeline:<id>`) never reached anyone because clients are only
+      // joined to their `user:<id>` room, so the live board never updated.
+      this.notificationsGateway.emitBroadcast('pipeline:deal-updated', {
+        dealId: id,
+        pipelineId: deal.pipeline_id,
+        title: deal.title,
+        fromStage: oldValues.stage,
+        toStage: newValues.stage,
+        updatedBy: userId,
+      });
     }
 
     return updatedDeal;

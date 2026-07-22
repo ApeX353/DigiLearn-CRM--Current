@@ -71,10 +71,14 @@ export function useNotificationSocket() {
         duration: 5000,
       });
 
-      // Invalidate notifications query cache
+      // Invalidate notifications query cache. The unread-count query key is
+      // ["notifications","unread-count"] — the old ["notifications-unread-count"]
+      // never matched it and was a silent no-op (the prefix invalidation below
+      // happened to cover it). Invalidate the real key explicitly so the bell
+      // badge updates immediately on a live push.
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({
-        queryKey: ["notifications-unread-count"],
+        queryKey: ["notifications", "unread-count"],
       });
     });
 

@@ -103,4 +103,19 @@ export class NotificationsGateway
   emitToRoom(room: string, event: string, payload: any) {
     this.server.to(room).emit(event, payload);
   }
+
+  /**
+   * Broadcast an event to every connected client.
+   *
+   * Used for cache-invalidation signals (e.g. a deal changed stage) that
+   * any viewer of the affected board should react to. Clients never join
+   * the old `pipeline:<id>` rooms — there was no @SubscribeMessage handler
+   * to join them — so a room-scoped emit reached nobody and the live
+   * pipeline never refreshed. Broadcasting is safe: the payload carries no
+   * privileged data and the client just refetches data it can already see.
+   */
+  emitBroadcast(event: string, payload: any) {
+    if (!this.server) return;
+    this.server.emit(event, payload);
+  }
 }

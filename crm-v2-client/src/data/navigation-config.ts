@@ -24,6 +24,7 @@ import {
   Wallet,
   Megaphone,
   Sparkles,
+  Bug,
 } from "lucide-react";
 import type { Role } from "~/api/rbac";
 
@@ -76,6 +77,22 @@ export const NavigationConfig: NavigationItem[] = [
     // Shown to EVERY user regardless of role — release highlights for the
     // whole team. alwaysVisible bypasses role filtering entirely, so it
     // reaches roles that aren't otherwise enumerated (e.g. admin_support).
+    alwaysVisible: true,
+    allowedRoles: [
+      "admin",
+      "admin_support",
+      "manager",
+      "sales_manager",
+      "sales_rep",
+      "finance",
+    ],
+  },
+  {
+    title: "Report a Bug",
+    url: "/bug-reports",
+    icon: Bug,
+    canView: false,
+    // Everyone can raise and track tickets; admins/admin_support triage.
     alwaysVisible: true,
     allowedRoles: [
       "admin",

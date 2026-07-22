@@ -46,6 +46,7 @@ import { VideoIntegrationsModule } from './video-integrations/video-integrations
 import { AutomationModule } from './automation/automation.module';
 import { CashRequisitionsModule } from './cash-requisitions/cash-requisitions.module';
 import { CampaignsModule } from './campaigns/campaigns.module';
+import { BugReportsModule } from './bug-reports/bug-reports.module';
 import { NotificationsGatewayModule } from './notifications/notifications-gateway.module';
 
 @Module({
@@ -97,6 +98,7 @@ import { NotificationsGatewayModule } from './notifications/notifications-gatewa
     AutomationModule,
     CashRequisitionsModule,
     CampaignsModule,
+    BugReportsModule,
   ],
   controllers: [
     RbacController
