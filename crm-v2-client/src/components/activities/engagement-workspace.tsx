@@ -122,7 +122,7 @@ export function EngagementWorkspace({
   } = useActivityList({
     ...queryParent,
     open_only: true,
-    limit: 25,
+    limit: 100,
     page: 1,
     include_details: true,
     enabled: hasParent,
@@ -136,7 +136,7 @@ export function EngagementWorkspace({
   } = useActivityList({
     ...queryParent,
     status: "completed",
-    limit: 50,
+    limit: 100,
     page: 1,
     include_details: true,
     enabled: hasParent,
@@ -155,36 +155,50 @@ export function EngagementWorkspace({
   // listed correctly. Now the Planned card stays null when only notes
   // are open, and notes only live in the Done/history feed.
   const plannedActivity = useMemo<Activity | null>(() => {
-    const open = (openData?.data ?? []).filter((a) => a.type !== "note");
-    if (open.length === 0) return null;
-    const dated = open
-      .filter((a) => a.due_at || a.scheduled_at)
+    // The Planned card is strictly the next UPCOMING, dated step. It must
+    // NOT fall back to "newest open regardless of date": logged calls and
+    // WhatsApps are saved with status "scheduled" and no due date, so the
+    // old fallback promoted a random logged interaction into the Planned
+    // slot AND — because the history feed only carried completed + notes —
+    // left every other undated interaction with nowhere to render. Reps
+    // saw a near-empty timeline (≈63% of all activity was invisible).
+    // With no dated next step, Planned is simply empty (prompt to schedule)
+    // and all logged interactions live in the Activity log below.
+    const dated = (openData?.data ?? [])
+      .filter((a) => a.type !== "note" && (a.due_at || a.scheduled_at))
       .sort((a, b) => {
         const ad = new Date(a.due_at ?? a.scheduled_at!).getTime();
         const bd = new Date(b.due_at ?? b.scheduled_at!).getTime();
         return ad - bd;
       });
-    if (dated.length > 0) return dated[0];
-    return [...open].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )[0];
+    return dated[0] ?? null;
   }, [openData]);
 
-  // The historical feed is the union of done activities + open notes
-  // (notes are always treated as "logged" — they don't have a due
-  // state to be planning-relevant). The notes carve-out keeps the
-  // feed practically useful without a backend change.
+  // The historical feed is every logged interaction EXCEPT the single
+  // upcoming Planned card: completed activities plus all open items
+  // (calls / WhatsApps / emails / notes logged as "scheduled" with no due
+  // date). Restricting it to completed + notes was the regression that
+  // hid the bulk of every rep's history. De-duped by id since a record
+  // can only appear in one of the two source queries.
   const feedActivities = useMemo<Activity[]>(() => {
     const done = doneData?.data ?? [];
-    const notes = (openData?.data ?? []).filter((a) => a.type === "note");
-    const combined = [...done, ...notes];
+    const plannedId = plannedActivity?.id;
+    const openLogged = (openData?.data ?? []).filter(
+      (a) => a.id !== plannedId,
+    );
+    const byId = new Map<string, Activity>();
+    for (const a of [...done, ...openLogged]) byId.set(a.id, a);
+    const combined = [...byId.values()];
     return applyFeedFilter(combined, feedFilter).sort((a, b) => {
-      const at = new Date(a.completed_at ?? a.created_at).getTime();
-      const bt = new Date(b.completed_at ?? b.created_at).getTime();
+      const at = new Date(
+        a.completed_at ?? a.scheduled_at ?? a.created_at,
+      ).getTime();
+      const bt = new Date(
+        b.completed_at ?? b.scheduled_at ?? b.created_at,
+      ).getTime();
       return bt - at;
     });
-  }, [doneData, openData, feedFilter]);
+  }, [doneData, openData, plannedActivity, feedFilter]);
 
   const requestCompletion = useActivityCompletionStore((s) => s.request);
 
