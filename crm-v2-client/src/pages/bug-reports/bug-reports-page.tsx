@@ -350,7 +350,23 @@ function TriageDialog({
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 export default function BugReportsPage() {
-  const isTriager = useAnyRole(["admin", "admin_support"]);
+  // Three audiences, deliberately different views:
+  //  - owner triager (admin_support = prince): full workspace — dates,
+  //    reporter, assignee, aging, and the Triage controls.
+  //  - product owner (admin = Mr Dube): a status-only tracker. He can see
+  //    WHAT bugs exist and their severity/status, but NOT when they were
+  //    raised, how long they've been open, or who's on them — so the board
+  //    never advertises that a fix is taking a while.
+  //  - everyone else: their own reported tickets.
+  const isOwnerTriager = useAnyRole(["admin_support"]);
+  const isAdmin = useAnyRole(["admin"]);
+  const isProductOwner = isAdmin && !isOwnerTriager;
+
+  const showRaised = !isProductOwner;
+  const showReporter = isOwnerTriager;
+  const showAssignee = !isProductOwner;
+  const showManage = isOwnerTriager;
+
   const [statusFilter, setStatusFilter] = useState<BugStatus | "all">("all");
   const [active, setActive] = useState<BugReport | null>(null);
 
@@ -359,9 +375,18 @@ export default function BugReportsPage() {
   );
   const rows = data?.data ?? [];
 
+  const subtitle = isProductOwner
+    ? "Reported issues and their current status."
+    : isOwnerTriager
+      ? "In-house ticket queue. Triage, assign, and resolve reported issues."
+      : "Spotted something broken? Report it and track your tickets here.";
+
   return (
     <Container>
-      <PageHeader title="Bug Reports" actions={<ReportBugDialog />}>
+      <PageHeader
+        title={isProductOwner ? "Bug Tracker" : "Bug Reports"}
+        actions={<ReportBugDialog />}
+      >
         <Tabs
           value={statusFilter}
           onValueChange={(v) => setStatusFilter(v as BugStatus | "all")}
@@ -377,11 +402,7 @@ export default function BugReportsPage() {
         </Tabs>
       </PageHeader>
 
-      <p className="mb-4 text-sm text-muted-foreground">
-        {isTriager
-          ? "In-house ticket queue. Triage, assign, and resolve reported issues."
-          : "Spotted something broken? Report it and track your tickets here."}
-      </p>
+      <p className="mb-4 text-sm text-muted-foreground">{subtitle}</p>
 
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -391,7 +412,7 @@ export default function BugReportsPage() {
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-12 text-center">
           <Bug className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            {isTriager
+            {isOwnerTriager || isProductOwner
               ? "No bug reports match this filter."
               : "You haven't reported any bugs yet."}
           </p>
@@ -401,21 +422,23 @@ export default function BugReportsPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">Raised</th>
+                {showRaised && <th className="px-3 py-2">Raised</th>}
                 <th className="px-3 py-2">Title</th>
                 <th className="px-3 py-2">Severity</th>
                 <th className="px-3 py-2">Status</th>
-                {isTriager && <th className="px-3 py-2">Reporter</th>}
-                <th className="px-3 py-2">Assignee</th>
-                {isTriager && <th className="px-3 py-2 text-right">Manage</th>}
+                {showReporter && <th className="px-3 py-2">Reporter</th>}
+                {showAssignee && <th className="px-3 py-2">Assignee</th>}
+                {showManage && <th className="px-3 py-2 text-right">Manage</th>}
               </tr>
             </thead>
             <tbody className="divide-y">
               {rows.map((bug) => (
                 <tr key={bug.id} className="hover:bg-muted/30">
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                    {format(new Date(bug.created_at), "MMM d, yyyy")}
-                  </td>
+                  {showRaised && (
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                      {format(new Date(bug.created_at), "MMM d, yyyy")}
+                    </td>
+                  )}
                   <td
                     className="max-w-[280px] truncate px-3 py-2 font-medium"
                     title={bug.title}
@@ -432,21 +455,23 @@ export default function BugReportsPage() {
                       {STATUS_LABELS[bug.status]}
                     </Badge>
                   </td>
-                  {isTriager && (
+                  {showReporter && (
                     <td className="px-3 py-2 whitespace-nowrap">
                       {bug.reported_by
                         ? `${bug.reported_by.first_name} ${bug.reported_by.last_name}`
                         : "—"}
                     </td>
                   )}
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {bug.assigned_to ? (
-                      `${bug.assigned_to.first_name} ${bug.assigned_to.last_name}`
-                    ) : (
-                      <span className="text-muted-foreground">Unassigned</span>
-                    )}
-                  </td>
-                  {isTriager && (
+                  {showAssignee && (
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {bug.assigned_to ? (
+                        `${bug.assigned_to.first_name} ${bug.assigned_to.last_name}`
+                      ) : (
+                        <span className="text-muted-foreground">Unassigned</span>
+                      )}
+                    </td>
+                  )}
+                  {showManage && (
                     <td className="px-3 py-2 text-right">
                       <Button
                         size="sm"
@@ -465,7 +490,7 @@ export default function BugReportsPage() {
         </div>
       )}
 
-      {isTriager && (
+      {isOwnerTriager && (
         <TriageDialog bug={active} onClose={() => setActive(null)} />
       )}
     </Container>
