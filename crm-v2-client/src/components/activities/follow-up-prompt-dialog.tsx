@@ -175,12 +175,25 @@ export function FollowUpPromptDialog() {
         a.status !== "completed" &&
         a.status !== "cancelled",
     );
+    // Which one to SHOW. All of them satisfy the gate (the server
+    // counts any open actionable activity), but "your next step is a
+    // task that went overdue three weeks ago" is not something to
+    // wave the rep past. Prefer a genuine upcoming commitment, then
+    // undated open work, and only then an overdue one — which we
+    // label as overdue rather than dressing it up as a plan.
+    const now = Date.now();
+    const rank = (a: Activity) => {
+      if (!a.due_at) return 1; // undated open work
+      return new Date(a.due_at).getTime() >= now ? 0 : 2; // upcoming : overdue
+    };
     candidates.sort((a, b) => {
-      // Dated commitments first (soonest wins); undated trail behind
-      // but still count — an open task with no date is still work.
-      const at = a.due_at ? new Date(a.due_at).getTime() : Infinity;
-      const bt = b.due_at ? new Date(b.due_at).getTime() : Infinity;
-      return at - bt;
+      const ra = rank(a);
+      const rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      const at = a.due_at ? new Date(a.due_at).getTime() : 0;
+      const bt = b.due_at ? new Date(b.due_at).getTime() : 0;
+      // Upcoming: soonest first. Overdue: most recent first.
+      return ra === 2 ? bt - at : at - bt;
     });
     return candidates[0] ?? null;
   }, [openSiblings, sourceActivity]);
@@ -192,6 +205,11 @@ export function FollowUpPromptDialog() {
     !isManagerOrAdmin &&
     !siblingsLoading &&
     !existingNextStep;
+
+  const existingIsOverdue = Boolean(
+    existingNextStep?.due_at &&
+      new Date(existingNextStep.due_at).getTime() < Date.now(),
+  );
 
   // Route-change guard — two layers:
   //
@@ -393,24 +411,61 @@ export function FollowUpPromptDialog() {
             and offer the one-click exit, so the rep can go straight
             back to logging the interim work they actually did. */}
         {existingNextStep && (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+          <div
+            className={
+              existingIsOverdue
+                ? "rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40"
+                : "rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40"
+            }
+          >
             <div className="flex items-start gap-2">
-              <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <CalendarCheck
+                className={
+                  existingIsOverdue
+                    ? "mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                    : "mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                }
+              />
               <div className="space-y-0.5">
-                <p className="font-medium text-emerald-900 dark:text-emerald-200">
-                  This record already has a next step
+                <p
+                  className={
+                    existingIsOverdue
+                      ? "font-medium text-amber-900 dark:text-amber-200"
+                      : "font-medium text-emerald-900 dark:text-emerald-200"
+                  }
+                >
+                  {existingIsOverdue
+                    ? "This record has a next step, but it's overdue"
+                    : "This record already has a next step"}
                 </p>
-                <p className="text-emerald-800 dark:text-emerald-300">
+                <p
+                  className={
+                    existingIsOverdue
+                      ? "text-amber-800 dark:text-amber-300"
+                      : "text-emerald-800 dark:text-emerald-300"
+                  }
+                >
                   {getActivityLabel(existingNextStep.type)}:{" "}
                   <span className="font-medium">
                     {existingNextStep.subject}
                   </span>
                   {existingNextStep.due_at && (
-                    <> — due {format(new Date(existingNextStep.due_at), "d MMM yyyy")}</>
+                    <>
+                      {existingIsOverdue ? " — overdue since " : " — due "}
+                      {format(new Date(existingNextStep.due_at), "d MMM yyyy")}
+                    </>
                   )}
                 </p>
-                <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                  Keep it and carry on, or add another below.
+                <p
+                  className={
+                    existingIsOverdue
+                      ? "text-xs text-amber-700 dark:text-amber-400"
+                      : "text-xs text-emerald-700 dark:text-emerald-400"
+                  }
+                >
+                  {existingIsOverdue
+                    ? "Deal with it or reschedule it — or add a new step below."
+                    : "Keep it and carry on, or add another below."}
                 </p>
               </div>
             </div>
