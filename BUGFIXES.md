@@ -128,3 +128,55 @@ only worked incidentally via a broader prefix invalidation).
 
 **Fix.** Invalidate the correct key.
 File: `crm-v2-client/src/hooks/use-notification-socket.ts`.
+
+---
+
+## 2026-07-23 — LCK1/C9: next-step lock trapped reps on their own activities
+
+**Severity:** High · **Area:** Activities / follow-up discipline
+**Tickets:** LCK1 (Next-step lock traps reps), C9 (Next-step compliance
+gate makes completion impossible for reps)
+
+**Symptom.** A rep completes an activity on a lead that already has a
+commitment booked — say a meeting two weeks out. The "Next step required"
+modal opens and cannot be dismissed: Esc, outside-click and the close
+button are all intercepted, and `beforeunload` blocks refresh. The only
+exit is scheduling a *second* future activity. Reported in the meeting:
+a rep who phoned a client ahead of a booked meeting could not log that
+call, because the modal stood between them and the Log Activity button.
+
+**Root cause.** The client policy `shouldRequireFollowUp()` was strictly
+harsher than the server gate it was supposed to mirror. The server's
+`ActivitiesService.assertNextStepCompliance()` honours four escape
+hatches — non-actionable types, an admin/sales_manager bypass, the
+`enforce_next_step_on_completion` policy switch, and (the important one)
+**an already-open actionable activity on the same lead/deal**. The client
+checked only "is it a note" and "is the record terminal", so it demanded a
+next step in cases the server considered already satisfied.
+
+Two aggravating facts:
+  - `compliance.policy.enforce_next_step_on_completion` is **false** in
+    production, so the server never rejected these completions. The
+    undismissable client modal was the *only* thing enforcing anything.
+  - The dialog only opens `onSuccess` of the completion — so whenever it
+    appeared, the server had already accepted the very completion the
+    modal was refusing to let go of.
+
+**Fix.**
+  - `shouldRequireFollowUp(activity, context)` now takes a context bag and
+    mirrors the server: exempts every non-actionable type (was: notes
+    only), and returns `false` for `isManagerOrAdmin` or `hasOpenNextStep`.
+  - `FollowUpPromptDialog` resolves that context — it reads the caller's
+    roles and queries the parent lead/deal for other open actionable
+    activities — then downgrades the prompt from a trap to a nudge when
+    either hatch applies. While the lookup is in flight it stays
+    permissive rather than flashing a lock it may be about to lift.
+  - When a commitment already exists the dialog names it ("Meeting: Demo
+    walkthrough — due 6 Aug") and offers **Keep existing next step**
+    alongside **Add another step**.
+
+The hard lock still applies where the rule genuinely bites: a sales rep
+completing the *last* open actionable activity on an active lead/deal.
+
+Files: `crm-v2-client/src/lib/follow-up-policy.ts`,
+`crm-v2-client/src/components/activities/follow-up-prompt-dialog.tsx`.

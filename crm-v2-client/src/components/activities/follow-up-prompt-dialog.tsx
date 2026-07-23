@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDays, format } from "date-fns";
-import { Sparkles, AlertTriangle } from "lucide-react";
+import { Sparkles, AlertTriangle, CalendarCheck } from "lucide-react";
 import { useFollowUpPromptStore } from "~/stores/use-follow-up-prompt-store";
 import {
   Dialog,
@@ -23,9 +23,13 @@ import {
 import { Label } from "~/components/ui/label";
 import { Badge } from "~/components/ui/badge";
 import {
+  isActionableActivityType,
+  type Activity,
   type ActivityType,
+  useActivityList,
   useCreateActivity,
 } from "~/api/activities";
+import { useAnyRole } from "~/hooks/use-permission";
 import { getActivityChip, getActivityLabel } from "~/lib/activity-visuals";
 import { toast } from "sonner";
 
@@ -118,9 +122,76 @@ export function FollowUpPromptDialog() {
 
   const head = queue[0] ?? null;
   const hasMore = queue.length > 1;
-  const isRequired = head?.required ?? false;
+  const enqueuedRequired = head?.required ?? false;
 
   const sourceActivity = head?.activity ?? null;
+
+  // ---- Gate relaxation (LCK1 / C9) -----------------------------
+  //
+  // `entry.required` is decided at enqueue time, where the caller
+  // only knows the completed activity itself. It cannot see the two
+  // escape hatches the SERVER honours in
+  // `assertNextStepCompliance`: the manager/admin bypass, and an
+  // already-open actionable activity on the same lead/deal. Resolve
+  // both here, then downgrade the prompt from "trap" to "nudge"
+  // when either applies.
+  //
+  // Note this dialog only ever opens AFTER a completion the server
+  // already accepted — so when a next step already exists, the hard
+  // lock was enforcing a rule that had, by definition, been
+  // satisfied. That is exactly the case where a rep with a meeting
+  // booked two weeks out could not log the call they made in the
+  // meantime.
+  const isManagerOrAdmin = useAnyRole(["admin", "sales_manager"]);
+
+  const parentLeadId = sourceActivity?.lead_id ?? undefined;
+  // The server ORs lead/deal; querying the lead when present covers
+  // the deal too, since deal activities carry the originating lead.
+  const parentDealId = parentLeadId
+    ? undefined
+    : (sourceActivity?.deal_id ?? undefined);
+  const hasParentRecord = Boolean(parentLeadId || parentDealId);
+
+  const { data: openSiblings, isLoading: siblingsLoading } = useActivityList({
+    lead_id: parentLeadId,
+    deal_id: parentDealId,
+    open_only: true,
+    page: 1,
+    limit: 25,
+    enabled: enqueuedRequired && hasParentRecord && !isManagerOrAdmin,
+  });
+
+  /**
+   * The soonest open actionable commitment already standing on this
+   * record, excluding the activity that was just completed.
+   */
+  const existingNextStep = useMemo<Activity | null>(() => {
+    if (!sourceActivity) return null;
+    const rows = openSiblings?.data ?? [];
+    const candidates = rows.filter(
+      (a) =>
+        a.id !== sourceActivity.id &&
+        isActionableActivityType(a.type) &&
+        a.status !== "completed" &&
+        a.status !== "cancelled",
+    );
+    candidates.sort((a, b) => {
+      // Dated commitments first (soonest wins); undated trail behind
+      // but still count — an open task with no date is still work.
+      const at = a.due_at ? new Date(a.due_at).getTime() : Infinity;
+      const bt = b.due_at ? new Date(b.due_at).getTime() : Infinity;
+      return at - bt;
+    });
+    return candidates[0] ?? null;
+  }, [openSiblings, sourceActivity]);
+
+  // While the lookup is in flight we stay permissive rather than
+  // flashing an undismissable modal we may be about to relax.
+  const isRequired =
+    enqueuedRequired &&
+    !isManagerOrAdmin &&
+    !siblingsLoading &&
+    !existingNextStep;
 
   // Route-change guard — two layers:
   //
@@ -318,6 +389,34 @@ export function FollowUpPromptDialog() {
           </DialogDescription>
         </DialogHeader>
 
+        {/* The record already carries a commitment — say so plainly
+            and offer the one-click exit, so the rep can go straight
+            back to logging the interim work they actually did. */}
+        {existingNextStep && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+            <div className="flex items-start gap-2">
+              <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="space-y-0.5">
+                <p className="font-medium text-emerald-900 dark:text-emerald-200">
+                  This record already has a next step
+                </p>
+                <p className="text-emerald-800 dark:text-emerald-300">
+                  {getActivityLabel(existingNextStep.type)}:{" "}
+                  <span className="font-medium">
+                    {existingNextStep.subject}
+                  </span>
+                  {existingNextStep.due_at && (
+                    <> — due {format(new Date(existingNextStep.due_at), "d MMM yyyy")}</>
+                  )}
+                </p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  Keep it and carry on, or add another below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3 py-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -378,7 +477,7 @@ export function FollowUpPromptDialog() {
           {!isRequired ? (
             <div className="flex gap-2">
               <Button variant="ghost" onClick={onSkip}>
-                Skip
+                {existingNextStep ? "Keep existing next step" : "Skip"}
               </Button>
               {hasMore && (
                 <Button variant="ghost" onClick={onSkipAll}>
@@ -391,8 +490,16 @@ export function FollowUpPromptDialog() {
               Required for active records
             </span>
           )}
-          <Button onClick={onCreate} disabled={createActivity.isPending}>
-            {createActivity.isPending ? "Creating…" : "Schedule follow-up"}
+          <Button
+            onClick={onCreate}
+            disabled={createActivity.isPending}
+            variant={existingNextStep ? "outline" : "default"}
+          >
+            {createActivity.isPending
+              ? "Creating…"
+              : existingNextStep
+                ? "Add another step"
+                : "Schedule follow-up"}
           </Button>
         </DialogFooter>
       </DialogContent>
