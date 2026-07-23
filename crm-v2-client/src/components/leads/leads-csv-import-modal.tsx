@@ -151,22 +151,31 @@ const FIELD_CONFIGS: FieldConfig[] = [
     required: false,
     suggestions: ["phone", "mobile", "contact_phone", "telephone"],
   },
+  // CSV3 — province, region and city are REQUIRED, not optional. The
+  // server refuses to resolve a school without name + city + province
+  // ("School name, city, and province are required to resolve school")
+  // and additionally demands region before it will create a new one.
+  // Leaving these optional here meant the modal reported "Ready to
+  // import" and then every affected row failed individually with a
+  // 400 — on a 1,000-row file, up to a thousand separate failures
+  // after the operator had been told it would work. Better to catch it
+  // once, at the mapping step, while the file can still be corrected.
   {
     key: "province",
     label: "Province",
-    required: false,
+    required: true,
     suggestions: ["province", "state"],
   },
   {
     key: "region",
     label: "Region",
-    required: false,
+    required: true,
     suggestions: ["region", "area", "zone"],
   },
   {
     key: "city",
     label: "City",
-    required: false,
+    required: true,
     suggestions: ["city", "town"],
   },
   {
@@ -413,7 +422,12 @@ function prepareRowsByDuplicateStrategy(
     }
 
     if (strategy === "delete") {
-      removedRows += groupRows.length;
+      // CSV1 — this used to drop EVERY row in the group, including the
+      // original, so a school appearing twice in the file was never
+      // imported at all and the summary only showed a "removed" count.
+      // "Delete Duplicates" means keep one and discard the extras.
+      removedRows += groupRows.length - 1;
+      prepared.push(groupRows[0]);
       return;
     }
 
@@ -449,7 +463,14 @@ function toAddLeadPayload(record: MappedRecord): AddLeadValues | null {
     leadName.length < 2 ||
     schoolName.length < 1 ||
     firstName.length < 2 ||
-    lastName.length < 2
+    lastName.length < 2 ||
+    // CSV3 — the server cannot resolve a school without these, so a
+    // row missing them is a guaranteed 400. Catch it here and report
+    // it as a row failure BEFORE the import runs, rather than firing
+    // a doomed request per row.
+    record.city.trim().length < 1 ||
+    record.province.trim().length < 1 ||
+    record.region.trim().length < 1
   ) {
     return null;
   }
@@ -647,7 +668,7 @@ export function LeadsCsvImportModal({
         failures.push({
           csvRowNumber: importableRow.csvRowNumber,
           reason:
-            "Required values are missing or invalid (Lead Name, School Name, First Name, Last Name).",
+            "Required values are missing or invalid (Lead Name, School Name, First Name, Last Name, City, Province, Region).",
         });
         return;
       }

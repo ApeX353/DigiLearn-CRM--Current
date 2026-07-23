@@ -283,6 +283,9 @@ export default function LeadsManagementPage() {
 
   const navigate = useNavigate();
   const canAssignLeads = useAnyRole(["admin", "sales_manager"]);
+  // CSV5 — bulk import is a management action, not a rep one. Same
+  // roles that own lead assignment own bringing leads into the system.
+  const canImportLeads = useAnyRole(["admin", "sales_manager"]);
   const canRunSlaCheck = useAnyRole([
     "admin",
     "sales_manager",
@@ -443,10 +446,12 @@ export default function LeadsManagementPage() {
         wide
         actions={
           <div className="flex gap-x-2">
-            <Button variant="outline" size="sm" onClick={() => setImportModalOpen(true)}>
-              <Upload className="h-4 w-4 mr-1.5" />
-              Import CSV
-            </Button>
+            {canImportLeads && (
+              <Button variant="outline" size="sm" onClick={() => setImportModalOpen(true)}>
+                <Upload className="h-4 w-4 mr-1.5" />
+                Import CSV
+              </Button>
+            )}
             <Button size="sm" asChild>
               <Link to="/leads/new">
                 <Plus className="h-4 w-4 mr-1.5" />
