@@ -69,7 +69,11 @@ export const MeetingTabForm = forwardRef<
       const v = form.getValues();
       return {
         subject: v.title,
-        // due_at: v.due_at?.toISOString(),
+        // ACT2 — a meeting's "when" is its start_time; mirror it into
+        // due_at so the activity is dated at the parent level too.
+        // Without this the meeting shows in the calendar but reads as
+        // undated everywhere else (52 such meetings on production).
+        due_at: v.start_time?.toISOString(),
         meeting: {
           title: v.title,
           platform: v.platform,

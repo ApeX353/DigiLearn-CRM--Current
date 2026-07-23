@@ -18,6 +18,7 @@ import {
   FormControl,
   FormMessage,
 } from "~/components/ui/form";
+import { DateTimePicker } from "~/components/ui/date-picker";
 import { WHATSAPP_DIRECTIONS } from "~/api/activities/types";
 import { whatsappTabSchema, type WhatsAppTabValues } from "./activity-schemas";
 import type { SingleContactTabFormProps, TabFormHandle, TabFormPayload } from "./types";
@@ -31,6 +32,7 @@ export const WhatsAppTabForm = forwardRef<TabFormHandle, SingleContactTabFormPro
         message: "",
         direction: "outbound",
         message_type: "text",
+        follow_up_date: undefined,
       },
       mode: "onTouched",
     });
@@ -62,6 +64,7 @@ export const WhatsAppTabForm = forwardRef<TabFormHandle, SingleContactTabFormPro
         const v = form.getValues();
         return {
           subject: `WhatsApp: ${v.message.substring(0, 40)}`,
+          due_at: v.follow_up_date?.toISOString(),
           whatsapp: {
             phone_number: v.phone_number,
             message: v.message,
@@ -140,7 +143,23 @@ export const WhatsAppTabForm = forwardRef<TabFormHandle, SingleContactTabFormPro
             )}
           />
 
-          
+          <FormField
+            control={form.control}
+            name="follow_up_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Follow Up Date</FormLabel>
+                <FormControl>
+                  <DateTimePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="When should this be followed up?"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </Form>
     );

@@ -93,6 +93,22 @@ export class QueryActivityDto {
 
   @ApiPropertyOptional({
     description:
+      'Filter by when the activity was LOGGED (created_at), not when it is due. Powers the "Logged today" tab — "what did the team actually record today", as distinct from "Due today".',
+  })
+  @IsOptional()
+  @IsDateString()
+  created_from?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Upper bound for the created_at (logged) window. See created_from.',
+  })
+  @IsOptional()
+  @IsDateString()
+  created_to?: string;
+
+  @ApiPropertyOptional({
+    description:
       'Convenience filter: only "open" activities (status NOT IN completed/cancelled). Defaults to false.',
   })
   @IsOptional()

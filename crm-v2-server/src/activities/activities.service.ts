@@ -342,7 +342,64 @@ export class ActivitiesService {
   // Create Activity
   // ========================
 
+  /**
+   * ACT2 — write-time "every open activity has a when" gate.
+   *
+   * Reported by the owner: WhatsApps, emails and calls were being
+   * saved with no follow-up or due date. On production 89% of all
+   * activities carried neither `due_at` nor `scheduled_at`, which
+   * makes them invisible to every date-driven view.
+   *
+   * The rule is deliberately narrower than "all activities must have
+   * a date". A COMPLETED activity is work that already happened — a
+   * call that ended — and needs a next step, not a due date; that is
+   * the next-step rule's job. What must carry a date is an activity
+   * left OPEN, because that is a commitment with no "when".
+   *
+   * Gated by `compliance.policy.require_activity_due_date` so an
+   * admin can switch it back off in Settings → Compliance without a
+   * deploy if it proves too strict in the field.
+   */
+  private async assertOpenActivityHasDate(
+    type: ActivityType | undefined,
+    status: ActivityStatus | undefined,
+    dueAt?: string | Date | null,
+    scheduledAt?: string | Date | null,
+  ): Promise<void> {
+    const ACTIONABLE: ActivityType[] = [
+      ActivityType.TASK,
+      ActivityType.CALL,
+      ActivityType.EMAIL,
+      ActivityType.MEETING,
+      ActivityType.WHATSAPP,
+    ];
+    if (!type || !ACTIONABLE.includes(type)) return; // notes exempt
+    // Work that is already done (or abandoned) needs no due date.
+    if (
+      status === ActivityStatus.COMPLETED ||
+      status === ActivityStatus.CANCELLED
+    ) {
+      return;
+    }
+    if (dueAt || scheduledAt) return;
+
+    const enforce = await this.complianceSettings.getBoolean(
+      'require_activity_due_date',
+    );
+    if (!enforce) return;
+
+    throw new BadRequestException(
+      'This activity is being left open, so it needs a date. Add a due date for when the follow-up should happen — or mark it completed if it has already been done.',
+    );
+  }
+
   async create(dto: CreateActivityDto, userId: string): Promise<Activity> {
+    await this.assertOpenActivityHasDate(
+      dto.type,
+      dto.status,
+      dto.due_at,
+      dto.scheduled_at,
+    );
     return this.dataSource.transaction(async (manager) => {
       const {
         task,
@@ -635,6 +692,8 @@ export class ActivitiesService {
       end_date,
       due_from,
       due_to,
+      created_from,
+      created_to,
       open_only,
       is_pinned,
       include_details,
@@ -755,6 +814,19 @@ export class ActivitiesService {
       );
     }
 
+    // "Logged today" — filters on when the activity was RECORDED, not
+    // when it falls due. A manager asking "what did the team do today"
+    // wants this; "Due today" answers the different question "what is
+    // on my list for today". Both tabs now exist so neither has to be
+    // approximated by scrolling the All list.
+    if (created_from) {
+      qb.andWhere('activity.created_at >= :created_from', { created_from });
+    }
+
+    if (created_to) {
+      qb.andWhere('activity.created_at <= :created_to', { created_to });
+    }
+
     // open_only is the cheap "hide done & cancelled" toggle most date
     // tabs want. We keep it independent of the explicit `status` filter
     // so callers can still ask for a specific status when they need it.
@@ -775,15 +847,27 @@ export class ActivitiesService {
     }
 
     if (include_details) {
-      qb.orderBy(
-        `CASE 
-        WHEN activity.type = 'task' THEN activity.due_at 
-        ELSE NULL 
-        END`,
-        'DESC',
-      );
-      // Postgres has no FIELD(); emulate it with a nested CASE so task rows
-      // sort URGENT → HIGH → MEDIUM → LOW and non-tasks fall to the end.
+      // ACT1 — the Activities page ("All" tab) reads this list.
+      //
+      // The previous clause ordered by
+      //   CASE WHEN type='task' THEN due_at ELSE NULL END  DESC
+      // which had three faults. Postgres DESC defaults to NULLS
+      // FIRST, so every non-task and every undated task sorted to the
+      // FRONT and the tasks that actually carried a due date were
+      // pushed to the BACK — on production that put today's work on
+      // page 110 of 112. Non-tasks were forced to NULL so they never
+      // sorted by their own date at all, and within the dated group
+      // DESC surfaced the furthest-future task ahead of today's.
+      //
+      // Order by the activity's EFFECTIVE date instead, newest first,
+      // falling back to created_at so an activity with no date still
+      // sorts by when it was logged. That lands both senses of
+      // "today's activities" — due today, and logged today — on page
+      // one, which is what the page is asked for.
+      qb.orderBy('COALESCE(activity.due_at, activity.scheduled_at, activity.created_at)', 'DESC');
+      // Tie-break same-dated rows by task urgency. Postgres has no
+      // FIELD(); emulate it with a nested CASE so task rows sort
+      // URGENT → HIGH → MEDIUM → LOW and non-tasks fall to the end.
       qb.addOrderBy(
         `CASE
           WHEN activity.type = 'task' THEN

@@ -170,6 +170,8 @@ export default function ActivitiesPage() {
       return {
         due_from: customRange?.from?.toISOString(),
         due_to: customRange?.to?.toISOString(),
+        created_from: undefined as string | undefined,
+        created_to: undefined as string | undefined,
         open_only: false,
       };
     }
@@ -182,12 +184,16 @@ export default function ActivitiesPage() {
       return {
         due_from: ws.toISOString(),
         due_to: undefined as string | undefined,
+        created_from: undefined as string | undefined,
+        created_to: undefined as string | undefined,
         open_only: false,
       };
     }
     return {
       due_from: periodResolution.due_from,
       due_to: periodResolution.due_to,
+      created_from: periodResolution.created_from,
+      created_to: periodResolution.created_to,
       open_only: periodResolution.open_only,
     };
   }, [customRange, viewMode, weekAnchor, periodResolution]);
@@ -205,6 +211,8 @@ export default function ActivitiesPage() {
     open_only: queryWindow.open_only,
     due_from: queryWindow.due_from,
     due_to: queryWindow.due_to,
+    created_from: queryWindow.created_from,
+    created_to: queryWindow.created_to,
     include_details: true,
   });
 

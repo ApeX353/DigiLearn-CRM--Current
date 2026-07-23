@@ -148,6 +148,14 @@ export const COMPLIANCE_SETTINGS = {
     description:
       'When on, completing an actionable activity (call / email / meeting / whatsapp / task) requires either an open future actionable activity already scheduled on the same lead/deal OR a `next_step` follow-up sub-payload that the server creates atomically. Admins and sales managers always bypass.',
   },
+  require_activity_due_date: {
+    key: 'compliance.policy.require_activity_due_date',
+    type: 'boolean' as const,
+    default: true,
+    label: 'Require a date on every open activity',
+    description:
+      'When on, an actionable activity (call / email / meeting / whatsapp / task) that is left OPEN must carry a due date — the "when" of the commitment. Completed activities are exempt: work that has already happened needs a next step, not a due date, which is what the next-step rule covers. Turn this off to restore the previous behaviour where an activity could be saved with no date at all.',
+  },
   // ----- Phase D: SLA pre-breach nudge -----
   sla_prebreach_nudge_hours: {
     key: 'compliance.policy.sla_prebreach_nudge_hours',

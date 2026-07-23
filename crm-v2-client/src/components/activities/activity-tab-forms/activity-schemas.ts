@@ -42,6 +42,8 @@ export const emailTabSchema = z.object({
   cc_recipients: z.string().optional(),
   subject: z.string().min(1, "Subject is required"),
   body: z.string().min(1, "Body is required"),
+  // ACT2 — every open activity needs a "when".
+  follow_up_date: z.date().optional(),
 });
 export type EmailTabValues = z.infer<typeof emailTabSchema>;
 
@@ -64,5 +66,8 @@ export const whatsappTabSchema = z.object({
   message: z.string().min(1, "Message is required"),
   direction: z.enum(WHATSAPP_DIRECTIONS),
   message_type: z.enum(WHATSAPP_MESSAGE_TYPES),
+  // ACT2 — WhatsApp had no date field at all, which is why it was
+  // the single largest source of undated activities.
+  follow_up_date: z.date().optional(),
 });
 export type WhatsAppTabValues = z.infer<typeof whatsappTabSchema>;

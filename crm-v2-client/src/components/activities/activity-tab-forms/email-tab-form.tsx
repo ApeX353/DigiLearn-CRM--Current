@@ -18,6 +18,7 @@ import type {
   TabFormHandle,
   TabFormPayload,
 } from "./types";
+import { DateTimePicker } from "~/components/ui/date-picker";
 import { TemplatePicker } from "~/components/email/template-picker";
 import { toast } from "sonner";
 
@@ -33,6 +34,7 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
         cc_recipients: "",
         subject: "",
         body: "",
+        follow_up_date: undefined,
       },
       mode: "onTouched",
     });
@@ -75,6 +77,7 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
         const v = form.getValues();
         return {
           subject: v.subject,
+          due_at: v.follow_up_date?.toISOString(),
           email: {
             to_recipients: v.to_recipients,
             cc_recipients: v.cc_recipients || undefined,
@@ -186,6 +189,24 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
                     placeholder="Email content..."
                     rows={5}
                     {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="follow_up_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Follow Up Date</FormLabel>
+                <FormControl>
+                  <DateTimePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="When should this be followed up?"
                   />
                 </FormControl>
                 <FormMessage />

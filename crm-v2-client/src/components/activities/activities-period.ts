@@ -21,6 +21,7 @@ export type ActivitiesPeriod =
   | "todo"
   | "overdue"
   | "today"
+  | "logged_today"
   | "tomorrow"
   | "this_week"
   | "next_week"
@@ -44,7 +45,16 @@ export const ACTIVITIES_PERIODS: ActivitiesPeriodOption[] = [
     label: "Overdue",
     emptyHint: "Nothing overdue. Keep it that way.",
   },
-  { value: "today", label: "Today", emptyHint: "Nothing scheduled for today." },
+  {
+    value: "today",
+    label: "Due today",
+    emptyHint: "Nothing due today.",
+  },
+  {
+    value: "logged_today",
+    label: "Logged today",
+    emptyHint: "Nothing has been logged today yet.",
+  },
   {
     value: "tomorrow",
     label: "Tomorrow",
@@ -66,6 +76,9 @@ export const ACTIVITIES_PERIODS: ActivitiesPeriodOption[] = [
 export interface ResolvedPeriod {
   due_from?: string;
   due_to?: string;
+  /** "Logged today" filters on created_at, not the due date. */
+  created_from?: string;
+  created_to?: string;
   open_only?: boolean;
   /** Range used by the calendar week-view (always defined). */
   visibleWindow: { from: Date; to: Date };
@@ -110,6 +123,20 @@ export function resolveActivitiesPeriod(
       return {
         due_from: startOfDay(reference).toISOString(),
         due_to: endOfDay(reference).toISOString(),
+        visibleWindow: {
+          from: startOfWeek(reference, WEEK_OPTIONS),
+          to: endOfWeek(reference, WEEK_OPTIONS),
+        },
+      };
+    }
+    case "logged_today": {
+      // "What did we actually record today" — the manager's question.
+      // Deliberately filters created_at, so an activity logged this
+      // morning shows here even if its follow-up is due next month,
+      // and a task due today that was raised in March does not.
+      return {
+        created_from: startOfDay(reference).toISOString(),
+        created_to: endOfDay(reference).toISOString(),
         visibleWindow: {
           from: startOfWeek(reference, WEEK_OPTIONS),
           to: endOfWeek(reference, WEEK_OPTIONS),
@@ -169,13 +196,24 @@ export function resolveActivitiesPeriod(
 export function isInPeriod(
   period: ActivitiesPeriod,
   ref: Date,
-  activity: { due_at?: string; scheduled_at?: string; status: string },
+  activity: {
+    due_at?: string;
+    scheduled_at?: string;
+    created_at?: string;
+    status: string;
+  },
 ): boolean {
   const due = activity.due_at ?? activity.scheduled_at;
   if (period === "all") return true;
   const isOpen =
     activity.status !== "completed" && activity.status !== "cancelled";
   if (period === "todo") return isOpen;
+  if (period === "logged_today") {
+    if (!activity.created_at) return false;
+    const logged = new Date(activity.created_at);
+    if (Number.isNaN(logged.getTime())) return false;
+    return logged >= startOfDay(ref) && logged <= endOfDay(ref);
+  }
   if (!due) return false;
   const dueDate = new Date(due);
   if (Number.isNaN(dueDate.getTime())) return false;

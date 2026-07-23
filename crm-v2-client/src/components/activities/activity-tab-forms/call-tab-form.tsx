@@ -58,11 +58,18 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
         const v = form.getValues();
         return {
           subject: `Call: ${v.summary.substring(0, 40)}`,
+          // ACT2 — the form has always RENDERED a follow-up date
+          // picker, but this payload dropped the value on the floor,
+          // so every call was created with due_at NULL no matter what
+          // the rep typed. That single omission accounts for the bulk
+          // of the undated calls on production.
+          due_at: v.follow_up_date?.toISOString(),
           call: {
             phone_number: v.phone_number,
             outcome: v.outcome,
             summary: v.summary,
             next_steps: v.next_steps || undefined,
+            follow_up_date: v.follow_up_date?.toISOString(),
           },
         };
       },

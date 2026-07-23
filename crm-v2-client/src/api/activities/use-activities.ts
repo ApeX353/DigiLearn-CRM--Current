@@ -41,6 +41,9 @@ export type ActivityListQuery = PaginationParams & {
   search?: string;
   due_from?: string;
   due_to?: string;
+  /** Filters on when the activity was LOGGED — powers "Logged today". */
+  created_from?: string;
+  created_to?: string;
   open_only?: boolean;
   include_details?: boolean;
 };
