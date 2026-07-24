@@ -71,6 +71,16 @@ export function NotificationBell() {
     }
   };
 
+  /** Clear one notification without opening it or leaving the page. */
+  const handleMarkRead = async (
+    event: React.MouseEvent,
+    notificationId: string,
+  ) => {
+    event.stopPropagation();
+    event.preventDefault();
+    await markRead.mutateAsync(notificationId);
+  };
+
   const handleArchive = async (
     event: React.MouseEvent,
     notificationId: string,
@@ -158,10 +168,14 @@ export function NotificationBell() {
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+              // Width grows with the number — the badge used to be a fixed
+              // 20px circle showing "9+", which told you nothing once you
+              // had more than nine waiting.
+              className="absolute -top-1 -right-1 h-5 min-w-5 w-auto px-1 flex items-center justify-center text-xs tabular-nums"
               data-testid="notification-unread-badge"
+              title={`${unreadCount} unread`}
             >
-              {unreadCount > 9 ? "9+" : unreadCount}
+              {unreadCount}
             </Badge>
           )}
         </Button>
@@ -272,10 +286,30 @@ export function NotificationBell() {
                           data-testid="notification-unread-dot"
                         />
                       )}
+                      {/* Reading used to be possible only by clicking the
+                          row, which also navigates away — so there was no
+                          way to clear one without opening it. */}
+                      {unread && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          title="Mark as read"
+                          aria-label="Mark as read"
+                          onClick={(event) =>
+                            handleMarkRead(event, notification.id)
+                          }
+                          data-testid="notification-mark-read"
+                        >
+                          <Check className="h-3 w-3 text-muted-foreground" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
+                        title="Archive"
+                        aria-label="Archive"
                         onClick={(event) =>
                           handleArchive(event, notification.id)
                         }
