@@ -1774,8 +1774,12 @@ export class ActivitiesService {
    *
    *   - `mode = 'complete'` — the activity just transitioned to
    *     `completed`. THIS is when `last_contacted_at` moves, and
-   *     `last_action_at` too. No status mutation here; that already
-   *     happened at create-time.
+   *     `last_action_at` too.
+   *
+   * The 'New' → 'Contacted' flip happens in BOTH modes. It used to be
+   * in the 'create' branch alone, which meant an activity created
+   * already completed (a rep logging a call they had made) never moved
+   * the lead off 'New'.
    *
    *   - Exception: when an activity is CREATED already in the
    *     `completed` state (e.g. "log a past call I already made"),
@@ -1805,13 +1809,30 @@ export class ActivitiesService {
         last_contacted_at: contactMoment,
         last_action_at: now,
       });
-      return;
+    } else {
+      // mode === 'create' — schedule event. Don't touch
+      // `last_contacted_at`; the call hasn't happened yet.
+      await manager.update(Lead, { id: lead.id }, { last_action_at: now });
     }
 
-    // mode === 'create' — schedule event. Don't touch
-    // `last_contacted_at`. Do flip a New lead to Contacted (commit).
-    const updates: Partial<Lead> = { last_action_at: now };
-    await manager.update(Lead, { id: lead.id }, updates);
+    // A 'New' lead stops being New the moment a rep engages it — and that
+    // has to hold in BOTH modes.
+    //
+    // This used to sit in the 'create' branch only, after an early return
+    // in the 'complete' branch. The effect was backwards: SCHEDULING a
+    // call moved the lead to Contacted, but LOGGING a call you had already
+    // made did not — and logging-after-the-fact is the normal way a rep
+    // records real contact, because the activity is created already
+    // completed and therefore takes the 'complete' path.
+    //
+    // Reported by Ms Mpofu: "once a school is contacted it must auto move
+    // from new to contacted". Measured on production at the time: 587
+    // leads sat on New, 12 of them with a completed call, WhatsApp, email
+    // or meeting already logged against them.
+    //
+    // transitionStatus() is a no-op when the status already matches, and
+    // it closes the SLA history record properly, so calling it here is
+    // safe on both paths.
     if (lead.status === 'New') {
       await this.leadsService.updateStatusInTransaction(
         manager,
