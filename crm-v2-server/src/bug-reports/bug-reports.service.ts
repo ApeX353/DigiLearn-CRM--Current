@@ -244,7 +244,40 @@ export class BugReportsService {
       );
     }
 
+    // Announce a FIX to the whole team (Ms Mpofu's request): when something
+    // is repaired, everyone should know, not just the person who raised it.
+    //
+    // Resolved only — "closed" also covers won't-fix and duplicates, and
+    // announcing those to everyone is noise rather than news. The reporter
+    // and the person doing the triage are skipped: the reporter already
+    // gets the more personal message above, and the actor just did it.
+    if (
+      saved.status !== prevStatus &&
+      saved.status === BugStatus.RESOLVED
+    ) {
+      const audience = (await this.activeUserIds()).filter(
+        (uid) => uid !== actor.id && uid !== saved.reported_by_id,
+      );
+      await this.notify(
+        audience,
+        `Fixed: ${saved.title}`,
+        saved.resolution_note || 'This has been fixed and is now live.',
+        saved.id,
+        'success',
+        `bug-announce-${saved.id}`,
+      );
+    }
+
     return this.findOneRaw(saved.id);
+  }
+
+  /** Everyone who can be told about a fix. */
+  private async activeUserIds(): Promise<string[]> {
+    const users = await this.userRepo.find({
+      where: { is_active: true },
+      select: { id: true },
+    });
+    return users.map((u) => u.id);
   }
 
   /** Active users a ticket can be assigned to (id + name), for the picker. */
