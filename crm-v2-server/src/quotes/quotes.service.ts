@@ -43,6 +43,11 @@ export class QuotesService {
     deal_id: 'deal_id',
     personId: 'person_id',
     person_id: 'person_id',
+    // The sales_rep rule is seeded as {"createdBy":"${id}"}. Without these
+    // two keys the raw name falls straight through to SQL as
+    // `quote.createdBy`, which does not exist — every rep got a 500.
+    createdBy: 'owner_id',
+    created_by: 'owner_id',
     status: 'status',
   };
 

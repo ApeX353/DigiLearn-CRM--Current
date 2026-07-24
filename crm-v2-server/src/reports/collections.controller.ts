@@ -17,7 +17,7 @@ export class CollectionsController {
   constructor(private readonly reportsReadService: ReportsReadService) {}
 
   @Get('aging-report')
-  @Roles('admin', 'sales_manager')
+  @Roles('admin', 'sales_manager', 'manager')
   @ApiOperation({
     summary:
       'Installments grouped by aging bucket with per-customer balances',

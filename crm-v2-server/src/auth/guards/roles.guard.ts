@@ -15,6 +15,33 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { SKIP_ROLES_CHECK_KEY } from '../decorators/skip-roles-check.decorator';
 
+/**
+ * Roles that stand in for another role at the @Roles() gate.
+ *
+ * `admin_support` is seeded with `manage` permissions across the same
+ * subjects as `admin`, but it was never added to a single one of the
+ * ~238 @Roles() declarations in the codebase, so the coarse role gate
+ * rejected it everywhere the finer CASL check was not used. Rather
+ * than edit every decorator (and miss new ones), the equivalence is
+ * declared once, here.
+ *
+ * Remove an entry to revert that role to literal matching only.
+ */
+const ROLE_ALIASES: Record<string, readonly string[]> = {
+  admin_support: ['admin'],
+};
+
+/** Expand a user's roles with any roles they stand in for. */
+function effectiveRoles(userRoles: string[]): Set<string> {
+  const all = new Set(userRoles);
+  for (const role of userRoles) {
+    for (const alias of ROLE_ALIASES[role] ?? []) {
+      all.add(alias);
+    }
+  }
+  return all;
+}
+
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
@@ -97,7 +124,8 @@ export class RolesGuard implements CanActivate {
 
     if (requiredRoles) {
       const userRoles = user.roles?.map((role: any) => role.name) || [];
-      const hasRole = requiredRoles.some((role) => userRoles.includes(role));
+      const granted = effectiveRoles(userRoles);
+      const hasRole = requiredRoles.some((role) => granted.has(role));
 
       if (!hasRole) {
         throw new ForbiddenException(

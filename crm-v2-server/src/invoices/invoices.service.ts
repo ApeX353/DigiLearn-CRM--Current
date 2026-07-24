@@ -58,6 +58,10 @@ export class InvoicesService {
     person_id: 'person_id',
     quoteId: 'quote_id',
     quote_id: 'quote_id',
+    // See QUOTE_CONDITION_KEY_MAP — the seeded sales_rep rule uses
+    // `createdBy`, and the invoice owner column is `owner_id`.
+    createdBy: 'owner_id',
+    created_by: 'owner_id',
     status: 'status',
     paymentStatus: 'payment_status',
     payment_status: 'payment_status',

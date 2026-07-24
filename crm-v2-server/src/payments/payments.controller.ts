@@ -45,8 +45,11 @@ export class PaymentsController {
     };
   }
 
+  // `manager` is seeded with read access to Payment but was missing from
+  // every @Roles() gate here, so the role 403'd on the whole module.
+  // Reads only — create/update/delete stay closed to it.
   @Get()
-  @Roles('admin', 'sales_manager', 'sales_rep')
+  @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Get all payments with pagination and filters' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -70,7 +73,7 @@ export class PaymentsController {
   }
 
   @Get('stats')
-  @Roles('admin', 'sales_manager', 'sales_rep')
+  @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Payment stats: totals, collections, by method per period' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -89,7 +92,7 @@ export class PaymentsController {
   }
 
   @Get('statistics')
-  @Roles('admin', 'sales_manager', 'sales_rep')
+  @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({
     summary: 'Payment statistics for the fiscal-year date range',
   })
@@ -107,7 +110,7 @@ export class PaymentsController {
   }
 
   @Get(':id')
-  @Roles('admin', 'sales_manager', 'sales_rep')
+  @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Get a single payment' })
   async findOne(@Param('id') id: string) {
     const payment = await this.paymentsService.findOne(id);

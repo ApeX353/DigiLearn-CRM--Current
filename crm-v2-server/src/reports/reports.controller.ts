@@ -30,7 +30,7 @@ export class ReportsController {
   // ========================================================================
 
   @Get('sales-performance')
-  @Roles('admin', 'sales_manager', 'sales_rep')
+  @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Sales performance KPIs for the chosen period' })
   @ApiQuery({ name: 'period', enum: ['month', 'quarter', 'year'], required: false })
   async getSalesPerformance(@Query('period') period?: string) {
@@ -40,14 +40,14 @@ export class ReportsController {
   }
 
   @Get('pipeline-analysis')
-  @Roles('admin', 'sales_manager', 'sales_rep')
+  @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Per-stage deal count, value and aging' })
   async getPipelineAnalysis() {
     return this.reportsReadService.getPipelineAnalysis();
   }
 
   @Get('finance')
-  @Roles('admin', 'sales_manager')
+  @Roles('admin', 'sales_manager', 'manager')
   @ApiOperation({
     summary: 'Finance overview — revenue by method, outstanding, upcoming',
   })
