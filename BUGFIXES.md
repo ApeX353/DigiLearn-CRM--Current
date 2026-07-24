@@ -6,6 +6,88 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-24 — R1 / R2 / R3: three roles locked out by access control
+
+**Severity:** Critical (R1, R2) · Medium (R3) · **Area:** RBAC
+**Status:** Fixed and verified on **staging**. **Not on production.**
+**Commit:** `09c0d2e` on `dube-upgrades` — server only, no migration.
+
+Three separate tickets, one family: people who were entitled to a screen
+could not reach it. Found by counting the role gates — there are **238
+`@Roles()` declarations across 39 controllers**, and the tokens used are
+`admin` 215, `sales_manager` 178, `sales_rep` 112, `super_admin` 3,
+`viewer` 2, `manager` 2, `finance` 2.
+
+### R1 — every sales rep got HTTP 500 on Quotes and Invoices
+
+**Symptom.** A `sales_rep` opening Quotes or Invoices got a 500. Confirmed
+live on staging before the fix: `GET /quotes` and `GET /invoices` both 500,
+while `/quotes/stats` and `/invoices/stats` returned 200 — which is why it
+looked intermittent.
+
+**Root cause.** The seeded rule is `{"createdBy":"${id}"}`
+(seed-roles-permissions.ts:162). `AbilityScopeService` resolves a condition
+key with `conditionKeyMap[rawKey] ?? rawKey`, so an unmapped key passes
+through **unchanged**. Neither `QUOTE_CONDITION_KEY_MAP`
+(quotes.service.ts:36) nor `INVOICE_CONDITION_KEY_MAP`
+(invoices.service.ts:49) carried a `createdBy` entry, so the name reached
+Postgres as `quote.createdBy` / `invoice.createdBy`. No such column — the
+query threw. The owner column on both entities is `owner_id`.
+
+**Fix.** Added `createdBy: 'owner_id'` and `created_by: 'owner_id'` to both
+maps. Reverts by deleting the two lines.
+
+### R2 — admin_support (prince) locked out app-wide
+
+**Symptom.** 403 across most of the app. Reproduced on staging before the
+fix: `/payments`, `/collections/aging-report` and `/reports/finance` all
+403. Still reproducible on **production** right now — it is why the read
+status of Mr Dube's notification cannot be checked from this account.
+
+**Root cause.** `admin_support` is seeded with `manage` over the same
+subjects as `admin` (seed-roles-permissions.ts:52+), but the name appears in
+**zero** of the 238 role gates. Wherever a route falls back to the coarse
+role check instead of the finer CASL check, the role was refused. The bug
+tracker works only because it declares its own operator list that happens to
+include it; campaigns declares the same constant and omits it.
+
+**Fix.** Declared the equivalence once, in `RolesGuard`, via a `ROLE_ALIASES`
+map — `admin_support` satisfies a requirement for `admin`. Chosen over
+editing 238 decorators, which would also miss every decorator added later.
+Reverts by deleting one entry.
+
+**Deliberate widening.** This gives `admin_support` the same reach as
+`admin`, including admin-only endpoints. Consistent with what the seed
+already grants the role, but it is a real widening and was flagged as such
+before the change.
+
+### R3 — the manager role could not open Payments or Collections
+
+**Symptom.** `solomon@clearhue.co.zw` holds only the `manager` role and 403'd
+on the whole Payments module and the Collections aging report.
+
+**Root cause.** `manager` is seeded with read access to Payment and Report
+but appears in 2 of the 238 gates. Narrower than it first looked — most list
+endpoints declare no `@Roles()` at all and so were never blocked.
+
+**Fix.** Added `manager` to the **read** endpoints only: `GET /payments`,
+`/payments/stats`, `/payments/statistics`, `/payments/:id`,
+`/collections/aging-report`, and the `sales-performance`,
+`pipeline-analysis` and `finance` reports. Create, update, delete and the
+CSV exports stay closed — the seed grants read, not write, and the exports
+are contested under R5/R7.
+
+**Verification.** Before/after probes on staging, per role. R1: four
+endpoints 500 → 200. R2: three endpoints 403 → 200. R3: verified with a
+staging test account temporarily given the manager role — five reads
+returned 200, and `POST`/`DELETE` on Payments still returned 403. The
+account was restored to `sales_rep` in the same run and the restore was
+confirmed by re-reading it.
+
+**Data impact.** None. No schema change, no data written.
+
+---
+
 ## 2026-07-22 — "Last touch / Engagement" showed "No activity yet" incorrectly
 
 **Severity:** Medium · **Area:** Lead & deal detail — "At a glance" panel
