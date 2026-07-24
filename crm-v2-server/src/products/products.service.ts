@@ -108,9 +108,19 @@ export class ProductsService {
   ): Promise<Product> {
     const product = await this.findOne(id);
     const oldValues = { ...product };
+    const previousName = product.name;
 
     Object.assign(product, updateProductDto);
     const updatedProduct = await this.productRepository.save(product);
+
+    let renamedLines = 0;
+    if (previousName !== updatedProduct.name) {
+      renamedLines = await this.applyRenameToOpenDocuments(
+        updatedProduct.id,
+        previousName,
+        updatedProduct.name,
+      );
+    }
 
     await this.activityLogsService.logUpdate(
       'Product',
@@ -118,10 +128,52 @@ export class ProductsService {
       oldValues,
       updatedProduct,
       userId,
-      `Updated product: ${updatedProduct.name}`,
+      renamedLines > 0
+        ? `Updated product: ${updatedProduct.name} (renamed from "${previousName}"; ${renamedLines} draft document line(s) updated)`
+        : `Updated product: ${updatedProduct.name}`,
     );
 
     return updatedProduct;
+  }
+
+  /**
+   * When a product is renamed, line items that copied the old name keep
+   * showing it — the description is stored as text on document_items so a
+   * document reads the same forever.
+   *
+   * That is deliberate for anything already out in the world: a quote the
+   * school has accepted, or an invoice they have paid, records what was
+   * actually sold. Silently rewriting it would put the CRM out of step
+   * with the PDF the customer is holding.
+   *
+   * Drafts have not been sent to anyone, so they should follow the
+   * product. Only those are updated here, and only where the stored text
+   * still matches the OLD name exactly — a line someone has hand-edited
+   * is left alone.
+   */
+  private async applyRenameToOpenDocuments(
+    productId: string,
+    previousName: string,
+    newName: string,
+  ): Promise<number> {
+    const result = await this.productRepository.manager.query(
+      `UPDATE document_items di
+          SET description = $1, updated_at = NOW()
+        WHERE di.product_id = $2
+          AND TRIM(di.description) = TRIM($3)
+          AND (
+            (di.document_type = 'Quote'
+             AND EXISTS (SELECT 1 FROM quotes q
+                          WHERE q.id = di.document_id AND q.status = 'Draft'))
+            OR
+            (di.document_type = 'Invoice'
+             AND EXISTS (SELECT 1 FROM invoices i
+                          WHERE i.id = di.document_id AND i.status = 'Draft'))
+          )`,
+      [newName, productId, previousName],
+    );
+    // node-postgres returns the affected count as rowCount on the result.
+    return Array.isArray(result) ? (result[1] ?? 0) : (result?.rowCount ?? 0);
   }
 
   async remove(id: string, userId: string): Promise<void> {
