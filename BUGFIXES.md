@@ -6,6 +6,72 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-26 — Sunday sweep: 19 tickets fixed in two batches
+
+**Status:** committed on `dube-upgrades` (`f95dc1b`, `a2253e7`, `79bb2f5`),
+deployed to **staging** the same day. Prod deploy pending explicit sign-off.
+Also this day: verified the 07-24 full push live on prod (R1/R3/R2/STAT1,
+15/15 API checks with disposable accounts, all cleaned up), discovered the
+push had only updated the API, and deployed the missing prod **client**
+(bundle `index-O-9yBQnS.js`) — which made LCK1, C9, BRAND1, CSV1, CSV3 and
+CSV5 live; all flipped to resolved on both trackers along with R1/R3.
+
+### Batch 1 — rep-visibility / IDOR sweep (server) + client cleanups
+
+- **R4** `GET /payments/:id` honors the list's owner scope; scoped misses
+  read as 404 so payment ids can't be probed by a rep.
+- **R5** `/reports/sales-performance` + `/reports/pipeline-analysis`
+  scoped to the rep's own book (deals assigned, invoices owned).
+- **R6** global `/activities` + `/activities/summary` return only the
+  rep's own work; record timelines (lead/deal/contact/school-filtered)
+  stay open so collaboration remains visible.
+- **R7** `GET /leads/export` passes the caller's CASL ability into
+  `findAll` — the CSV now matches the list scope instead of dumping the
+  whole org.
+- **N1** the collections aging report takes an owner scope and is opened
+  to `sales_rep`, scoped to invoices they own.
+- **C5** the pipeline summary KPIs reuse the board's CASL ownership
+  conditions — a rep's header finally counts the same deals as their board.
+- **R12** `GET /rbac/permissions/user/:userId` is self-or-admin.
+- **N5** single-key + category settings reads are admin-only, matching
+  the bulk `GET /settings`.
+- **C3** deleted the debug `alert()` on the New-Invoice payment-term flow.
+- **R10** Staff page opens read-only for `read:User` (sales_manager);
+  add/change-role/deactivate stay behind `manage:User`.
+- **R11** Settings gear + settings page gated to admin/admin_support.
+- **R13** sidebar no longer returns `null` when RBAC perms are missing —
+  Profile and Sign Out survive a failed permissions fetch.
+
+### Batch 2 — correctness family
+
+- **C2** the lead+deal activity OR is bracketed; a bare top-level
+  `.orWhere()` had been detaching every later filter (status/open_only/
+  dates), corrupting Done/Planned feeds on lead-originated deals.
+- **R8** `leads/:leadId/stats` admits `sales_rep` — the owning rep's
+  "Manager Glance" was all zeros from a swallowed 403.
+- **C4** invoice "Overdue" KPI computed from
+  `COALESCE(grace_due_date, due_date) < NOW()` (unpaid balance, subset of
+  outstanding) instead of a status value nothing ever writes.
+- **C6** reversal-request dialog + pending card read the API's real
+  fields (`requested_status`, `created_at`, `lead_summary.status`);
+  the client had invented `from_status`/`target_status`/`requested_at`
+  and rendered blanks to the approving manager.
+- **C7** list/kanban lead markers: completeness now distinguishes
+  "qualification record not loaded" (skip those fields) from "loaded and
+  absent" (count as missing), so past-New leads aren't all branded
+  critical; the "Qualify" chip is status-derived (the old
+  `decision_maker_confirmed` test was against a field the server never
+  populates — always true).
+- **C10** "Discard changes" in Compliance & Controls also reverts the
+  Auto-assign toggle.
+- **N4** an invoice created against a quote (Manual Invoice path) marks
+  the source quote Accepted, matching the Convert button.
+- **Bug tracker auto-assign** (owner request, same day): new bug reports
+  are assigned to the active `admin_support` user at creation instead of
+  arriving "Unassigned" on the very page that user triages.
+
+---
+
 ## 2026-07-24 — R1 / R2 / R3: three roles locked out by access control
 
 **Severity:** Critical (R1, R2) · Medium (R3) · **Area:** RBAC
