@@ -78,8 +78,18 @@ export class ActivitiesController {
     status: HttpStatus.OK,
     description: 'Activities retrieved successfully',
   })
-  async findAll(@Query() queryActivityDto: QueryActivityDto) {
-    const result = await this.activitiesService.findAll(queryActivityDto);
+  async findAll(
+    @Query() queryActivityDto: QueryActivityDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // Reps see their own activities in the global list; elevated roles
+    // see the whole team. Record timelines stay unscoped in the service.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const result = await this.activitiesService.findAll(
+      queryActivityDto,
+      scopeUserId,
+    );
     return {
       success: true,
       data: result.items,
@@ -100,8 +110,13 @@ export class ActivitiesController {
     status: HttpStatus.OK,
     description: 'Summary retrieved successfully',
   })
-  async getSummary(@Query() query: ActivitySummaryQueryDto) {
-    const result = await this.activitiesService.getSummary(query);
+  async getSummary(
+    @Query() query: ActivitySummaryQueryDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const result = await this.activitiesService.getSummary(query, scopeUserId);
     return {
       success: true,
       data: result.items,

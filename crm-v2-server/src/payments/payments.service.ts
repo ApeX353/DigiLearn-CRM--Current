@@ -124,12 +124,14 @@ export class PaymentsService {
     });
   }
 
-  async findOne(id: string): Promise<Payment> {
+  async findOne(id: string, scopeUserId?: string): Promise<Payment> {
     const payment = await this.paymentRepository.findOne({
       where: { id },
       relations: ['invoice'],
     });
-    if (!payment) {
+    // A scoped caller (sales_rep) may only read payments on invoices they
+    // own — reported as not-found rather than forbidden so ids can't be probed.
+    if (!payment || (scopeUserId && payment.invoice?.owner_id !== scopeUserId)) {
       throw new NotFoundException(`Payment ${id} not found`);
     }
     return payment;

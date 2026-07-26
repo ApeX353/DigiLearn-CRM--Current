@@ -9,11 +9,13 @@ import {
   Body,
   UseGuards,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { RbacService } from './rbac.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -111,7 +113,23 @@ export class RbacController {
     status: HttpStatus.NOT_FOUND,
     description: 'User not found',
   })
-  async getPermissionsForUser(@Param('userId') userId: string) {
+  async getPermissionsForUser(
+    @Param('userId') userId: string,
+    @CurrentUser('id') callerId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // Anyone may read their OWN permission set — the app shell fetches
+    // it at login. Reading another user's requires an admin-level role.
+    // This is a hand-rolled check (no @Roles), so admin_support is
+    // listed explicitly rather than relying on the guard's alias map.
+    if (
+      userId !== callerId &&
+      !['admin', 'super_admin', 'admin_support'].includes(role)
+    ) {
+      throw new ForbiddenException(
+        'You can only read your own permissions',
+      );
+    }
     const result = await this.rbacService.getPermissionsForUser(userId);
     return {
       success: true,

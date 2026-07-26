@@ -141,8 +141,19 @@ export class DealsController {
   })
   async getPipelineSummary(
     @Query('pipeline_id', ParseUUIDPipe) pipelineId: string,
+    @CaslAbility() ability: AppAbility,
   ) {
-    const data = await this.dealsService.getPipelineSummary(pipelineId);
+    // The header must count the same deals as the board below it, so it
+    // reuses the board's ownership conditions (assigned_to for reps).
+    const conditions = ability
+      ?.rulesFor(Action.READ, 'Deal')
+      ?.find((rule) => rule.conditions)?.conditions as
+      | { assigned_to?: string }
+      | undefined;
+    const data = await this.dealsService.getPipelineSummary(
+      pipelineId,
+      conditions?.assigned_to,
+    );
     return { success: true, data };
   }
 

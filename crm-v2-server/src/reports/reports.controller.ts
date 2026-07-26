@@ -8,6 +8,7 @@ import {
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ReportExportService, type DateRange } from './report-export.service';
 import {
   ReportsReadService,
@@ -33,17 +34,27 @@ export class ReportsController {
   @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Sales performance KPIs for the chosen period' })
   @ApiQuery({ name: 'period', enum: ['month', 'quarter', 'year'], required: false })
-  async getSalesPerformance(@Query('period') period?: string) {
+  async getSalesPerformance(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+    @Query('period') period?: string,
+  ) {
     const resolved: SalesPerformancePeriod =
       period === 'month' || period === 'year' ? period : 'quarter';
-    return this.reportsReadService.getSalesPerformance(resolved);
+    // Reps see their own book only; elevated roles see the org.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    return this.reportsReadService.getSalesPerformance(resolved, scopeUserId);
   }
 
   @Get('pipeline-analysis')
   @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Per-stage deal count, value and aging' })
-  async getPipelineAnalysis() {
-    return this.reportsReadService.getPipelineAnalysis();
+  async getPipelineAnalysis(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    return this.reportsReadService.getPipelineAnalysis(scopeUserId);
   }
 
   @Get('finance')

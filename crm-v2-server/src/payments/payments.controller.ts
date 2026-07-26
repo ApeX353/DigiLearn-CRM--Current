@@ -112,8 +112,13 @@ export class PaymentsController {
   @Get(':id')
   @Roles('admin', 'sales_manager', 'sales_rep', 'manager')
   @ApiOperation({ summary: 'Get a single payment' })
-  async findOne(@Param('id') id: string) {
-    const payment = await this.paymentsService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const payment = await this.paymentsService.findOne(id, scopeUserId);
     return {
       success: true,
       data: payment,

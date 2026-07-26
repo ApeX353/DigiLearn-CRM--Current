@@ -81,8 +81,12 @@ export class SettingsController {
     };
   }
 
+  // Aligned with the bulk GET above: settings reads are admin-only.
+  // (sales_manager was allowed here but not on GET /settings — the
+  // inconsistent gate was N5. Nothing in the client uses these routes
+  // for non-admin roles; policy flags the app needs come via /public.)
   @Get('category/:category')
-  @Roles('admin', 'sales_manager')
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get settings by category' })
   @ApiResponse({
@@ -98,7 +102,7 @@ export class SettingsController {
   }
 
   @Get(':key')
-  @Roles('admin', 'sales_manager')
+  @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get a single setting by key' })
   @ApiResponse({

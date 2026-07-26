@@ -676,7 +676,10 @@ export class ActivitiesService {
   // Find All with Pagination
   // ========================
 
-  async findAll(query: QueryActivityDto): Promise<Pagination<Activity>> {
+  async findAll(
+    query: QueryActivityDto,
+    scopeUserId?: string,
+  ): Promise<Pagination<Activity>> {
     const {
       page = '1',
       limit = '10',
@@ -715,6 +718,17 @@ export class ActivitiesService {
         .leftJoinAndSelect('activity.email', 'email')
         .leftJoinAndSelect('activity.meeting', 'meeting')
         .leftJoinAndSelect('activity.whatsapp_message', 'whatsapp_message');
+    }
+
+    // A sales_rep browsing the GLOBAL Activities list sees only their
+    // own work (created by them, or assigned to them). Record timelines
+    // — calls filtered by lead/deal/contact/school — stay unscoped so
+    // collaboration on a shared record remains visible to everyone.
+    if (scopeUserId && !lead_id && !deal_id && !contact_id && !school_id) {
+      qb.andWhere(
+        '(activity.created_by_id = :scopeUserId OR activity.assigned_to_id = :scopeUserId)',
+        { scopeUserId },
+      );
     }
 
     if (type) {
@@ -1373,7 +1387,10 @@ export class ActivitiesService {
   // Summary Endpoint
   // ========================
 
-  async getSummary(query: ActivitySummaryQueryDto): Promise<{
+  async getSummary(
+    query: ActivitySummaryQueryDto,
+    scopeUserId?: string,
+  ): Promise<{
     items: any[];
     meta: any;
     summary: {
@@ -1421,6 +1438,15 @@ export class ActivitiesService {
         'assigned_to.first_name',
         'assigned_to.last_name',
       ]);
+
+    // Same rep scoping as findAll: global summaries are limited to the
+    // caller's own activities; record-filtered summaries stay open.
+    if (scopeUserId && !lead_id && !deal_id && !contact_id) {
+      qb.andWhere(
+        '(activity.created_by_id = :scopeUserId OR activity.assigned_to_id = :scopeUserId)',
+        { scopeUserId },
+      );
+    }
 
     if (lead_id) {
       qb.andWhere('activity.lead_id = :lead_id', { lead_id });

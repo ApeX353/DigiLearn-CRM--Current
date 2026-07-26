@@ -69,16 +69,20 @@ export class ReportsReadService {
   // ========================================================================
   async getSalesPerformance(
     period: SalesPerformancePeriod,
+    scopeUserId?: string,
   ): Promise<SalesPerformanceStats> {
     const { from, to } = this.rangeFor(period);
 
     // Won deals within the window = principal sold + contract value.
     // The Deal entity names the close timestamp `actualCloseDate`
     // (column `actual_close_date`), not `closed_at`. Using that.
+    // When scoped (sales_rep), every figure is limited to the caller's
+    // own book: deals they're assigned, invoices they own.
     const wonDeals = await this.dealRepo.find({
       where: {
         closeStatus: 'won' as any,
         actualCloseDate: Between(from, to) as any,
+        ...(scopeUserId && { assigned_to: scopeUserId }),
       },
     });
     const totalPrincipalSold = wonDeals.reduce(
@@ -95,6 +99,7 @@ export class ReportsReadService {
     const paidInvoices = await this.invoiceRepo.find({
       where: {
         paid_date: Between(from, to) as any,
+        ...(scopeUserId && { owner_id: scopeUserId }),
       },
     });
     const cashCollected = paidInvoices.reduce(
@@ -105,10 +110,15 @@ export class ReportsReadService {
     // Outstanding = sum of (total - amount_paid) across all non-cancelled
     // invoices issued to date, regardless of the window (deployment
     // readiness = how much is unpaid RIGHT NOW).
-    const openInvoices = await this.invoiceRepo
+    const openInvoicesQb = this.invoiceRepo
       .createQueryBuilder('invoice')
-      .where('invoice.status != :cancelled', { cancelled: 'Cancelled' })
-      .getMany();
+      .where('invoice.status != :cancelled', { cancelled: 'Cancelled' });
+    if (scopeUserId) {
+      openInvoicesQb.andWhere('invoice.owner_id = :scopeUserId', {
+        scopeUserId,
+      });
+    }
+    const openInvoices = await openInvoicesQb.getMany();
     const outstanding = openInvoices.reduce(
       (acc, inv) =>
         acc + Math.max(0, Number(inv.total || 0) - Number(inv.amount_paid || 0)),
@@ -127,7 +137,9 @@ export class ReportsReadService {
   // Pipeline Analysis — per-stage deal count, total value, and avg days
   // in stage. One row per active stage.
   // ========================================================================
-  async getPipelineAnalysis(): Promise<PipelineStageStats[]> {
+  async getPipelineAnalysis(
+    scopeUserId?: string,
+  ): Promise<PipelineStageStats[]> {
     const stages = await this.stageRepo.find({
       where: { is_active: true },
       order: { order: 'ASC' },
@@ -136,7 +148,11 @@ export class ReportsReadService {
     const results: PipelineStageStats[] = [];
     for (const stage of stages) {
       const deals = await this.dealRepo.find({
-        where: { current_stage_id: stage.id, closeStatus: 'ongoing' } as any,
+        where: {
+          current_stage_id: stage.id,
+          closeStatus: 'ongoing',
+          ...(scopeUserId && { assigned_to: scopeUserId }),
+        } as any,
       });
       const dealCount = deals.length;
       const totalValue = deals.reduce(
@@ -247,13 +263,13 @@ export class ReportsReadService {
   }
 
   // Used by /collections/aging-report — see CollectionsController.
-  async getAgingReport(asOfDateISO?: string) {
+  async getAgingReport(asOfDateISO?: string, scopeUserId?: string) {
     const asOf = asOfDateISO ? new Date(asOfDateISO) : new Date();
 
     // Installment has only `invoice_id` as a scalar; JOIN Invoice
     // explicitly by id instead of via an ORM relation (which doesn't
     // exist on the entity). Status values are lowercase enums.
-    const rows = await this.installmentRepo
+    const rowsQb = this.installmentRepo
       .createQueryBuilder('inst')
       .leftJoin(Invoice, 'invoice', 'invoice.id = inst.invoice_id')
       .leftJoin('invoice.school', 'school')
@@ -261,8 +277,11 @@ export class ReportsReadService {
       .addSelect('invoice.id', 'invoice_id')
       .addSelect('school.id', 'school_id')
       .addSelect('school.name', 'school_name')
-      .where('inst.status != :paid', { paid: 'paid' })
-      .getRawAndEntities();
+      .where('inst.status != :paid', { paid: 'paid' });
+    if (scopeUserId) {
+      rowsQb.andWhere('invoice.owner_id = :scopeUserId', { scopeUserId });
+    }
+    const rows = await rowsQb.getRawAndEntities();
 
     const installments = rows.entities.map((inst: any, i) => {
       const raw = rows.raw[i] as {

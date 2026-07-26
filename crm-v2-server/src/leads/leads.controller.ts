@@ -134,8 +134,14 @@ export class LeadsController {
   @ApiOperation({ summary: 'Export leads as CSV' })
   async exportCsv(
     @Res() res: Response,
+    @CaslAbility() ability: AppAbility,
   ) {
-    const result = await this.leadsService.findAll({ limit: '1000' } as any);
+    // The export honors the same ownership scope as the list view —
+    // a sales_rep downloads their own book, not the whole org.
+    const result = await this.leadsService.findAll(
+      { limit: '1000' } as any,
+      ability,
+    );
     const leads = result.items;
 
     const headers = ['Lead Name', 'Status', 'School', 'Province', 'Contact', 'Phone', 'Source', 'Assigned To', 'Created At'];

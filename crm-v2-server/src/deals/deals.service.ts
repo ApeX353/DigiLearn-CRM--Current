@@ -390,7 +390,10 @@ export class DealsService {
     });
   }
 
-  async getPipelineSummary(pipelineId: string): Promise<{
+  async getPipelineSummary(
+    pipelineId: string,
+    assignedTo?: string,
+  ): Promise<{
     pipeline_id: string;
     total_deals: number;
     pipeline_value: number;
@@ -404,7 +407,7 @@ export class DealsService {
       throw new NotFoundException('Pipeline not found');
     }
 
-    const dealTotals = await this.dealRepository
+    const dealTotalsQb = this.dealRepository
       .createQueryBuilder('deal')
       .select('COUNT(deal.id)', 'totalDeals')
       .addSelect('COALESCE(SUM(deal.value), 0)', 'pipelineValue')
@@ -412,14 +415,17 @@ export class DealsService {
       .where('deal.pipeline_id = :pipelineId', { pipelineId })
       .andWhere('deal.close_status = :ongoingStatus', {
         ongoingStatus: DealCloseStatus.ONGOING,
-      })
-      .getRawOne<{
-        totalDeals: string;
-        pipelineValue: string;
-        avgDealHealth: string;
-      }>();
+      });
+    if (assignedTo) {
+      dealTotalsQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+    }
+    const dealTotals = await dealTotalsQb.getRawOne<{
+      totalDeals: string;
+      pipelineValue: string;
+      avgDealHealth: string;
+    }>();
 
-    const overdueDeals = await this.dataSource
+    const overdueQb = this.dataSource
       .createQueryBuilder()
       .select('COUNT(DISTINCT deal.id)', 'overdueDeals')
       .from(Deal, 'deal')
@@ -433,8 +439,11 @@ export class DealsService {
       .andWhere('invoice.status != :cancelledStatus', {
         cancelledStatus: 'Cancelled',
       })
-      .andWhere('COALESCE(invoice.grace_due_date, invoice.due_date) < NOW()')
-      .getRawOne<{ overdueDeals: string }>();
+      .andWhere('COALESCE(invoice.grace_due_date, invoice.due_date) < NOW()');
+    if (assignedTo) {
+      overdueQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+    }
+    const overdueDeals = await overdueQb.getRawOne<{ overdueDeals: string }>();
 
     const totalDeals = Number(dealTotals?.totalDeals ?? 0);
     const pipelineValue = Number(dealTotals?.pipelineValue ?? 0);
