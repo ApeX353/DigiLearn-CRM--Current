@@ -129,8 +129,11 @@ export class ActivitiesController {
   // Lead Activity Stats
   // ========================
 
+  // sales_rep included: the lead page calls this for EVERY viewer, and
+  // without it the rep who owns the lead saw zeroed "Manager Glance"
+  // KPIs from a swallowed 403. (admin_support rides the admin alias.)
   @Get('leads/:leadId/stats')
-  @Roles('admin', 'manager', 'sales_manager')
+  @Roles('admin', 'manager', 'sales_manager', 'sales_rep')
   @ApiOperation({
     summary: 'Get activity stats for a specific lead',
     description: 'Returns engagement metrics: touches in last 7 days, time to first touch, meetings booked, incomplete logs, staleness indicator',

@@ -1,5 +1,3 @@
-import type { LeadStatus } from "~/api/leads";
-
 export const LEAD_REVERSAL_REQUEST_STATUSES = [
   "pending",
   "approved",
@@ -42,8 +40,13 @@ export interface ReversalRequestActor {
 export interface LeadReversalRequest {
   id: string;
   lead_id: string;
-  from_status: LeadStatus;
-  target_status: LeadReversalTargetStatus;
+  /** The status the requester wants the lead moved TO. This is the
+   *  server's actual column name — the client previously invented
+   *  `from_status`/`target_status`/`requested_at`, which the API never
+   *  sends, so the review dialog rendered blanks (C6). The lead's
+   *  current status comes from `lead_summary.status` or the page's own
+   *  lead record; "requested at" is `created_at`. */
+  requested_status: LeadReversalTargetStatus;
   status: LeadReversalRequestStatus;
   kind: LeadReversalRequestKind;
   proposed_assignee_id?: string | null;
@@ -51,7 +54,6 @@ export interface LeadReversalRequest {
   notes?: string | null;
   requested_by_id: string;
   requested_by?: ReversalRequestActor;
-  requested_at: string;
   approved_by_id?: string | null;
   approved_by?: ReversalRequestActor | null;
   approved_at?: string | null;

@@ -552,6 +552,12 @@ const ComplianceControlsContent = () => {
           DEFAULTS["compliance.policy.allow_self_reassign"] as boolean,
         ),
       );
+      setAutoAssignEnabled(
+        toBoolean(
+          settings["compliance.policy.auto_assign_enabled"],
+          DEFAULTS["compliance.policy.auto_assign_enabled"] as boolean,
+        ),
+      );
       setTacticalDisqualifyApproval(
         toBoolean(
           settings["compliance.policy.tactical_disqualify_requires_approval"],

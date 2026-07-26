@@ -116,15 +116,15 @@ export function LeadRowMarkers({
     });
   }
 
-  if (
-    (lead.status === "Contacted" || lead.status === "Nurture") &&
-    !lead.decision_maker_confirmed
-  ) {
+  // Status-derived only. This used to also test
+  // `!lead.decision_maker_confirmed`, a field the server never
+  // populates — always true, so it read as a data check it wasn't.
+  if (lead.status === "Contacted" || lead.status === "Nurture") {
     markers.push({
       key: "unqualified",
       icon: BadgeCheck,
       label: "Qualify",
-      tooltip: "Not yet qualified — confirm BANT",
+      tooltip: "Still in " + lead.status + " — confirm BANT to qualify",
       className:
         "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900",
     });

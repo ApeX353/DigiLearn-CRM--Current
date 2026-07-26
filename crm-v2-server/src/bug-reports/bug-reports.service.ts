@@ -106,6 +106,12 @@ export class BugReportsService {
     dto: CreateBugReportDto,
     reporterId: string,
   ): Promise<BugReport> {
+    // New reports are tasked to the maintainer by default: they land on
+    // admin_support's triage page anyway, so the record should carry
+    // their name instead of "Unassigned" (owner request, 2026-07-26).
+    // If no active admin_support user exists it stays unassigned.
+    const [maintainerId] = await this.userIdsWithRoles(['admin_support']);
+
     const bug = this.bugRepo.create({
       title: dto.title,
       description: dto.description,
@@ -113,6 +119,7 @@ export class BugReportsService {
       status: BugStatus.OPEN,
       page_url: dto.pageUrl ?? null,
       reported_by_id: reporterId,
+      assigned_to_id: maintainerId ?? null,
     });
     const saved = await this.bugRepo.save(bug);
 

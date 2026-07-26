@@ -160,6 +160,19 @@ export class InvoicesService {
         }
       }
 
+      // An invoice raised against a quote means that quote was accepted.
+      // The Manual Invoice path used to leave the source quote on "Sent"
+      // forever — only the deal Products-tab Convert button flipped it.
+      if (savedInvoice.quote_id) {
+        const sourceQuote = await manager.findOne(Quote, {
+          where: { id: savedInvoice.quote_id },
+        });
+        if (sourceQuote && sourceQuote.status !== 'Accepted') {
+          sourceQuote.status = 'Accepted';
+          await manager.save(Quote, sourceQuote);
+        }
+      }
+
       await this.activityLogsService.logCreate(
         'Invoice',
         refreshedMasterInvoice.id,
@@ -949,12 +962,30 @@ export class InvoicesService {
         .groupBy('i.status')
         .getRawMany();
 
+      // Overdue is computed by DATE, not by the `status` column — no
+      // code path ever sets status='Overdue', which is why the KPI
+      // always read 0. Every other overdue calculation in the app uses
+      // COALESCE(grace_due_date, due_date) < NOW(); this now matches.
+      // Value = unpaid balance, and overdue stays a subset of
+      // outstanding ("outstanding, of which overdue").
+      const overdueRow = await this.invoiceRepository
+        .createQueryBuilder('i')
+        .select('COUNT(*)', 'count')
+        .addSelect('COALESCE(SUM(i.total - i.amount_paid), 0)', 'value')
+        .where('i.created_at >= :start', { start })
+        .andWhere('i.status != :cancelledStatus', {
+          cancelledStatus: 'Cancelled',
+        })
+        .andWhere('i.payment_status != :paidStatus', { paidStatus: 'Paid' })
+        .andWhere('COALESCE(i.grace_due_date, i.due_date) < NOW()')
+        .getRawOne();
+
       let total = 0;
       let totalValue = 0;
       let paid = 0;
       let paidValue = 0;
-      let overdue = 0;
-      let overdueValue = 0;
+      const overdue = Number(overdueRow?.count ?? 0);
+      const overdueValue = Number(overdueRow?.value ?? 0);
       let outstanding = 0;
       let outstandingValue = 0;
       let cancelled = 0;
@@ -969,8 +1000,8 @@ export class InvoicesService {
           paid = count;
           paidValue = value;
         } else if (row.status === 'Overdue') {
-          overdue = count;
-          overdueValue = value;
+          // Legacy branch — status='Overdue' is never written today,
+          // but if a row ever carries it, keep it in outstanding.
           outstanding += count;
           outstandingValue += value;
         } else if (row.status === 'Cancelled') {

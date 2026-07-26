@@ -617,11 +617,11 @@ const ViewLead = ({ id }: { id: string }) => {
                   </p>
                   <p className="text-sm">
                     <span className="text-muted-foreground">Requested at:</span>{" "}
-                    {formatOptionalDateTime(pendingReversalRequest.requested_at)}
+                    {formatOptionalDateTime(pendingReversalRequest.created_at)}
                   </p>
                   <p className="text-sm">
                     <span className="text-muted-foreground">Target status:</span>{" "}
-                    {pendingReversalRequest.target_status}
+                    {pendingReversalRequest.requested_status}
                   </p>
                   <p className="text-sm">
                     <span className="text-muted-foreground">Reason:</span>{" "}

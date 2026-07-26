@@ -153,7 +153,13 @@ export function calculateLeadCompleteness(
     },
   ];
 
-  if (isPastNew) {
+  // `undefined` = the caller never loaded the qualification record
+  // (list rows, kanban cards — fetching it per row would be N+1).
+  // Skip those fields rather than scoring them as missing: before this
+  // distinction, every past-New lead in a list was branded "critical"
+  // because qualification_authority could never be satisfied.
+  // `null` = loaded and genuinely absent — counts as incomplete.
+  if (isPastNew && qualification !== undefined) {
     fields.push(
       {
         key: "qualification_authority",

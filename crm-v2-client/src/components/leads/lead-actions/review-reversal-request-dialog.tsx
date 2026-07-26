@@ -152,15 +152,17 @@ export function ReviewReversalRequestDialog({
         </p>
         <p>
           <span className="text-muted-foreground">Requested at:</span>{" "}
-          {formatDateTime(request.requested_at)}
+          {formatDateTime(request.created_at)}
         </p>
-        <p>
-          <span className="text-muted-foreground">From:</span>{" "}
-          {request.from_status}
-        </p>
+        {request.lead_summary?.status && (
+          <p>
+            <span className="text-muted-foreground">From:</span>{" "}
+            {request.lead_summary.status}
+          </p>
+        )}
         <p>
           <span className="text-muted-foreground">Target:</span>{" "}
-          {request.target_status}
+          {request.requested_status}
         </p>
         <p>
           <span className="text-muted-foreground">Reason:</span> {request.reason}

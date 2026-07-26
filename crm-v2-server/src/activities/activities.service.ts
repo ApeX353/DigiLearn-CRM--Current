@@ -739,20 +739,24 @@ export class ActivitiesService {
       qb.andWhere('activity.status = :status', { status });
     }
 
-    if (lead_id) {
-      qb.andWhere('activity.lead_id = :lead_id', { lead_id });
-    }
-
-    if (deal_id) {
-      qb.andWhere('activity.deal_id = :deal_id', { deal_id });
-    }
-
-    // if both deal and lead ids exist, add an or
-    if (deal_id && lead_id) {
-      qb.orWhere(
-        '(activity.deal_id = :deal_id OR activity.lead_id = :lead_id)',
-        { deal_id, lead_id },
+    // A deal that came from a lead queries with BOTH ids — its feed is
+    // "everything on the deal plus the lead's history". The OR must be
+    // bracketed: a bare .orWhere() at the top level detaches every
+    // filter added after it (status, open_only, dates), which is what
+    // corrupted the Done/Planned tabs on lead-originated deals.
+    if (lead_id && deal_id) {
+      qb.andWhere(
+        new Brackets((w) => {
+          w.where('activity.deal_id = :deal_id', { deal_id }).orWhere(
+            'activity.lead_id = :lead_id',
+            { lead_id },
+          );
+        }),
       );
+    } else if (lead_id) {
+      qb.andWhere('activity.lead_id = :lead_id', { lead_id });
+    } else if (deal_id) {
+      qb.andWhere('activity.deal_id = :deal_id', { deal_id });
     }
 
     if (contact_id) {
