@@ -10,6 +10,9 @@ the data impact. Newest first.
 
 **Status:** committed on `dube-upgrades` (`f95dc1b`, `a2253e7`, `79bb2f5`),
 deployed to **staging** the same day. Prod deploy pending explicit sign-off.
+**Staging brought to HEAD `e07d417` later the same day** (the first deploy
+predated the last two commits; the api was redeployed and verified live —
+see "Late additions" below).
 Also this day: verified the 07-24 full push live on prod (R1/R3/R2/STAT1,
 15/15 API checks with disposable accounts, all cleaned up), discovered the
 push had only updated the API, and deployed the missing prod **client**
@@ -69,6 +72,30 @@ CSV5 live; all flipped to resolved on both trackers along with R1/R3.
 - **Bug tracker auto-assign** (owner request, same day): new bug reports
   are assigned to the active `admin_support` user at creation instead of
   arriving "Unassigned" on the very page that user triages.
+
+### Late additions (committed after the sweep log, deployed to staging same day)
+
+- **DUP4** (`8f40484`) schools carry no phone/email signal, so under the
+  shared scoring weights an EXACT name+city+province match scored 43 of
+  the 50 needed and the school duplicate peek always returned empty.
+  School name weights are now exact=50 (flags alone) and near-exact=45
+  (needs one supporting signal, city or district).
+- **BRAND** (`e07d417`) owner request: capital L — tab title
+  `CRM-DigiLearn`, login/forgot/reset fallback names and the Powered By
+  line all use the DigiLearn casing.
+
+**Verification (2026-07-26, after redeploying the staging api to HEAD):**
+14 live API checks across four roles (admin / sales_manager / sales_rep /
+admin_support), all PASS — DUP4 (exact school name → 1 candidate), R8
+(rep lead stats 200), R12 (other-user perms 403, own 200), N5 (manager
+settings reads 403, admin 200), N1 (rep aging-report 200), R5 (rep
+report scoped ≠ admin), R6 (rep sees 1,192 of 5,565 activities), R7
+(rep CSV export = 440 rows = rep's own lead count), C4 (overdue KPI:
+29 yearly, date-based), C5 (rep pipeline summary 2 deals/$19.5k vs
+admin 10/$89.7k on the same pipeline), C2 (deal+lead feed: completed
+filter leaks 0, open_only leaks 0), R2 (prince payments 200). The
+client-side fixes (C3, C6, C7, C10, R10, R11, R13) are in the deployed
+bundle (built at HEAD) — spot-check in the UI at next login.
 
 ---
 
