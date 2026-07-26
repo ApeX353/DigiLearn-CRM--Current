@@ -218,21 +218,27 @@ export class DuplicateDetectionService {
         const signals: DuplicateSignal[] = [];
         let score = 0;
 
+        // Schools carry no phone/email signal, so the lead/contact
+        // weights could never reach the flag threshold here: an EXACT
+        // name+city+province match scored 35+5+3 = 43 < 50 and the
+        // peek returned nothing (DUP4). For a school, an exact name IS
+        // the strongest available signal — it flags on its own; a
+        // near-exact name needs one supporting signal (city/district).
         const sim = nameSimilarity(input.name ?? '', row.name);
         if (sim >= 0.95) {
           signals.push({
             kind: 'name_exact',
-            weight: 35,
+            weight: 50,
             detail: `${Math.round(sim * 100)}%`,
           });
-          score += 35;
+          score += 50;
         } else if (sim >= 0.75) {
           signals.push({
             kind: 'name_near_exact',
-            weight: 25,
+            weight: 45,
             detail: `${Math.round(sim * 100)}%`,
           });
-          score += 25;
+          score += 45;
         } else if (sim >= 0.5) {
           signals.push({
             kind: 'name_fuzzy',
