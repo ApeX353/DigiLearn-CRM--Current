@@ -123,7 +123,7 @@ export default function ResetPasswordPage() {
             <BackToLogin />
             <div className="text-center mt-8">
               <p className="text-sm text-muted-foreground">
-                Powered By Digilearn Software
+                Powered By DigiLearn Software
               </p>
             </div>
           </form>

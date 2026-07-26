@@ -7,7 +7,7 @@ export const DashboardHeader = () => {
   const settings = useSettingsContext();
 
   const companyName = (settings.getSetting("company_name") ||
-    "Digilearn") as string;
+    "DigiLearn") as string;
 
   return (
     <div className="space-y-3">

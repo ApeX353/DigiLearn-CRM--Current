@@ -32,7 +32,7 @@ export default function ForgotPasswordPage() {
   const settings = useSettingsContext();
 
   const companyName = (settings.getSetting("company_name") ||
-    "Digilearn") as string;
+    "DigiLearn") as string;
 
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -137,7 +137,7 @@ export default function ForgotPasswordPage() {
               <BackToLogin showExtraText />
               <div className="text-center mt-8">
                 <p className="text-sm text-muted-foreground">
-                  Powered By Digilearn Software
+                  Powered By DigiLearn Software
                 </p>
               </div>
             </form>

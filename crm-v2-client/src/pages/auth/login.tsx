@@ -31,7 +31,7 @@ export default function LoginPage() {
   const settings = useSettingsContext();
 
   const companyName = (settings.getSetting("company_name") ||
-    "Digilearn") as string;
+    "DigiLearn") as string;
   const [show2FA, setShow2FA] = useState(false);
   const loginMutation = useLogin();
 
@@ -169,7 +169,7 @@ export default function LoginPage() {
               </Button>
               <div className="text-center mt-8">
                 <p className="text-sm text-muted-foreground">
-                  Powered By Digilearn Software
+                  Powered By DigiLearn Software
                 </p>
               </div>
             </form>
