@@ -9,10 +9,21 @@ the data impact. Newest first.
 ## 2026-07-26 — Sunday sweep: 19 tickets fixed in two batches
 
 **Status:** committed on `dube-upgrades` (`f95dc1b`, `a2253e7`, `79bb2f5`),
-deployed to **staging** the same day. Prod deploy pending explicit sign-off.
-**Staging brought to HEAD `e07d417` later the same day** (the first deploy
-predated the last two commits; the api was redeployed and verified live —
-see "Late additions" below).
+deployed to **staging** the same day. **Staging brought to HEAD `e07d417`
+later the same day** (the first deploy predated the last two commits; the
+api was redeployed and verified live — see "Late additions" below).
+**DEPLOYED TO PRODUCTION 2026-07-26 (afternoon, owner sign-off)** — api +
+client both at HEAD `e07d417` (client bundle `index-BWTolKGQ.js`, title
+CRM-DigiLearn). Verified live with disposable zzverify accounts
+(sales_rep + sales_manager, removed after): **16/16 API checks PASS**
+(R1 regression, R8, R12×2, N5×3, N1, R5, R6 — fresh rep 0 of 5,653
+activities, R7 — rep CSV 0 rows, C4 — overdue 29 yearly, C5 — admin 6
+deals vs fresh rep 0, C2, R2 regression) plus client bundle fingerprints
+(C3 alert gone, C6 `requested_status`, C7 old marker gone, BRAND).
+All 20 tickets (the 19 sweep codes + DUP4) flipped to **resolved** on
+both trackers with resolution notes; 10 unassigned open prod tickets
+assigned to admin_support; the Schools-page feature already tracked as
+[SCHLEAD1].
 Also this day: verified the 07-24 full push live on prod (R1/R3/R2/STAT1,
 15/15 API checks with disposable accounts, all cleaned up), discovered the
 push had only updated the API, and deployed the missing prod **client**
