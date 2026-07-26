@@ -20,6 +20,8 @@ export interface BugReport {
   assigned_to_id: string | null;
   assigned_to?: BugReportUser | null;
   resolution_note: string | null;
+  /** Set when the ticket entered resolved/closed; null while open. */
+  resolved_at: string | null;
   created_at: string;
   updated_at: string;
 }

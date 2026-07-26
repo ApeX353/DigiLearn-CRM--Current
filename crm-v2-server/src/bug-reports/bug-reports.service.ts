@@ -201,6 +201,16 @@ export class BugReportsService {
 
     if (dto.severity !== undefined) bug.severity = dto.severity;
     if (dto.status !== undefined) bug.status = dto.status;
+
+    // Date-solved bookkeeping: stamp on entering resolved/closed, clear on
+    // reopening. Re-saving an already-solved ticket keeps the original date.
+    const isSolved = (s: BugStatus) =>
+      s === BugStatus.RESOLVED || s === BugStatus.CLOSED;
+    if (isSolved(bug.status) && !isSolved(prevStatus)) {
+      bug.resolved_at = new Date();
+    } else if (!isSolved(bug.status) && isSolved(prevStatus)) {
+      bug.resolved_at = null;
+    }
     if (dto.resolutionNote !== undefined)
       bug.resolution_note = dto.resolutionNote || null;
     if (dto.assignedToId !== undefined) {

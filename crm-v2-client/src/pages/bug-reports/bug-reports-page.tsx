@@ -426,6 +426,10 @@ export default function BugReportsPage() {
                 <th className="px-3 py-2">Title</th>
                 <th className="px-3 py-2">Severity</th>
                 <th className="px-3 py-2">Status</th>
+                {/* Solved date shows for every audience (owner decision
+                    2026-07-26): only resolved/closed tickets carry a date,
+                    so open tickets still advertise no aging. */}
+                <th className="px-3 py-2">Solved</th>
                 {showReporter && <th className="px-3 py-2">Reporter</th>}
                 {showAssignee && <th className="px-3 py-2">Assignee</th>}
                 {showManage && <th className="px-3 py-2 text-right">Manage</th>}
@@ -454,6 +458,11 @@ export default function BugReportsPage() {
                     <Badge variant={statusVariant[bug.status]}>
                       {STATUS_LABELS[bug.status]}
                     </Badge>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                    {bug.resolved_at
+                      ? format(new Date(bug.resolved_at), "MMM d, yyyy")
+                      : "—"}
                   </td>
                   {showReporter && (
                     <td className="px-3 py-2 whitespace-nowrap">

@@ -73,6 +73,15 @@ export class BugReport {
   @Column({ name: 'resolution_note', type: 'text', nullable: true })
   resolution_note: string | null;
 
+  /**
+   * When the ticket entered resolved/closed; cleared if it is reopened.
+   * Deliberately the ONLY per-ticket date beyond created_at: open tickets
+   * carry no aging signal, a solved ticket shows when it was solved
+   * (owner decision 2026-07-26).
+   */
+  @Column({ name: 'resolved_at', type: 'timestamp', nullable: true })
+  resolved_at: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
