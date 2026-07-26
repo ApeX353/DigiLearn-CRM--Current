@@ -7,6 +7,8 @@ import { Switch } from "~/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+import { useRbacStore } from "~/stores/use-rbac-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { toast } from "sonner";
 import { Bell, AlertTriangle, AlertCircle, Info } from "lucide-react";
@@ -89,6 +91,34 @@ const GENERAL_SETTINGS_KEYS = [
 ];
 
 export default function SettingsPage() {
+  // The settings endpoints are @Roles('admin') on the server; without
+  // this gate every other role could open the page and watch each tab
+  // fail with a 403. admin_support mirrors admin app-wide.
+  const hasAnyRole = useRbacStore((state) => state.hasAnyRole);
+  const canViewSettings = hasAnyRole(["admin", "admin_support"]);
+
+  if (!canViewSettings) {
+    return (
+      <div>
+        <PageHeader title="Settings" subtitle="Application settings" />
+        <Container className="p-4">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Access Denied</AlertTitle>
+            <AlertDescription>
+              Settings are managed by an administrator. Contact your
+              administrator if you need a change made.
+            </AlertDescription>
+          </Alert>
+        </Container>
+      </div>
+    );
+  }
+
+  return <SettingsPageContent />;
+}
+
+function SettingsPageContent() {
   // Load general settings
   const { data: generalSettings, isLoading: generalSettingsLoading } = useSettings(GENERAL_SETTINGS_KEYS);
   const { mutateAsync: saveSettings, isPending: isSavingSettings } = useSetSettings();

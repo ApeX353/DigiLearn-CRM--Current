@@ -35,9 +35,13 @@ import { AddStaffDialog } from "~/components/admin/add-staff-dialog";
 import { usePermission } from "~/hooks/use-permission";
 
 export default function StaffPage() {
+  // The page itself only needs read:User — sales_manager is seeded with
+  // it and the server allows them on GET /users, so they get a read-only
+  // roster. Mutating controls stay behind manage:User below.
   const canManageUsers = usePermission("User", "manage");
+  const canReadUsers = usePermission("User", "read");
 
-  if (!canManageUsers) {
+  if (!canManageUsers && !canReadUsers) {
     return (
       <div>
         <PageHeader title="Staff" subtitle="Manage user accounts and roles" />
@@ -55,10 +59,10 @@ export default function StaffPage() {
     );
   }
 
-  return <StaffManagement />;
+  return <StaffManagement canManage={canManageUsers} />;
 }
 
-const StaffManagement = () => {
+const StaffManagement = ({ canManage }: { canManage: boolean }) => {
   const { data, isLoading } = useStaff({
     page: 1,
     limit: 100,
@@ -104,8 +108,12 @@ const StaffManagement = () => {
     <div>
       <PageHeader
         title="Staff"
-        subtitle="Manage user accounts and roles"
-        actions={<AddStaffDialog />}
+        subtitle={
+          canManage
+            ? "Manage user accounts and roles"
+            : "Team roster (read-only)"
+        }
+        actions={canManage ? <AddStaffDialog /> : undefined}
       />
 
       <Container className="p-4">
@@ -161,6 +169,7 @@ const StaffManagement = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {canManage && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon">
@@ -191,6 +200,7 @@ const StaffManagement = () => {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

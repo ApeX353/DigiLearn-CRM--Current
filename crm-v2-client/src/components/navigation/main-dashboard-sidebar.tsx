@@ -74,9 +74,10 @@ const MainDashboardSidebar = ({
     [hasAnyRole, isLoaded],
   );
 
-  if (!isLoaded) {
-    return null;
-  }
+  // No early return when RBAC hasn't loaded (or failed to load): the
+  // shell renders with an empty nav so Profile and Sign Out always
+  // exist. Before this, a failed permissions fetch left the app with
+  // no sidebar at all — not even a way to sign out — until a reload.
 
   // Compute user display name for the footer.
   const userLabel =
@@ -106,18 +107,25 @@ const MainDashboardSidebar = ({
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive("/admin/settings")}
-              tooltip="Settings"
-            >
-              <NavLink to="/admin/settings" className="flex items-center gap-3">
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {/* Settings page + endpoints are admin-only; showing the gear
+              to other roles just walked them into a 403 wall. */}
+          {canViewByRole(["admin"]) && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={isActive("/admin/settings")}
+                tooltip="Settings"
+              >
+                <NavLink
+                  to="/admin/settings"
+                  className="flex items-center gap-3"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarSeparator className="my-1" />
           <SidebarMenuItem>
             <SidebarMenuButton

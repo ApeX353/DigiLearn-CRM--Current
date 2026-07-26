@@ -352,13 +352,6 @@ export default function CreateInvoicePage() {
                     total,
                     result,
                   }) => {
-                    alert(
-                      JSON.stringify(
-                        { term, interest, total, result },
-                        null,
-                        2,
-                      ),
-                    );
                     const lines = [
                       `Payment Plan: ${term.name || term.type}`,
                       `Interest Rate: ${Number(term.interest_rate).toFixed(2)}% (${term.interest_calculation_method})`,
