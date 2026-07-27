@@ -37,7 +37,8 @@ export class SchoolsService {
    * schools land city-less and anyone can backfill via setCity().
    */
   private assertCityPresent(city: string | undefined, role?: string): void {
-    if (!city?.trim() && role !== 'admin') {
+    const importRoles = ['admin', 'admin_support'];
+    if (!city?.trim() && !importRoles.includes(role ?? '')) {
       throw new BadRequestException('City is required');
     }
   }
