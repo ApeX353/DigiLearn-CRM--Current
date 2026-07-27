@@ -151,8 +151,12 @@ export async function seedRolesAndPermissions(dataSource: DataSource) {
     { role: 'sales_rep', action: 'update', subject: 'LeadActivity', conditions: '{"createdBy":"${id}"}' },
     // Deal
     { role: 'sales_rep', action: 'create', subject: 'Deal', conditions: null },
-    { role: 'sales_rep', action: 'read', subject: 'Deal', conditions: '{"assignedTo":"${id}"}' },
-    { role: 'sales_rep', action: 'update', subject: 'Deal', conditions: '{"assignedTo":"${id}"}' },
+    // SEED1: the key must be `assigned_to` — the deals board and its
+    // summary read this rule's conditions by that exact name. Seeded as
+    // `assignedTo` it parsed fine and silently scoped nothing, so a rep
+    // would have seen every deal on the board with no error anywhere.
+    { role: 'sales_rep', action: 'read', subject: 'Deal', conditions: '{"assigned_to":"${id}"}' },
+    { role: 'sales_rep', action: 'update', subject: 'Deal', conditions: '{"assigned_to":"${id}"}' },
     // Company
     { role: 'sales_rep', action: 'create', subject: 'Company', conditions: null },
     { role: 'sales_rep', action: 'read', subject: 'Company', conditions: null },

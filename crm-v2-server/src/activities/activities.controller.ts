@@ -167,8 +167,15 @@ export class ActivitiesController {
     description: 'Activity retrieved successfully',
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Activity not found' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const activity = await this.activitiesService.findOne(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // R14: same scope rule as the list — reps are limited to their own
+    // work plus anything on a shared record timeline.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const activity = await this.activitiesService.findOne(id, scopeUserId);
     return {
       success: true,
       data: activity,

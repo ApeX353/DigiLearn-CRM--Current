@@ -45,6 +45,19 @@ import {
 import { Deal, DealCloseStatus } from './entities/deal.entity';
 import { QueryDealsDto } from './dto/query-deals';
 
+/**
+ * SEED1: the seeded rule key and the key read here drifted apart
+ * (`assignedTo` written, `assigned_to` read), which scoped nothing and
+ * failed silently — a rep would simply have seen the whole board. The
+ * seed is corrected, and both spellings are accepted here so a stale
+ * rule row in any environment cannot reopen it.
+ */
+function dealOwnerScope(
+  conditions?: { assigned_to?: string; assignedTo?: string } | null,
+): string | undefined {
+  return conditions?.assigned_to ?? conditions?.assignedTo;
+}
+
 @ApiTags('Deals')
 @Controller('deals')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -117,11 +130,15 @@ export class DealsController {
     @Param('id', ParseUUIDPipe) id: string,
     @CaslAbility() ability: AppAbility,
   ) {
-    const abilities = ability.can(Action.READ, 'Deal');
     const conditions = ability
       .rulesFor(Action.READ, 'Deal')
-      ?.find((rule) => rule.conditions)?.conditions;
-    const data = await this.dealsService.findPipelineDeals(id, conditions as {status?: DealCloseStatus, search?: string, assigned_to?: string});
+      ?.find((rule) => rule.conditions)?.conditions as
+      | { status?: DealCloseStatus; search?: string; assigned_to?: string }
+      | undefined;
+    const data = await this.dealsService.findPipelineDeals(id, {
+      ...conditions,
+      assigned_to: dealOwnerScope(conditions),
+    });
     return { success: true, data };
   }
 
@@ -148,11 +165,11 @@ export class DealsController {
     const conditions = ability
       ?.rulesFor(Action.READ, 'Deal')
       ?.find((rule) => rule.conditions)?.conditions as
-      | { assigned_to?: string }
+      | { assigned_to?: string; assignedTo?: string }
       | undefined;
     const data = await this.dealsService.getPipelineSummary(
       pipelineId,
-      conditions?.assigned_to,
+      dealOwnerScope(conditions),
     );
     return { success: true, data };
   }

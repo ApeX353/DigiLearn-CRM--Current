@@ -912,7 +912,24 @@ export class ActivitiesService {
   // Find One
   // ========================
 
-  async findOne(id: string): Promise<Activity> {
+  /**
+   * R14: a single activity was readable by ANY signed-in user, with the
+   * call/email/note bodies attached — the R6 fix scoped the list but not
+   * this door.
+   *
+   * `scopeUserId` is set for sales_rep only, and mirrors the list policy
+   * exactly (findAll, above): activities hanging off a record — lead,
+   * deal or contact — stay readable, because those timelines are
+   * deliberately shared so colleagues can see each other's work. What is
+   * now closed is the unattached activity: a personal task or note that
+   * belongs to one user and appears on no record. Misses read as 404, so
+   * ids cannot be probed (same treatment as R4 on payments).
+   *
+   * NOTE: reading a colleague's record-attached activity remains possible
+   * by design. Narrowing that is the open question in R15 and needs an
+   * owner ruling, not a silent change here.
+   */
+  async findOne(id: string, scopeUserId?: string): Promise<Activity> {
     const activity = await this.activityRepository.findOne({
       where: { id },
       relations: [
@@ -936,6 +953,17 @@ export class ActivitiesService {
 
     if (!activity) {
       throw new NotFoundException(`Activity ${id} not found`);
+    }
+
+    if (scopeUserId) {
+      const isOwn =
+        activity.created_by_id === scopeUserId ||
+        activity.assigned_to_id === scopeUserId;
+      const onSharedRecord =
+        !!activity.lead_id || !!activity.deal_id || !!activity.contact_id;
+      if (!isOwn && !onSharedRecord) {
+        throw new NotFoundException(`Activity ${id} not found`);
+      }
     }
 
     return activity;
