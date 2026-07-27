@@ -147,8 +147,15 @@ export class ActivitiesController {
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
   async getLeadActivityStats(
     @Param('leadId', ParseUUIDPipe) leadId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const stats = await this.activitiesService.getLeadActivityStats(leadId);
+    // R15: a rep gets the glance for their own leads only.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const stats = await this.activitiesService.getLeadActivityStats(
+      leadId,
+      scopeUserId,
+    );
     return {
       success: true,
       data: stats,

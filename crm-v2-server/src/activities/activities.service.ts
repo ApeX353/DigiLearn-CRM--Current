@@ -720,14 +720,29 @@ export class ActivitiesService {
         .leftJoinAndSelect('activity.whatsapp_message', 'whatsapp_message');
     }
 
-    // A sales_rep browsing the GLOBAL Activities list sees only their
-    // own work (created by them, or assigned to them). Record timelines
-    // — calls filtered by lead/deal/contact/school — stay unscoped so
-    // collaboration on a shared record remains visible to everyone.
-    if (scopeUserId && !lead_id && !deal_id && !contact_id && !school_id) {
+    // R15 (owner ruling 2026-07-27): a rep sees a record's activity only
+    // once that record is theirs. Record timelines used to stay wide open
+    // "for collaboration", which meant every rep could read every lead's
+    // history; the owner ruled that visibility follows the assignment.
+    //
+    // Because the test is on the lead's CURRENT owner, reassigning a lead
+    // hands the new rep its full history — including the previous rep's
+    // calls and notes — which is the continuity the ruling asks for, and
+    // it disappears from the previous rep's view at the same moment.
+    //
+    // Their own work stays visible either way, so an activity they logged
+    // before a lead moved on does not vanish from their record.
+    //
+    // Bracketed deliberately: a bare .orWhere() here would detach every
+    // filter added below it — the exact defect fixed as C2.
+    if (scopeUserId) {
       qb.andWhere(
-        '(activity.created_by_id = :scopeUserId OR activity.assigned_to_id = :scopeUserId)',
-        { scopeUserId },
+        new Brackets((w) => {
+          w.where('activity.created_by_id = :scopeUserId', { scopeUserId })
+            .orWhere('activity.assigned_to_id = :scopeUserId', { scopeUserId })
+            .orWhere('lead.assigned_to = :scopeUserId', { scopeUserId })
+            .orWhere('deal.assigned_to = :scopeUserId', { scopeUserId });
+        }),
       );
     }
 
@@ -917,17 +932,10 @@ export class ActivitiesService {
    * call/email/note bodies attached — the R6 fix scoped the list but not
    * this door.
    *
-   * `scopeUserId` is set for sales_rep only, and mirrors the list policy
-   * exactly (findAll, above): activities hanging off a record — lead,
-   * deal or contact — stay readable, because those timelines are
-   * deliberately shared so colleagues can see each other's work. What is
-   * now closed is the unattached activity: a personal task or note that
-   * belongs to one user and appears on no record. Misses read as 404, so
-   * ids cannot be probed (same treatment as R4 on payments).
-   *
-   * NOTE: reading a colleague's record-attached activity remains possible
-   * by design. Narrowing that is the open question in R15 and needs an
-   * owner ruling, not a silent change here.
+   * `scopeUserId` is set for sales_rep only and mirrors the list policy
+   * exactly (findAll, above): their own work, plus anything on a lead or
+   * deal currently assigned to them (R15 ruling). Misses read as 404, so
+   * ids cannot be probed — same treatment as R4 on payments.
    */
   async findOne(id: string, scopeUserId?: string): Promise<Activity> {
     const activity = await this.activityRepository.findOne({
@@ -959,9 +967,10 @@ export class ActivitiesService {
       const isOwn =
         activity.created_by_id === scopeUserId ||
         activity.assigned_to_id === scopeUserId;
-      const onSharedRecord =
-        !!activity.lead_id || !!activity.deal_id || !!activity.contact_id;
-      if (!isOwn && !onSharedRecord) {
+      const onMyRecord =
+        activity.lead?.assigned_to === scopeUserId ||
+        activity.deal?.assigned_to === scopeUserId;
+      if (!isOwn && !onMyRecord) {
         throw new NotFoundException(`Activity ${id} not found`);
       }
     }
@@ -1586,6 +1595,7 @@ export class ActivitiesService {
 
   async getLeadActivityStats(
     lead_id: string,
+    scopeUserId?: string,
   ): Promise<LeadActivityStatsResponseDto> {
     // Get the lead
     const lead = await this.dataSource.getRepository(Lead).findOne({
@@ -1593,6 +1603,14 @@ export class ActivitiesService {
     });
 
     if (!lead) {
+      throw new NotFoundException(`Lead ${lead_id} not found`);
+    }
+
+    // R15: these are engagement numbers for one lead — touches, time to
+    // first contact, staleness. A rep gets them for the leads assigned to
+    // them and no others (owner ruling 2026-07-27). Reads as 404 rather
+    // than 403 so the endpoint cannot be used to prove a lead exists.
+    if (scopeUserId && lead.assigned_to !== scopeUserId) {
       throw new NotFoundException(`Lead ${lead_id} not found`);
     }
 
