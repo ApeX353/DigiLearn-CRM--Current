@@ -6,6 +6,82 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-27 — ACT3: missing lead history restored (and the self-inflicted follow-on)
+
+**Symptom.** Mr Dube: a demo logged 25 Feb on the Lobengula lead was
+gone, "six missing" in total.
+
+**Root cause — ours.** Nothing was lost: all six were `cancelled`, and
+cancelled activities drop out of the lead view. They were cancelled on
+2026-07-23 by our own bulk close-off of 1,287 open+undated activities
+older than three months. Verified against the pristine restore of the
+PREVIOUS CRM: it only ever had two statuses, `scheduled` (3,817) and
+`completed` (1,739) — **"cancelled" never existed there**, so every
+cancelled row in the CRM was made cancelled by us. Its `scheduled` was a
+catch-all: 3,663 of 3,817 carry no date at all and none has a completion
+timestamp, because reps logged work *after doing it* and the old system
+gave them no way to close it. Our close-off mistook records of completed
+work for stale open tasks.
+
+**Fix (owner ruling).** Show them as **done**, not cancelled and not open
+— restoring to `scheduled` would leave a February demo looking like a
+forever-overdue task. All **1,287** restored across **645 leads**
+(Tanya 369, busi 128, Manake 68, Kim 34, unassigned 44). Only rows in the
+07-23 undo file were touched, so anything a human cancelled deliberately
+was left alone. Outcome is deliberately non-committal —
+`relationship_touchpoint_complete` (the contact happened; the result was
+never recorded) — except confirmed demos, which got `demo_completed`.
+Every row carries a completion note stating the basis.
+
+**Self-inflicted follow-on, fixed the same hour.** Completing an activity
+propagates to the lead (`activities.service.ts` — `last_contacted_at =
+completed_at`), so bulk-completing historical work stamped **606 leads**
+as "contacted today" when their real last contact was weeks or months
+old. That inflated the hygiene score's "recent touch within SLA" points,
+flattered outcome-compliance (the last five completions were ours, all
+carrying outcomes), and — worse — hid stale leads from idle detection and
+SLA alerts. Repaired by recomputing from each lead's own history:
+`last_contacted_at` = newest completed call/meeting/whatsapp/email dated
+on or before now; `last_action_at` = newest activity `created_at`. A
+first pass over-corrected 5 leads into the future (a completed activity
+can carry a future `due_at`) plus 12 future `last_action_at`; a second
+pass fixed those. Verified: 0 future dates, "contacted today" back to 7
+from 599, spot-check 14/19 exact (the 5 others are activities scheduled
+for today but completed earlier, where the stored value is the more
+accurate one).
+
+**Lesson.** Check what a status transition propagates BEFORE running it
+1,281 times. The propagation was documented in the completion path; a
+single-record test would have shown it.
+
+---
+
+## 2026-07-27 — NEXT2: reps could not complete activities (SOS)
+
+**Symptom.** Manake could not mark an activity done on the Rupare High
+lead — "request failed with status code 400".
+
+**Cause.** `compliance.policy.enforce_next_step_on_completion` was ON in
+production (written 2026-07-24 20:05 UTC — three compliance settings
+stamped within 300ms, the signature of somebody saving the Compliance &
+Controls page; settings changes are recorded NOWHERE, so the system
+cannot say who). With it on, the server refuses a completion unless the
+lead already has a future actionable activity or the request carries a
+`next_step` payload — **and the client never sends that payload**. The
+app marks done first and only then opens the follow-up prompt, so the
+two halves demand opposite orders. It only bites on leads with nothing
+else scheduled, which is why it looked intermittent; managers and admins
+bypass the gate entirely.
+
+**Fix.** Setting switched back OFF (its documented reverse, no deploy).
+Discipline is retained — the client's own follow-up prompt still requires
+a next step after completion. Filed as **NEXT2** (critical) with the
+three possible proper fixes and a warning not to re-enable until one
+ships. Note the 30s settings cache: the change takes effect within half
+a minute, not instantly.
+
+---
+
 ## 2026-07-27 — CITY (Nash-import exception) + TRK3 (owner bug detail)
 
 **Commits:** `9481f29` (CITY), `94bbd6a` (TRK3), `a66c463` (CITY tweak)
