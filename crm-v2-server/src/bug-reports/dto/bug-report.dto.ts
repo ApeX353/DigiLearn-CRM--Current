@@ -53,6 +53,21 @@ export class UpdateBugReportDto {
   @IsString()
   @MaxLength(2000)
   resolutionNote?: string;
+
+  /**
+   * Triagers may reword a ticket. The owner and the sales managers read
+   * these, so a report written in developer shorthand can be rewritten in
+   * plain words without losing the ticket, its history or its code.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
 }
 
 export class QueryBugReportDto {

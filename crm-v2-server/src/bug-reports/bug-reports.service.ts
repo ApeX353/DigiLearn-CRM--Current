@@ -213,6 +213,10 @@ export class BugReportsService {
     if (dto.severity !== undefined) bug.severity = dto.severity;
     if (dto.status !== undefined) bug.status = dto.status;
 
+    // Rewording. Blank strings are ignored rather than wiping the ticket.
+    if (dto.title?.trim()) bug.title = dto.title.trim();
+    if (dto.description?.trim()) bug.description = dto.description.trim();
+
     // Date-solved bookkeeping: stamp on entering resolved/closed, clear on
     // reopening. Re-saving an already-solved ticket keeps the original date.
     const isSolved = (s: BugStatus) =>
