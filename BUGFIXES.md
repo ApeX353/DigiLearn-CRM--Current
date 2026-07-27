@@ -6,6 +6,55 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-27 — CITY (Nash-import exception) + TRK3 (owner bug detail)
+
+**Commits:** `9481f29` (CITY), `94bbd6a` (TRK3), `a66c463` (CITY tweak)
+on `dube-upgrades`.
+
+**CITY.** City stays mandatory for every user-created school; only the
+admin/admin_support bulk-import path (the Nash file has no city column)
+may create schools without one. City-less schools show **"Click here to
+enter city"** (Schools list + school page) and ANY signed-in role can
+fill in the missing city; changing a set city stays a manager/admin
+action and every fill-in is activity-logged. Guarded migration `1769…`
+drops NOT NULL on `schools.city`; lead-creation resolves schools by
+name+province (city refines when given; ambiguity → 400 with a
+pick-from-suggestions message) and still requires city when a lead
+creates a brand-new school.
+
+**TRK3.** Mr Dube's request: every tracker row is now clickable and
+opens a read-only, plain-language detail — status sentence, **Raised**
+and **Fixed** dates, "What was wrong" (the report) and "What was done
+about it" (the resolution note). Triage stays in the admin_support
+dialog.
+
+**DEPLOYED TO PRODUCTION 2026-07-27** — api + client both at `a66c463`
+(prod client bundle `index-B8_cHNuG.js`). Verified live on prod: import
+path (admin_support) creates a city-less school → 201 and the row stores
+`city: null`; the `resolved_at` migration ran and backfilled, so **all 39
+resolved/closed prod tickets now carry both a Solved date and a
+resolution note** — the detail dialog has real content for every one of
+them. Test school deleted.
+
+**Staging verification (2026-07-27):** admin city-less create → 201;
+sales_manager city-less create → 400 "City is required"; rep fills
+missing city → 200 (stored, activity-logged); rep overwrite attempt →
+403; rep lead + new school + city → 201; rep lead + new school, no city
+→ 400 "City is required to create a new school". All ZZ test records
+deleted. Client bundle `index-DtgutNfV.js` fingerprint-verified (detail
+dialog + city prompt strings).
+
+**Also today:** three hardening findings (external review, verified in
+code) filed as tickets on BOTH trackers: **R14** GET /activities/:id is
+unscoped for any signed-in user; **R15** lead-stats endpoint lets any
+rep read any lead's engagement aggregates (consistent with the shared-
+timelines decision — needs an owner ruling); **SEED1** permission seed
+writes `assignedTo` while the deals board reads `assigned_to` — a fresh
+reseed would silently drop rep scoping (works today only because live
+DB rows carry the snake_case key).
+
+---
+
 ## 2026-07-26 — Sunday sweep: 19 tickets fixed in two batches
 
 **Status:** committed on `dube-upgrades` (`f95dc1b`, `a2253e7`, `79bb2f5`),
@@ -24,6 +73,11 @@ All 20 tickets (the 19 sweep codes + DUP4) flipped to **resolved** on
 both trackers with resolution notes; 10 unassigned open prod tickets
 assigned to admin_support; the Schools-page feature already tracked as
 [SCHLEAD1].
+**2026-07-27 follow-up:** re-verified the sweep (staging 17/17 four-role
+checks + DUP4 peek; prod bundle fingerprints + C4 live; all 20 codes
+resolved-with-note on both trackers). TRK2 (auto-assign) had been left
+in_progress though the fix was live and verified — flipped to resolved on
+both trackers; ACT1/ACT2/DL1 flipped on the staging tracker to match prod.
 Also this day: verified the 07-24 full push live on prod (R1/R3/R2/STAT1,
 15/15 API checks with disposable accounts, all cleaned up), discovered the
 push had only updated the API, and deployed the missing prod **client**
