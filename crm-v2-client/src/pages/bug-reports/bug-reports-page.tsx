@@ -347,6 +347,103 @@ function TriageDialog({
 }
 
 /* ------------------------------------------------------------------ */
+/* Read-only detail dialog (everyone — the product owner's window)     */
+/* ------------------------------------------------------------------ */
+/**
+ * Mr Dube's request (2026-07-27): click a bug and understand, in plain
+ * words, what was wrong and what was done about it — plus when it was
+ * raised and when it was fixed. Read-only; triage stays in TriageDialog.
+ */
+const STATUS_PLAIN: Record<BugStatus, string> = {
+  open: "This has been reported and is waiting to be worked on.",
+  in_progress: "The team is working on this right now.",
+  resolved: "This has been fixed.",
+  closed: "This ticket is closed.",
+};
+
+function BugDetailDialog({
+  bug,
+  onClose,
+}: {
+  bug: BugReport | null;
+  onClose: () => void;
+}) {
+  if (!bug) return null;
+
+  const fixed = bug.resolved_at ? new Date(bug.resolved_at) : null;
+  const isDone = bug.status === "resolved" || bug.status === "closed";
+
+  return (
+    <Dialog open={!!bug} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="pr-6">{bug.title}</DialogTitle>
+          <DialogDescription className="flex flex-wrap items-center gap-1.5 pt-1">
+            <Badge variant={severityVariant[bug.severity]}>
+              {SEVERITY_LABELS[bug.severity]}
+            </Badge>
+            <Badge variant={statusVariant[bug.status]}>
+              {STATUS_LABELS[bug.status]}
+            </Badge>
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 text-sm">
+          <p className="text-muted-foreground">{STATUS_PLAIN[bug.status]}</p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Raised
+              </p>
+              <p className="mt-1 font-medium">
+                {format(new Date(bug.created_at), "MMM d, yyyy")}
+              </p>
+            </div>
+            <div className="rounded-md border p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Fixed
+              </p>
+              <p className="mt-1 font-medium">
+                {fixed ? format(fixed, "MMM d, yyyy") : "Not yet"}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
+              What was wrong
+            </p>
+            <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
+              {bug.description}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
+              What was done about it
+            </p>
+            <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
+              {bug.resolution_note
+                ? bug.resolution_note
+                : isDone
+                  ? "Fixed — no further notes were added."
+                  : "Nothing yet — this will be filled in once the fix is done."}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 export default function BugReportsPage() {
@@ -369,6 +466,7 @@ export default function BugReportsPage() {
 
   const [statusFilter, setStatusFilter] = useState<BugStatus | "all">("all");
   const [active, setActive] = useState<BugReport | null>(null);
+  const [detail, setDetail] = useState<BugReport | null>(null);
 
   const { data, isLoading } = useBugReports(
     statusFilter === "all" ? undefined : statusFilter,
@@ -437,7 +535,11 @@ export default function BugReportsPage() {
             </thead>
             <tbody className="divide-y">
               {rows.map((bug) => (
-                <tr key={bug.id} className="hover:bg-muted/30">
+                <tr
+                  key={bug.id}
+                  className="cursor-pointer hover:bg-muted/30"
+                  onClick={() => setDetail(bug)}
+                >
                   {showRaised && (
                     <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
                       {format(new Date(bug.created_at), "MMM d, yyyy")}
@@ -485,7 +587,10 @@ export default function BugReportsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setActive(bug)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActive(bug);
+                        }}
                       >
                         <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
                         Triage
@@ -502,6 +607,7 @@ export default function BugReportsPage() {
       {isOwnerTriager && (
         <TriageDialog bug={active} onClose={() => setActive(null)} />
       )}
+      <BugDetailDialog bug={detail} onClose={() => setDetail(null)} />
     </Container>
   );
 }
