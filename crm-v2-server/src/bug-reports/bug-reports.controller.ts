@@ -33,7 +33,8 @@ const ALL_OPERATORS = [
 ] as const;
 
 /** Only the owner + admins triage (assign / change status). */
-const TRIAGE = ['admin', 'admin_support'] as const;
+// MGRBUG1: sales managers triage too (see bug-reports.service TRIAGE_ROLES).
+const TRIAGE = ['admin', 'admin_support', 'sales_manager', 'manager'] as const;
 
 @ApiTags('Bug Reports')
 @ApiBearerAuth()

@@ -202,10 +202,14 @@ export class LeadsService {
           school = matchingSchools[0];
         } else {
           // Create new school only when no existing school matches.
-          // City is mandatory for user-created schools — only imported
-          // schools (created city-less by the admin bulk import) are
-          // exempt, and those are matched above, never created here.
-          if (!leadInfo.city?.trim()) {
+          // City is mandatory for user-created schools. The exception is
+          // the bulk import, which runs as admin/admin_support and comes
+          // through THIS path (POST /leads) — the same exemption the
+          // schools endpoint already had. Without it the Nash import
+          // rejected every school whose city the web lookup could not
+          // find, which is exactly the case the import exists to handle.
+          const importRoles = ['admin', 'admin_support'];
+          if (!leadInfo.city?.trim() && !importRoles.includes(userRole ?? '')) {
             throw new BadRequestException(
               'City is required to create a new school',
             );

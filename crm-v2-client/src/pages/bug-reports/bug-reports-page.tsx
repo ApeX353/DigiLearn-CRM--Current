@@ -457,12 +457,17 @@ export default function BugReportsPage() {
   //  - everyone else: their own reported tickets.
   const isOwnerTriager = useAnyRole(["admin_support"]);
   const isAdmin = useAnyRole(["admin"]);
+  // MGRBUG1 (owner request 2026-07-27): sales managers now see the whole
+  // list and can triage it, alongside admin_support. Reps still see only
+  // what they reported themselves.
+  const isManager = useAnyRole(["sales_manager", "manager"]);
+  const isTriager = isOwnerTriager || isManager;
   const isProductOwner = isAdmin && !isOwnerTriager;
 
   const showRaised = !isProductOwner;
-  const showReporter = isOwnerTriager;
+  const showReporter = isTriager;
   const showAssignee = !isProductOwner;
-  const showManage = isOwnerTriager;
+  const showManage = isTriager;
 
   const [statusFilter, setStatusFilter] = useState<BugStatus | "all">("all");
   const [active, setActive] = useState<BugReport | null>(null);
@@ -474,9 +479,9 @@ export default function BugReportsPage() {
   const rows = data?.data ?? [];
 
   const subtitle = isProductOwner
-    ? "Reported issues and their current status."
-    : isOwnerTriager
-      ? "In-house ticket queue. Triage, assign, and resolve reported issues."
+    ? "Reported issues and their current status. Click any row to see what went wrong and what was done about it."
+    : isTriager
+      ? "Every issue reported across the team. Click a row to read the detail, or use Triage to assign it and set its status."
       : "Spotted something broken? Report it and track your tickets here.";
 
   return (
@@ -510,7 +515,7 @@ export default function BugReportsPage() {
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-12 text-center">
           <Bug className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            {isOwnerTriager || isProductOwner
+            {isTriager || isProductOwner
               ? "No bug reports match this filter."
               : "You haven't reported any bugs yet."}
           </p>
@@ -604,7 +609,7 @@ export default function BugReportsPage() {
         </div>
       )}
 
-      {isOwnerTriager && (
+      {isTriager && (
         <TriageDialog bug={active} onClose={() => setActive(null)} />
       )}
       <BugDetailDialog bug={detail} onClose={() => setDetail(null)} />

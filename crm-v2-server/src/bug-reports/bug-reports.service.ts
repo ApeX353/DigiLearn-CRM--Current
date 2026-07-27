@@ -20,8 +20,19 @@ import {
   QueryBugReportDto,
 } from './dto/bug-report.dto';
 
-/** Roles that triage tickets: see everything, assign, change status. */
-export const TRIAGE_ROLES = ['admin', 'admin_support'];
+/**
+ * Roles that triage tickets: see everything, assign, change status.
+ *
+ * MGRBUG1 (owner request 2026-07-27): sales managers were added so they
+ * can see the whole bug list and triage it, not just the tickets they
+ * raised themselves. Reps still see only their own reports.
+ */
+export const TRIAGE_ROLES = [
+  'admin',
+  'admin_support',
+  'sales_manager',
+  'manager',
+];
 
 export interface RequestingUser {
   id: string;
