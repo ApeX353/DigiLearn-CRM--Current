@@ -45,8 +45,8 @@ export class School {
   @Column({ type: 'text', nullable: true })
   address: string | null;
 
-  @Column({ type: 'varchar', length: 100 })
-  city: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  city: string | null;
 
   @Column({ type: 'enum', enum: PROVINCES })
   province: Province;

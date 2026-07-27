@@ -12,7 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
-import { CreateSchoolDto, CreateSchoolWithContactsDto, UpdateSchoolDto, QuerySchoolDto } from './dto';
+import { CreateSchoolDto, CreateSchoolWithContactsDto, UpdateSchoolDto, QuerySchoolDto, SetSchoolCityDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -35,8 +35,9 @@ export class SchoolsController {
   async createWithContacts(
     @Body() dto: CreateSchoolWithContactsDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const result = await this.schoolsService.createWithContacts(dto, userId);
+    const result = await this.schoolsService.createWithContacts(dto, userId, role);
     return {
       success: true,
       message: 'School created with contacts successfully',
@@ -55,8 +56,9 @@ export class SchoolsController {
   async create(
     @Body() createSchoolDto: CreateSchoolDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const school = await this.schoolsService.create(createSchoolDto, userId);
+    const school = await this.schoolsService.create(createSchoolDto, userId, role);
     return {
       success: true,
       message: 'School created successfully',
@@ -159,6 +161,30 @@ export class SchoolsController {
     return {
       success: true,
       message: 'School deleted successfully',
+    };
+  }
+
+  @Patch(':id/city')
+  @ApiOperation({
+    summary: 'Fill in the city on a school that has none (any signed-in user)',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'City saved' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'City already set — only admin/sales_manager may change it',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'School not found' })
+  async setCity(
+    @Param('id') id: string,
+    @Body() dto: SetSchoolCityDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const school = await this.schoolsService.setCity(id, dto.city, userId, role);
+    return {
+      success: true,
+      message: 'City saved',
+      data: school,
     };
   }
 

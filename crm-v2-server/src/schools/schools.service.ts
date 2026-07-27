@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -30,11 +31,24 @@ export class SchoolsService {
     private readonly activityLogsService: ActivityLogsService,
   ) {}
 
+  /**
+   * City is mandatory on every user-created school. The single exception
+   * is the admin bulk-import path (Nash file carries no city): those
+   * schools land city-less and anyone can backfill via setCity().
+   */
+  private assertCityPresent(city: string | undefined, role?: string): void {
+    if (!city?.trim() && role !== 'admin') {
+      throw new BadRequestException('City is required');
+    }
+  }
+
   async createWithContacts(
     dto: CreateSchoolWithContactsDto,
     userId: string,
+    role?: string,
   ): Promise<{ school: School; contacts: Contact[] }> {
     const { school: schoolData, contacts: contactsList } = dto;
+    this.assertCityPresent(schoolData.city, role);
 
     return await this.dataSource.transaction(async (manager) => {
       // Step 1: Create school
@@ -117,7 +131,9 @@ export class SchoolsService {
   async create(
     createSchoolDto: CreateSchoolDto,
     userId: string,
+    role?: string,
   ): Promise<School> {
+    this.assertCityPresent(createSchoolDto.city, role);
     const school = this.schoolRepository.create(createSchoolDto);
     const savedSchool = await this.schoolRepository.save(school);
 
@@ -221,6 +237,46 @@ export class SchoolsService {
       updatedSchool,
       userId,
       `Updated school: ${updatedSchool.name}`,
+    );
+
+    return updatedSchool;
+  }
+
+  /**
+   * Fill in a missing city — open to every signed-in user, because the
+   * Nash import lands schools without one and whoever is on the phone
+   * with the school is the person who learns where it is. Changing a
+   * city that is already set stays a manager/admin action (Edit School).
+   */
+  async setCity(
+    id: string,
+    city: string,
+    userId: string,
+    role: string,
+  ): Promise<School> {
+    const school = await this.findOne(id);
+
+    const alreadySet = !!school.city?.trim();
+    const canOverwrite = ['admin', 'admin_support', 'sales_manager'].includes(
+      role,
+    );
+    if (alreadySet && !canOverwrite) {
+      throw new ForbiddenException(
+        'This school already has a city — ask a manager to change it',
+      );
+    }
+
+    const oldValues = { ...school };
+    school.city = city.trim();
+    const updatedSchool = await this.schoolRepository.save(school);
+
+    await this.activityLogsService.logUpdate(
+      'School',
+      updatedSchool.id,
+      oldValues,
+      updatedSchool,
+      userId,
+      `Set city on school: ${updatedSchool.name} → ${updatedSchool.city}`,
     );
 
     return updatedSchool;

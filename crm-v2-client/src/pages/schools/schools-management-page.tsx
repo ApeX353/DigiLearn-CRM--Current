@@ -25,6 +25,7 @@ import {
   type SchoolType,
 } from "~/api/schools";
 import { AddSchoolModal } from "~/components/schools/add-school-modal";
+import { SchoolCityCell } from "~/components/schools/school-city-cell";
 
 // Column definitions for schools table
 const schoolColumns: ColumnDef<School>[] = [
@@ -63,7 +64,13 @@ const schoolColumns: ColumnDef<School>[] = [
   {
     accessorKey: "city",
     header: "City",
-    cell: ({ row }) => <div className="text-sm">{row.original.city}</div>,
+    cell: ({ row }) => (
+      <SchoolCityCell
+        schoolId={row.original.id}
+        schoolName={row.original.name}
+        city={row.original.city}
+      />
+    ),
   },
   {
     accessorKey: "principal_name",

@@ -162,14 +162,18 @@ export class LeadsService {
 
         school = existingSchool;
       } else {
-        // Try reusing an existing school by normalized name + province + city.
-        if (!leadInfo.school_name || !leadInfo.city || !leadInfo.province) {
+        // Try reusing an existing school by normalized name + province,
+        // refined by city when the caller supplied one. City is optional
+        // (owner decision 2026-07-27): without it, a single name+province
+        // match is safe to reuse, but several matches are ambiguous and
+        // the caller must pick the school explicitly.
+        if (!leadInfo.school_name || !leadInfo.province) {
           throw new BadRequestException(
-            'School name, city, and province are required to resolve school',
+            'School name and province are required to resolve school',
           );
         }
 
-        const existingSchoolByLocation = await manager
+        const schoolMatchQuery = manager
           .createQueryBuilder(School, 'school')
           .where('LOWER(TRIM(school.name)) = LOWER(TRIM(:schoolName))', {
             schoolName: leadInfo.school_name,
@@ -177,16 +181,35 @@ export class LeadsService {
           .andWhere('LOWER(TRIM(school.province::text)) = LOWER(TRIM(:province))', {
             province: leadInfo.province,
           })
-          .andWhere('LOWER(TRIM(school.city)) = LOWER(TRIM(:city))', {
-            city: leadInfo.city,
-          })
-          .andWhere('school.deleted_at IS NULL')
-          .getOne();
+          .andWhere('school.deleted_at IS NULL');
 
-        if (existingSchoolByLocation) {
-          school = existingSchoolByLocation;
+        if (leadInfo.city) {
+          schoolMatchQuery.andWhere(
+            'LOWER(TRIM(school.city)) = LOWER(TRIM(:city))',
+            { city: leadInfo.city },
+          );
+        }
+
+        const matchingSchools = await schoolMatchQuery.take(2).getMany();
+
+        if (!leadInfo.city && matchingSchools.length > 1) {
+          throw new BadRequestException(
+            `Several schools named "${leadInfo.school_name}" exist in ${leadInfo.province} — select the school from the suggestions or provide its city`,
+          );
+        }
+
+        if (matchingSchools.length > 0) {
+          school = matchingSchools[0];
         } else {
           // Create new school only when no existing school matches.
+          // City is mandatory for user-created schools — only imported
+          // schools (created city-less by the admin bulk import) are
+          // exempt, and those are matched above, never created here.
+          if (!leadInfo.city?.trim()) {
+            throw new BadRequestException(
+              'City is required to create a new school',
+            );
+          }
           if (!leadInfo.region) {
             throw new BadRequestException(
               'School region is required for new school',
@@ -195,7 +218,7 @@ export class LeadsService {
 
           school = await manager.save(School, {
             name: leadInfo.school_name,
-            city: leadInfo.city,
+            city: toNullableString(leadInfo.city),
             province: leadInfo.province,
             district: leadInfo.district,
             region: leadInfo.region,

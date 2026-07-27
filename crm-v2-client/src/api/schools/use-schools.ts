@@ -44,6 +44,10 @@ const schoolsApi = {
   // Get school stats
   getStats: (id: string): Promise<ApiResponse<SchoolStats>> =>
     apiClientAuth.get(`/schools/${id}/stats`).then((res) => res.data),
+
+  // Fill in a missing city (open to every role)
+  setCity: (id: string, city: string): Promise<ApiResponse<School>> =>
+    apiClientAuth.patch(`/schools/${id}/city`, { city }).then((res) => res.data),
 };
 
 // Hooks
@@ -100,6 +104,26 @@ export function useSchoolStats(id: string) {
     queryFn: () => schoolsApi.getStats(id),
     staleTime: 5 * 60 * 1000,
     enabled: !!id,
+  });
+}
+
+/**
+ * Fill in a missing city on a school. Available to every signed-in
+ * user — the server rejects overwriting an already-set city for
+ * non-managers.
+ */
+export function useSetSchoolCity() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, city }: { id: string; city: string }) =>
+      schoolsApi.setCity(id, city),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: schoolsKeys.all });
+    },
+    onError: (error) => {
+      console.error("Set school city error:", handleApiError(error));
+    },
   });
 }
 

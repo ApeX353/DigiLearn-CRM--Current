@@ -132,11 +132,11 @@ export class CreateSchoolDto {
   @IsNotEmpty()
   school_type: string;
 
-  @ApiProperty({ example: 'Johannesburg' })
+  @ApiPropertyOptional({ example: 'Johannesburg' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(100)
-  city: string;
+  city?: string;
 
   @ApiProperty({ example: 'Gauteng' })
   @IsString()

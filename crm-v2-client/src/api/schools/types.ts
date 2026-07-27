@@ -144,7 +144,7 @@ export interface School {
   ownership_type: OwnershipType;
   website?: string;
   address: string;
-  city: string;
+  city: string | null;
   province: Province;
   district: string;
   region: Region;

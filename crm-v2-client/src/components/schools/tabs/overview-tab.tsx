@@ -5,6 +5,7 @@ import { Badge } from "~/components/ui/badge";
 import type { School } from "~/api/schools";
 import { Building2, MapPin } from "lucide-react";
 import { RelatedLeadsSection } from "~/components/leads/related-leads";
+import { SchoolCityCell } from "~/components/schools/school-city-cell";
 
 interface OverviewTabProps {
   school: School;
@@ -93,7 +94,17 @@ export function OverviewTab({ school }: OverviewTabProps) {
         <CardContent className="pt-0">
           <dl className="divide-y divide-border/60">
             <Row label="Address" value={school.address} />
-            <Row label="City" value={school.city} />
+            <Row
+              label="City"
+              value={
+                <SchoolCityCell
+                  schoolId={school.id}
+                  schoolName={school.name}
+                  city={school.city}
+                  className="text-xs font-medium text-right"
+                />
+              }
+            />
             <Row label="Province" value={school.province} />
             <Row
               label="Region"

@@ -50,11 +50,11 @@ export class CreateSchoolDto {
   @IsString()
   address?: string;
 
-  @ApiProperty({ example: 'Johannesburg', maxLength: 100 })
+  @ApiPropertyOptional({ example: 'Johannesburg', maxLength: 100 })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(100)
-  city: string;
+  city?: string;
 
   @ApiProperty({ enum: PROVINCES, example: 'Harare' })
   @IsEnum(PROVINCES)
