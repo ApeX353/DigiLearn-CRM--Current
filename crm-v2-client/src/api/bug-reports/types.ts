@@ -1,4 +1,9 @@
-export type BugSeverity = "low" | "medium" | "high" | "critical";
+export type BugSeverity =
+  | "low"
+  | "medium"
+  | "high"
+  | "critical"
+  | "very_critical";
 export type BugStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export interface BugReportUser {
@@ -51,6 +56,7 @@ export const SEVERITY_LABELS: Record<BugSeverity, string> = {
   medium: "Medium",
   high: "High",
   critical: "Critical",
+  very_critical: "Very Critical",
 };
 
 export const STATUS_LABELS: Record<BugStatus, string> = {

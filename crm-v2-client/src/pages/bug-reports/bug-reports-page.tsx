@@ -38,7 +38,13 @@ import {
   type BugStatus,
 } from "~/api/bug-reports";
 
-const SEVERITIES: BugSeverity[] = ["low", "medium", "high", "critical"];
+const SEVERITIES: BugSeverity[] = [
+  "low",
+  "medium",
+  "high",
+  "critical",
+  "very_critical",
+];
 const STATUSES: BugStatus[] = ["open", "in_progress", "resolved", "closed"];
 
 const severityVariant: Record<
@@ -49,6 +55,7 @@ const severityVariant: Record<
   medium: "secondary",
   high: "default",
   critical: "destructive",
+  very_critical: "destructive",
 };
 
 const statusVariant: Record<
@@ -478,6 +485,19 @@ export default function BugReportsPage() {
   );
   const rows = data?.data ?? [];
 
+  // Counts at a glance, for everybody. Fetched unfiltered so the numbers
+  // stay put when you switch tabs — the filtered list cannot count the
+  // statuses it is filtering out. Reps see their own tickets, so these
+  // are their own counts; triagers see the team's.
+  const { data: allData } = useBugReports(undefined);
+  const counts = (allData?.data ?? []).reduce<Record<string, number>>(
+    (acc, b) => ({ ...acc, [b.status]: (acc[b.status] ?? 0) + 1 }),
+    {},
+  );
+  const totalCount = (allData?.data ?? []).length;
+  const countFor = (s: BugStatus | "all") =>
+    s === "all" ? totalCount : (counts[s] ?? 0);
+
   const subtitle = isProductOwner
     ? "Reported issues and their current status. Click any row to see what went wrong and what was done about it."
     : isTriager
@@ -495,17 +515,53 @@ export default function BugReportsPage() {
           onValueChange={(v) => setStatusFilter(v as BugStatus | "all")}
         >
           <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="all">
+              All
+              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
+                {countFor("all")}
+              </span>
+            </TabsTrigger>
             {STATUSES.map((s) => (
               <TabsTrigger key={s} value={s}>
                 {STATUS_LABELS[s]}
+                <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
+                  {countFor(s)}
+                </span>
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
       </PageHeader>
 
-      <p className="mb-4 text-sm text-muted-foreground">{subtitle}</p>
+      <p className="mb-3 text-sm text-muted-foreground">{subtitle}</p>
+
+      {/* At-a-glance totals — same numbers for every audience. */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(
+          [
+            ["Open", countFor("open"), "text-destructive"],
+            ["In progress", countFor("in_progress"), "text-foreground"],
+            ["Fixed", countFor("resolved"), "text-emerald-600"],
+            ["Closed", countFor("closed"), "text-muted-foreground"],
+          ] as const
+        ).map(([label, n, tone]) => (
+          <div
+            key={label}
+            className="rounded-md border px-3 py-2 min-w-[104px]"
+          >
+            <div className={`text-xl font-semibold tabular-nums ${tone}`}>
+              {n}
+            </div>
+            <div className="text-xs text-muted-foreground">{label}</div>
+          </div>
+        ))}
+        <div className="rounded-md border border-dashed px-3 py-2 min-w-[104px]">
+          <div className="text-xl font-semibold tabular-nums">
+            {countFor("all")}
+          </div>
+          <div className="text-xs text-muted-foreground">Total reported</div>
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-12">

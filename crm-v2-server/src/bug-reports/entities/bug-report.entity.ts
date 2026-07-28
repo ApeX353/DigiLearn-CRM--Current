@@ -15,6 +15,13 @@ export enum BugSeverity {
   MEDIUM = 'medium',
   HIGH = 'high',
   CRITICAL = 'critical',
+  /**
+   * Above critical: drop everything. Added 2026-07-28 for the findings of
+   * the codebase audit — faults an ordinary user can exploit today to
+   * reach or change other people's records, and credential handling that
+   * can silently fall back to a guessable key.
+   */
+  VERY_CRITICAL = 'very_critical',
 }
 
 export enum BugStatus {
