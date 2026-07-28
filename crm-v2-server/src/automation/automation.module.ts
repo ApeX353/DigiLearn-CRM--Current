@@ -11,6 +11,8 @@ import { WhatsAppMessage } from '../activities/entities/whats-app.entity';
 import { AuthModule } from '../auth/auth.module';
 import { SettingsModule } from '../settings/settings.module';
 import { LeadsModule } from '../leads/leads.module';
+import { ActivityLogsModule } from '../activity-logs/activity-logs.module';
+import { LeadAssignmentProposal } from './entities/lead-assignment-proposal.entity';
 import { LeadAutoRouterService } from './services/lead-auto-router.service';
 import { LeadReactivationService } from './services/lead-reactivation.service';
 import { FollowupDisciplineService } from './services/followup-discipline.service';
@@ -52,10 +54,12 @@ import { AutomationController } from './automation.controller';
       User,
       Activity,
       WhatsAppMessage,
+      LeadAssignmentProposal,
     ]),
     forwardRef(() => AuthModule),
     SettingsModule,
     LeadsModule,
+    ActivityLogsModule,
   ],
   controllers: [AutomationController],
   providers: [

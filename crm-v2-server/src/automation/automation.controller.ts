@@ -3,7 +3,10 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -17,6 +20,8 @@ import { WhatsappIngestService } from './services/whatsapp-ingest.service';
 import { SocialHandoffService } from './services/social-handoff.service';
 import { QuoteDraftService } from './services/quote-draft.service';
 import { AttributionService } from './services/attribution.service';
+import { LeadAutoRouterService } from './services/lead-auto-router.service';
+import { AssignmentProposalStatus } from './entities/lead-assignment-proposal.entity';
 
 @ApiTags('Automation')
 @Controller('automation')
@@ -27,7 +32,60 @@ export class AutomationController {
     private readonly socialHandoff: SocialHandoffService,
     private readonly quoteDraft: QuoteDraftService,
     private readonly attribution: AttributionService,
+    private readonly autoRouter: LeadAutoRouterService,
   ) {}
+
+  // ------------------- AUTO1: assignment proposals -------------------
+  // The engine proposes; a manager decides. Reps never see this queue.
+
+  @Get('assignment-proposals')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'List auto-assign proposals awaiting a decision' })
+  async listAssignmentProposals(@Query('status') status?: string) {
+    const wanted = Object.values(AssignmentProposalStatus).includes(
+      status as AssignmentProposalStatus,
+    )
+      ? (status as AssignmentProposalStatus)
+      : AssignmentProposalStatus.PENDING;
+    const data = await this.autoRouter.listProposals(wanted);
+    return { success: true, data };
+  }
+
+  @Patch('assignment-proposals/:id/approve')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Approve one proposal — assigns the lead' })
+  async approveAssignmentProposal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.autoRouter.approveProposal(id, userId);
+    return { success: true, data, message: 'Lead assigned' };
+  }
+
+  @Patch('assignment-proposals/:id/reject')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Reject one proposal — lead stays unassigned' })
+  async rejectAssignmentProposal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.autoRouter.rejectProposal(id, userId);
+    return { success: true, data, message: 'Proposal rejected' };
+  }
+
+  @Post('assignment-proposals/approve-batch')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Approve a batch of proposals in one call' })
+  async approveAssignmentProposalBatch(
+    @Body('ids') ids: string[],
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.autoRouter.approveProposals(
+      Array.isArray(ids) ? ids : [],
+      userId,
+    );
+    return { success: true, data };
+  }
 
   // #5 — WhatsApp ingestion landing zone (called by the external connector).
   @Post('ingest/whatsapp')

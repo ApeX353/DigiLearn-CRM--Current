@@ -27,6 +27,15 @@ export class User {
   @Column({ default: true, name: 'is_active' })
   is_active: boolean;
 
+  /**
+   * AUTO2: provinces this rep covers, stored as a JSON array in text
+   * (e.g. '["Bulawayo","Matabeleland South"]'). NULL/empty = no
+   * territory configured; the rep then competes for every lead on load
+   * alone. Read by the auto-assign engine's location-first routing.
+   */
+  @Column({ name: 'territory_provinces', type: 'text', nullable: true })
+  territory_provinces: string | null;
+
   // Relations will be set up with circular imports handled properly
   @ManyToMany('Role', 'users', { eager: true })
   @JoinTable({
