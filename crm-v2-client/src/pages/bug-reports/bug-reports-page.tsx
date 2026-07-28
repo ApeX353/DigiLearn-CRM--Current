@@ -28,6 +28,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useAnyRole } from "~/hooks/use-permission";
 import {
   useBugReports,
+  useBugReportCounts,
   useCreateBugReport,
   useUpdateBugReport,
   useAssignableUsers,
@@ -484,17 +485,17 @@ export default function BugReportsPage() {
     statusFilter === "all" ? undefined : statusFilter,
   );
   const rows = data?.data ?? [];
+  // What the server says exists for this filter, so a truncated list is
+  // always declared rather than quietly short.
+  const filteredTotal = data?.meta?.total ?? rows.length;
 
-  // Counts at a glance, for everybody. Fetched unfiltered so the numbers
-  // stay put when you switch tabs — the filtered list cannot count the
-  // statuses it is filtering out. Reps see their own tickets, so these
-  // are their own counts; triagers see the team's.
-  const { data: allData } = useBugReports(undefined);
-  const counts = (allData?.data ?? []).reduce<Record<string, number>>(
-    (acc, b) => ({ ...acc, [b.status]: (acc[b.status] ?? 0) + 1 }),
-    {},
-  );
-  const totalCount = (allData?.data ?? []).length;
+  // Counts at a glance, for everybody. These come from the server's own
+  // totals per status — NOT from counting the rows on screen, which would
+  // only ever count the first page of 50. Reps see their own tickets, so
+  // these are their own counts; triagers see the team's.
+  const { data: countData } = useBugReportCounts();
+  const counts = countData ?? ({} as Record<BugStatus, number>);
+  const totalCount = STATUSES.reduce((sum, s) => sum + (counts[s] ?? 0), 0);
   const countFor = (s: BugStatus | "all") =>
     s === "all" ? totalCount : (counts[s] ?? 0);
 
@@ -577,7 +578,17 @@ export default function BugReportsPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Showing {rows.length} of {filteredTotal}
+            {rows.length < filteredTotal && (
+              <span className="text-destructive">
+                {" "}
+                — narrow it down with the tabs above to see the rest
+              </span>
+            )}
+          </p>
+          <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -662,6 +673,7 @@ export default function BugReportsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
