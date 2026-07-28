@@ -420,8 +420,17 @@ export class ActivitiesService {
         // "Log a past interaction" creates arrive already completed
         // (e.g. a call that just ended). Stamp completed_at so feeds
         // and discipline metrics that sort/filter on it see the entry.
+        // ACT4: if the logged interaction carries a past date, the
+        // completion keeps that date rather than the moment of typing.
         completed_at:
-          dto.status === ActivityStatus.COMPLETED ? new Date() : undefined,
+          dto.status === ActivityStatus.COMPLETED
+            ? this.completionMoment({
+                due_at: dto.due_at ? new Date(dto.due_at) : undefined,
+                scheduled_at: dto.scheduled_at
+                  ? new Date(dto.scheduled_at)
+                  : undefined,
+              } as Activity)
+            : undefined,
       });
 
       const savedActivity = await manager.save(Activity, activity);
@@ -1149,7 +1158,7 @@ export class ActivitiesService {
     activity.status = status;
 
     if (status === ActivityStatus.COMPLETED) {
-      activity.completed_at = new Date();
+      activity.completed_at = this.completionMoment(activity);
       activity.completion_outcome = outcome as ActivityOutcome;
       activity.completion_note = completionNote ?? null;
     }
@@ -1300,7 +1309,9 @@ export class ActivitiesService {
 
         activity.status = status;
         if (status === ActivityStatus.COMPLETED && !activity.completed_at) {
-          activity.completed_at = now;
+          // ACT4: same rule as the single path — overdue history keeps
+          // its own date instead of being stamped with today.
+          activity.completed_at = this.completionMoment(activity);
           activity.completion_outcome = outcome as ActivityOutcome;
           activity.completion_note = completionNote ?? null;
         }
@@ -1862,6 +1873,25 @@ export class ActivitiesService {
    *     callers should pass `mode = 'complete'` so the contact
    *     bump fires correctly.
    */
+  /**
+   * ACT4: the moment a completion is stamped with. Completing something
+   * recent means the work happened now. Completing something whose due
+   * date is more than a day gone is a rep tidying up history — the work
+   * keeps its own date, exactly as ruled for the restored Lobengula
+   * records (their completed_at was set to due/scheduled, never to the
+   * day of the click). Without this, clearing the 2,364 stuck open
+   * activities would stamp today onto months-old work.
+   */
+  private completionMoment(activity: Activity): Date {
+    const anchor = activity.due_at ?? activity.scheduled_at ?? null;
+    const now = new Date();
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    if (anchor && now.getTime() - new Date(anchor).getTime() > DAY_MS) {
+      return new Date(anchor);
+    }
+    return now;
+  }
+
   private async updateLeadContactStatus(
     manager: EntityManager,
     activity: Activity,
@@ -1880,11 +1910,20 @@ export class ActivitiesService {
     if (mode === 'complete') {
       // Contact actually happened. The completed_at the service just
       // stamped is the canonical contact moment.
+      //
+      // ACT4: the contact date only ever moves FORWARD. Completing old
+      // history must neither claim the school was contacted today (the
+      // moment is the activity's own date now) nor drag a fresher
+      // last_contacted_at backwards.
       const contactMoment = activity.completed_at ?? now;
-      await manager.update(Lead, { id: lead.id }, {
-        last_contacted_at: contactMoment,
-        last_action_at: now,
-      });
+      const existing = lead.last_contacted_at
+        ? new Date(lead.last_contacted_at)
+        : null;
+      const update: Partial<Lead> = { last_action_at: now };
+      if (!existing || contactMoment.getTime() > existing.getTime()) {
+        update.last_contacted_at = contactMoment;
+      }
+      await manager.update(Lead, { id: lead.id }, update);
     } else {
       // mode === 'create' — schedule event. Don't touch
       // `last_contacted_at`; the call hasn't happened yet.
