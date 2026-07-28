@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
+import { assertSafeSmtpHost, SMTP_TIMEOUTS } from '../smtp-host-guard';
 import {
   UserEmailAccount,
   UserEmailProvider,
@@ -100,6 +101,10 @@ export class UserEmailAccountsService {
         `You already have an account for ${dto.email_address}`,
       );
     }
+
+    // C-05: refuse hosts that point inside our own network before the
+    // account is even saved.
+    await assertSafeSmtpHost(dto.host);
 
     const credentials: SmtpCredentialsV1 = {
       type: 'smtp',
@@ -281,11 +286,16 @@ export class UserEmailAccountsService {
       };
     }
 
+    // C-05: re-check immediately before connecting — a DNS record that
+    // changed since the account was saved (rebinding) is caught here.
+    await assertSafeSmtpHost(creds.host);
+
     const transport = nodemailer.createTransport({
       host: creds.host,
       port: creds.port,
       secure: creds.secure,
       auth: { user: creds.username, pass: creds.password },
+      ...SMTP_TIMEOUTS,
     });
     try {
       await transport.verify();

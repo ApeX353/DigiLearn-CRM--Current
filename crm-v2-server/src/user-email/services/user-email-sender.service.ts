@@ -5,6 +5,7 @@ import {
   NotImplementedException,
 } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { assertSafeSmtpHost, SMTP_TIMEOUTS } from '../smtp-host-guard';
 import { UserEmailProvider } from '../entities/user-email-account.entity';
 import {
   UserEmailAccountsService,
@@ -83,11 +84,16 @@ export class UserEmailSenderService {
     }
     const creds: SmtpCredentialsV1 = raw;
 
+    // C-05: re-check the host immediately before connecting, so a DNS
+    // record that changed since the account was saved is caught here.
+    await assertSafeSmtpHost(creds.host);
+
     const transport = nodemailer.createTransport({
       host: creds.host,
       port: creds.port,
       secure: creds.secure,
       auth: { user: creds.username, pass: creds.password },
+      ...SMTP_TIMEOUTS,
     });
 
     const fromHeader = acct.display_name
