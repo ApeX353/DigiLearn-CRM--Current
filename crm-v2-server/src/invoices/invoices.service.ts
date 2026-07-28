@@ -819,7 +819,13 @@ export class InvoicesService {
     invoice.amount_paid = Math.round(totalPaid * 100) / 100;
 
     if (totalPaid === 0) {
+      // Symmetry matters here: every other branch sets payment_status,
+      // status AND paid_date together. This one used to set only the
+      // first, so an invoice whose payments were removed kept status
+      // 'Paid' and its paid date — and went on being counted as revenue.
       invoice.payment_status = 'Unpaid';
+      invoice.status = 'Sent';
+      invoice.paid_date = null;
     } else if (totalPaid >= invoiceTotal) {
       invoice.payment_status = 'Paid';
       invoice.status = 'Paid';

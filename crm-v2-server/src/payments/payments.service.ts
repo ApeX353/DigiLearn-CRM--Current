@@ -144,9 +144,28 @@ export class PaymentsService {
   ): Promise<Payment> {
     const payment = await this.findOne(id);
     const oldValues = { ...payment };
+    const amountChanged =
+      dto.amount !== undefined &&
+      Number(dto.amount) !== Number(payment.amount);
 
     Object.assign(payment, dto);
     const updated = await this.paymentRepository.save(payment);
+
+    // If the amount changed, the old spread across the instalments no
+    // longer describes this payment. Undo it and reapply from scratch,
+    // rather than leaving the instalments crediting the previous figure.
+    if (amountChanged) {
+      await this.paymentTermsService.reversePaymentAllocations(id);
+      updated.allocated_amount = 0;
+      updated.unallocated_amount = Number(updated.amount);
+      await this.paymentRepository.save(updated);
+      try {
+        await this.paymentTermsService.allocatePaymentFIFO(id, userId);
+      } catch {
+        // An invoice with no instalment schedule has nothing to allocate
+        // against; the invoice-level recalculation below still runs.
+      }
+    }
 
     await this.invoicesService.recalculatePaymentStatus(payment.invoice_id);
     const invoice = await this.invoicesService.findOne(payment.invoice_id);
@@ -171,6 +190,11 @@ export class PaymentsService {
   async remove(id: string, userId: string): Promise<void> {
     const payment = await this.findOne(id);
     const invoiceId = payment.invoice_id;
+
+    // Give the money back to the instalments first. Allocation writes to
+    // the instalment directly, so removing the payment on its own would
+    // leave the schedule still claiming to hold money that has gone.
+    await this.paymentTermsService.reversePaymentAllocations(id);
 
     await this.paymentRepository.remove(payment);
 

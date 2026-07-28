@@ -715,6 +715,49 @@ export class PaymentTermsService {
   // FIFO Payment Allocation
   // ========================
 
+  /**
+   * Undo a payment's allocations and give the money back to the
+   * instalments it was applied to.
+   *
+   * Allocation writes to the instalment directly (paid_amount, balance,
+   * status), so deleting the allocation rows alone leaves the schedule
+   * claiming money it no longer holds. Deleting or amending a payment
+   * has to walk the same path backwards.
+   *
+   * Safe to call when nothing was ever allocated — it simply finds no
+   * rows and does nothing.
+   */
+  async reversePaymentAllocations(paymentId: string): Promise<number> {
+    const allocations = await this.allocationRepository.find({
+      where: { payment_id: paymentId },
+    });
+    if (!allocations.length) return 0;
+
+    for (const alloc of allocations) {
+      const installment = await this.installmentRepository.findOne({
+        where: { id: alloc.installment_id },
+      });
+      if (!installment) continue;
+
+      const back = Number(alloc.allocated_amount);
+      const paid = Math.max(
+        0,
+        Math.round((Number(installment.paid_amount) - back) * 100) / 100,
+      );
+      const balance =
+        Math.round((Number(installment.amount) - paid) * 100) / 100;
+
+      installment.paid_amount = paid;
+      installment.balance = balance;
+      installment.status =
+        paid === 0 ? 'pending' : balance === 0 ? 'paid' : 'partially_paid';
+      await this.installmentRepository.save(installment);
+    }
+
+    await this.allocationRepository.remove(allocations);
+    return allocations.length;
+  }
+
   async allocatePaymentFIFO(
     paymentId: string,
     userId: string,
@@ -745,7 +788,29 @@ export class PaymentTermsService {
       .addOrderBy('inst.installment_number', 'ASC')
       .getMany();
 
-    let remainingAmount = Number(payment.unallocated_amount || payment.amount);
+    // What is actually left to distribute?
+    //
+    // This used to read `payment.unallocated_amount || payment.amount`.
+    // Postgres returns decimals as STRINGS, so a fresh payment's
+    // unallocated_amount arrives as "0.00" — which JavaScript counts as
+    // truthy. The fallback never fired, the loop exited immediately, and
+    // the payment was then marked fully allocated with nothing behind it.
+    // Every payment in the system went through that path.
+    //
+    // The tracking columns cannot be trusted to repair it either, since
+    // they already hold those wrong figures. The authority is the
+    // allocation rows themselves: whatever has genuinely been applied.
+    const alreadyAllocated = Number(
+      (
+        await this.allocationRepository
+          .createQueryBuilder('a')
+          .select('COALESCE(SUM(a.allocated_amount), 0)', 'sum')
+          .where('a.payment_id = :id', { id: payment.id })
+          .getRawOne<{ sum: string }>()
+      )?.sum ?? 0,
+    );
+    let remainingAmount =
+      Math.round((Number(payment.amount) - alreadyAllocated) * 100) / 100;
     let allocationOrder = 1;
     const allocations: PaymentAllocation[] = [];
 
@@ -789,7 +854,8 @@ export class PaymentTermsService {
       await this.allocationRepository.save(allocations);
     }
 
-    // Update payment allocation tracking
+    // Update payment allocation tracking. Derived the same way — from
+    // what was actually applied — so the columns describe reality.
     const totalAllocated =
       Math.round((Number(payment.amount) - remainingAmount) * 100) / 100;
     payment.allocated_amount = totalAllocated;
