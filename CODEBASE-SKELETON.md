@@ -12,6 +12,44 @@ newest first), `DEPLOYMENT-RULES.md`, `E2E-FINDINGS.md`,
 
 ---
 
+## 0. Where the information lives
+
+Read in this order from cold. Everything below is in this repository
+unless stated.
+
+| | |
+|---|---|
+| **This file** | the map: architecture, permissions, deployment, domain rules, quirks |
+| **`BUGFIXES.md`** | every incident: symptom, cause, fix, data impact. Newest first |
+| **`SOLUTIONS.md`** | independent code audit (2026-07-28), 34 findings with file and line |
+| **`METRICS-AUDIT.md`** | which dashboard numbers can be trusted, and which cannot |
+| **`WANEZI-CONSOLIDATION.md`** | the duplicate-school tangle behind Njabulo Mathwasa's payment |
+| **`DEPLOYMENT-RULES.md`** | staging first, verify per role, explicit sign-off |
+| **`ops/manifests/`** | reversal records for every bulk data change — see below |
+| **`CREDENTIALS.local.md`** | secrets. Git-ignored, never committed |
+| **The bug tracker itself** | ~130 tickets on production and staging, written in plain language. The richest source: each carries evidence, measurements and what was ruled out |
+
+**`ops/manifests/` — how to undo things:**
+
+- `nash-manifest-prod.json` — every school, lead and contact the 2026-07-27
+  import created. 368 records; 365 distinct schools; 2 pre-existed.
+- `removed-import-leads-prod.json` — the 368 leads later removed from that
+  import, schools and contacts kept.
+- `undo-closeoff-prod-2026-07-23.csv` — the 1,287 activities the 23 July
+  close-off cancelled, with the status each held before.
+
+**Scripts live in the session scratchpad, not here.** They are written per
+task and are disposable; the manifests they produce are what matter and
+those are committed. If a script is needed again, rewrite it from the
+ticket — the tickets carry the queries and the reasoning.
+
+**The two databases are the arbiter.** When a claim about behaviour is in
+doubt, check the pristine restore of the previous system (see §11) against
+production. Several disputes this week were settled that way, and at least
+two "fixes" were abandoned because the evidence contradicted the premise.
+
+---
+
 ## 1. What the system is
 
 A CRM for selling interactive boards and digital classroom kit to

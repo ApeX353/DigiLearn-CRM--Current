@@ -1,0 +1,2578 @@
+[
+ {
+  "lead_id": "8ea2781b-49c0-4db4-8f23-6e79def76d91",
+  "school_id": "0cd9baa9-019d-420c-8ba5-7ce056f3f190",
+  "name": "AMHLOPHE HIGH SCHOOL",
+  "city": "Pumula East, Bulawayo",
+  "activities": 0
+ },
+ {
+  "lead_id": "981d29a5-70e6-4e3a-9e18-f1ce1fab0a9c",
+  "school_id": "315533f9-d72f-44f1-979f-1b900d5ad965",
+  "name": "BULAWAYO ADVENTIST HIGH SCHOOL",
+  "city": "Bulawayo",
+  "activities": 0
+ },
+ {
+  "lead_id": "e74a8e5a-de58-47a8-a6fe-c8e0920f685c",
+  "school_id": "343e73fa-8885-44be-ad73-54ba7e3b998c",
+  "name": "INDUNA HIGH SCHOOL",
+  "city": "Llewellin Barracks, Bulawayo",
+  "activities": 0
+ },
+ {
+  "lead_id": "8b86f1fc-6d5b-4f26-9efd-b214d0b837da",
+  "school_id": "cf5a2ca5-f7bd-4e4f-9396-46c1e6fb399b",
+  "name": "INYANDA HIGH SCHOOL",
+  "city": "Luveve, Bulawayo",
+  "activities": 0
+ },
+ {
+  "lead_id": "06edde42-47d9-4c0a-8c6c-2c41b709ae15",
+  "school_id": "1da84e21-b000-4ba9-ae2b-9a3df185e409",
+  "name": "LIGHT HOUSE SECONDARY SCHOOOL",
+  "city": "Pumula South, Bulawayo",
+  "activities": 0
+ },
+ {
+  "lead_id": "c4e177f6-8089-4ff8-8b31-9e7d4f009f57",
+  "school_id": "50b331ac-2c00-48cd-84db-e37408fa9964",
+  "name": "TENNYSON HLABANGANA",
+  "city": "Hope Fountain, Bulawayo outskirts",
+  "activities": 0
+ },
+ {
+  "lead_id": "2d0476df-8dab-4ffc-8677-2e132e1b5f4b",
+  "school_id": "01457ac8-f822-4bfc-ac9e-b95db96a41fd",
+  "name": "BUVUMA HIGH SCHOOL",
+  "city": "Buvuma village",
+  "activities": 0
+ },
+ {
+  "lead_id": "22bfdaf2-73c6-455f-8c8f-52f26a6852c1",
+  "school_id": "91c2cfd0-bc2e-4772-a567-a3e2f13940aa",
+  "name": "DULA SECONDARY SCHOOL",
+  "city": "Dula communal area",
+  "activities": 0
+ },
+ {
+  "lead_id": "c1f85ee0-903e-4129-af11-7000729dd52e",
+  "school_id": "b76c706c-c513-4fd8-99e0-a8977dee969e",
+  "name": "GARANYEMBA SECONDARY SCHOOL",
+  "city": "Garanyemba village",
+  "activities": 0
+ },
+ {
+  "lead_id": "039ba574-6ef8-4246-b0ac-9f4d217d3d8b",
+  "school_id": "6392c4d8-0255-4e5a-901c-a51a3d013ab6",
+  "name": "J.Z MOYO HIGH SCHOOL",
+  "city": "near West Nicholson",
+  "activities": 0
+ },
+ {
+  "lead_id": "3a26caab-cf8c-4e76-8c45-f33083bedce9",
+  "school_id": "8547e98b-4179-46c8-a8cd-2b306dd43417",
+  "name": "KWALU SECONDARY SCHOOL",
+  "city": "Tshamnangana village",
+  "activities": 0
+ },
+ {
+  "lead_id": "96591987-a9e8-4767-a5db-adb8f4b7d256",
+  "school_id": "93a3da20-aa1c-4006-999f-9d896518b467",
+  "name": "LUBHANGWE HIGH SCHOOL",
+  "city": "Maphisa (Kezi)",
+  "activities": 0
+ },
+ {
+  "lead_id": "24d5f143-4c79-4e1e-ba15-ef31ff0b387f",
+  "school_id": "b3da4664-5c20-4fdf-a434-01207676acfc",
+  "name": "LUBUZE HIGH SCHOOL",
+  "city": "West Nicholson area",
+  "activities": 0
+ },
+ {
+  "lead_id": "947f1bb1-ed3d-44b8-af2d-3b98671be7e8",
+  "school_id": "1a570c02-76e9-456f-a4b9-9b8bee6ef6bf",
+  "name": "LUSHONKWE HIGH SCHOOL",
+  "city": "Gwanda",
+  "activities": 0
+ },
+ {
+  "lead_id": "a9618c75-84ab-4e34-90be-d637ae333a03",
+  "school_id": "9596b766-d2e7-4750-a62d-990d4670a899",
+  "name": "MALUNGUDZI HIGH SCHOOL",
+  "city": "Village 52, Chief Matibe",
+  "activities": 0
+ },
+ {
+  "lead_id": "4ee066fc-f267-4724-9d44-17abf72f96de",
+  "school_id": "80d9432a-b72a-4742-8493-1284072c8eb7",
+  "name": "MAWABENI HIGH SCHOOL",
+  "city": "Mbalabala, Esigodini",
+  "activities": 0
+ },
+ {
+  "lead_id": "21a32d59-5742-4497-a9a4-2e256e60be86",
+  "school_id": "4fe1af65-f5b3-49cc-9b3b-9b194f5e223a",
+  "name": "MLOMOTSHA SECONDARY SCHOOL",
+  "city": "Tshalimbe village",
+  "activities": 0
+ },
+ {
+  "lead_id": "35e3b6ae-1cf0-4c4a-a9f7-11c2ce9df3b5",
+  "school_id": "76781a7e-deb3-48f3-bcaa-dfc9cbca91db",
+  "name": "MQABUKO SECONDARY SCHOOL",
+  "city": "Gwanda",
+  "activities": 0
+ },
+ {
+  "lead_id": "7f9ac5fc-357f-4cdf-831e-809719bf9ef6",
+  "school_id": "550810bd-da91-4c03-9aae-92c703fd7671",
+  "name": "MZINGWANE HIGH SCHOOL",
+  "city": "Esigodini",
+  "activities": 0
+ },
+ {
+  "lead_id": "24e14d82-6214-4ddd-9759-e06cce68c729",
+  "school_id": "2e6f5edc-a71e-48f2-9a43-e49bb90f4a7d",
+  "name": "TOKWANA HIGH SCHOOL",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "09ed45e9-59b8-462d-85ec-db23eb21eb7c",
+  "school_id": "e2a326c2-45ed-4e16-85db-1febb3a59353",
+  "name": "DIKILI HIGH SCHOOL",
+  "city": "Tsholotsho",
+  "activities": 0
+ },
+ {
+  "lead_id": "49439c2c-fbee-4e09-9103-254e2067eac1",
+  "school_id": "983992a2-a596-4138-9763-0ec76250c5a7",
+  "name": "DON BOSCO SECONDARY SCHOOL",
+  "city": "Hwange",
+  "activities": 0
+ },
+ {
+  "lead_id": "809900e8-2c7d-4939-98aa-296fa63eb78f",
+  "school_id": "35cdaea6-9854-4dc3-a5e9-4a7854eb0ea8",
+  "name": "GEBHUZA HIGH SCHOOL",
+  "city": "Hwange",
+  "activities": 0
+ },
+ {
+  "lead_id": "8a2b5419-b16f-4804-94e1-53d119fa2177",
+  "school_id": "fd63370a-e2f5-4846-8f02-dfe7e1e14ce7",
+  "name": "GEORGE SILUNDIKA HIGH SCHOOL",
+  "city": "Nyamandlovu",
+  "activities": 0
+ },
+ {
+  "lead_id": "64e187b3-6e96-4acf-83e9-be721f68cba7",
+  "school_id": "b42cadc6-5e56-4bd6-92a0-273cc77a21ef",
+  "name": "JIBAJIBA SECONDARY SCHOOL",
+  "city": "Lupane",
+  "activities": 0
+ },
+ {
+  "lead_id": "e96d13bb-970f-4788-8407-d22aeafb9c16",
+  "school_id": "12692301-9839-4949-8403-8798aa4853fc",
+  "name": "KAPANE SECONDARY SCHOOL",
+  "city": "Tsholotsho",
+  "activities": 0
+ },
+ {
+  "lead_id": "efcaf70b-000d-43cf-b2f6-1ed7fdfc56c3",
+  "school_id": "bcbf2036-bd52-467d-adee-0be6f97abf17",
+  "name": "LESEDI SECONDARY SCHOOL",
+  "city": "Ntabayengwe (near Victoria Falls)",
+  "activities": 0
+ },
+ {
+  "lead_id": "630d8ba5-8681-43dd-9719-5ffdcfaff13e",
+  "school_id": "ada129a7-23a1-46df-a1ec-3896401b93d1",
+  "name": "LUBU SECONDARY SCHOOL",
+  "city": "Binga",
+  "activities": 0
+ },
+ {
+  "lead_id": "f65d4969-9f6f-47e9-b217-bf85df058dfb",
+  "school_id": "d8cace08-50b4-4643-8f43-4655cd4e2acf",
+  "name": "LUSULU HIGH SCHOOL",
+  "city": "Lusulu",
+  "activities": 0
+ },
+ {
+  "lead_id": "fb80af5a-8867-4d8c-8f9f-d2976d698533",
+  "school_id": "e1daa5cd-6e0a-4118-a255-a6d844dd6a3d",
+  "name": "MADLELENYONI SECONDARY SCHOOL",
+  "city": "Ntabazinduna",
+  "activities": 0
+ },
+ {
+  "lead_id": "c14c591e-b2eb-44a3-80b3-900e5238384a",
+  "school_id": "10405a99-5e0b-40a3-be34-c23925574d02",
+  "name": "MATEME SECONDARY SCHOOL",
+  "city": "Manguni Sibangani Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "a9405e8a-ad3e-4545-b24c-be4a5727d817",
+  "school_id": "d64089bd-2d8e-4250-bf9d-acde61b72bd9",
+  "name": "MKHOSANA ADVENTIST SECONDARY SCHOOL",
+  "city": "Victoria Falls",
+  "activities": 0
+ },
+ {
+  "lead_id": "c3ec3af4-bce8-4f9b-81ff-4926e2405b48",
+  "school_id": "ac77e5c0-ac33-4a88-8fb2-0587b9e7ce21",
+  "name": "MUCHESU SECONDARY SCHOOL",
+  "city": "Binga",
+  "activities": 0
+ },
+ {
+  "lead_id": "0d370f3c-c002-4aee-abd7-2276042a6f9a",
+  "school_id": "514e1487-ec81-43da-a1c6-5e236ff0e694",
+  "name": "NAKALUBA SECONDARY",
+  "city": "Nakaluba (near Lusulu)",
+  "activities": 0
+ },
+ {
+  "lead_id": "6c89d50c-871d-4841-afc4-a47e72f334a1",
+  "school_id": "4658d20f-7517-4eab-9306-4b1ce73aefb0",
+  "name": "NHLAMBABALOYI SECONDARY SCHOOL",
+  "city": "Ntabazinduna",
+  "activities": 0
+ },
+ {
+  "lead_id": "53c0a62c-750f-4d54-8a03-90cc81625fde",
+  "school_id": "fd92da5f-6bcd-4791-837b-354445300e6c",
+  "name": "NYAMANDLOVU SECONDARY SCHOOL",
+  "city": "Nyamandhlovu",
+  "activities": 0
+ },
+ {
+  "lead_id": "eb72ac2f-e9c1-4cc7-8ac6-d4f5ed98d4a6",
+  "school_id": "c4557463-566a-48b3-97e5-3b317aa6be0e",
+  "name": "SABA SECONDARY SCHOOL",
+  "city": "Saba",
+  "activities": 0
+ },
+ {
+  "lead_id": "fd50aaf1-bcfc-4755-83bb-5974b6ec1995",
+  "school_id": "54175273-884a-493d-aaee-1b36a217a9e4",
+  "name": "SAWMILLS SECONDARY SCHOOL",
+  "city": "Sawmills",
+  "activities": 0
+ },
+ {
+  "lead_id": "98be0c3a-2dc8-47cc-b1b5-f80d11a2792e",
+  "school_id": "18c6ec17-f96a-492f-a3b8-587e80c6b75b",
+  "name": "SOJINI HIGH SCHOOL",
+  "city": "Kombo",
+  "activities": 0
+ },
+ {
+  "lead_id": "b7a0dc16-32a8-4232-8ea9-897e01d290c0",
+  "school_id": "affa2038-98b2-4df6-ac9a-831b05f72cd5",
+  "name": "SOMVUBU HIGH SCHOOL",
+  "city": "Bubi",
+  "activities": 0
+ },
+ {
+  "lead_id": "0f60a1af-c02f-4204-9082-e89db39c4922",
+  "school_id": "6551c288-e94a-4d82-bef5-2a94e09b5aa1",
+  "name": "CHEBVUTE SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "73f205f3-8999-400c-9db6-f7d2d9d6a99f",
+  "school_id": "14a2ac13-f342-4d17-8ace-43bee7ebb9a6",
+  "name": "CHEMIMWE HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "742e47f5-783d-4f7b-a0bd-4c3215a6e5cb",
+  "school_id": "8c446202-5280-4202-988d-5ff261f2ecf1",
+  "name": "GONAWAPOTERA HIGH SCHOOL",
+  "city": "Chaka",
+  "activities": 0
+ },
+ {
+  "lead_id": "9c0f56b2-07d5-4d54-9650-3d1ab628556a",
+  "school_id": "573a5429-e308-4835-99ef-0ffc5ac9ecfe",
+  "name": "GUNUNYU HIGH SCHOOL",
+  "city": "Gokwe North",
+  "activities": 0
+ },
+ {
+  "lead_id": "64216b23-a3bc-429b-a0de-83779381211a",
+  "school_id": "79cf5425-f5ac-450e-8178-61a9585e591c",
+  "name": "GURUVA HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "ff6cf047-ba0f-489a-9710-a5da68e89947",
+  "school_id": "cf41a87d-14f9-4ae7-aecb-68fcfa3e3ed6",
+  "name": "GWAMURE HIGH SCHOOL",
+  "city": "Gokwe South",
+  "activities": 0
+ },
+ {
+  "lead_id": "048963c6-7b40-415b-ba9f-06062361fba3",
+  "school_id": "563dea11-b399-4593-91ea-924ba97600b2",
+  "name": "MABIKA HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "04457501-fa47-4152-8348-24218d0f96d2",
+  "school_id": "e78090c7-5d87-4b50-abb1-5b73c4f12a51",
+  "name": "MABOLENI HIGH SCHOOL",
+  "city": "Lower Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "7853053f-2964-4018-a15b-f45ebde28043",
+  "school_id": "eac738f7-96c3-4a10-a4af-5416ae5bf1ba",
+  "name": "MAKULAMBILI SECONDARY SCHOOL",
+  "city": "Sogwala",
+  "activities": 0
+ },
+ {
+  "lead_id": "127c8434-34a3-47a1-95c9-e08068759014",
+  "school_id": "f78913e0-ffc9-4942-813d-f15e7924a95d",
+  "name": "MARINGAMBIZI SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "769a2697-b104-440c-9107-abb1c538e6e3",
+  "school_id": "fed90fa8-a027-4427-8da9-e20af124847a",
+  "name": "MASHAME SECONDARY SCHOOL",
+  "city": "Gokwe North",
+  "activities": 0
+ },
+ {
+  "lead_id": "1ab5a0a9-42ad-4941-b5f2-75caea4f30df",
+  "school_id": "cd5c5325-b44e-4777-8282-29f4dbf15b5c",
+  "name": "MATABO SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "4b6b667b-f481-4bce-b84f-4bd75787b092",
+  "school_id": "31db89e9-ca8b-4f4d-adc0-395809c7c52f",
+  "name": "MBOVHANA SECONDARY SCHOOL",
+  "city": "Gokwe North",
+  "activities": 0
+ },
+ {
+  "lead_id": "660ab3ba-7f1a-4b6d-99af-9943033126fc",
+  "school_id": "ddfd2081-d47f-4c06-861a-e38a7d4299fc",
+  "name": "MBUYANEHANDA HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "9f4b92c2-e893-4b46-98ef-111d13c6c542",
+  "school_id": "cade5a99-dc02-4dd7-bead-5ed63a614b95",
+  "name": "MPOSI HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "c9088ba9-3556-4b2b-b1f9-f97b4315dfaf",
+  "school_id": "7e1bed05-0213-4363-af4f-0dc25c2b9fc5",
+  "name": "MUSIKAVANHU SECONDARY SCHOOL",
+  "city": "Gokwe North",
+  "activities": 0
+ },
+ {
+  "lead_id": "c3ad36d8-7c77-42d1-a7d3-f90afcb76181",
+  "school_id": "8205d347-eb61-43b4-8feb-1627ef64f235",
+  "name": "MUSUME HIGH SCHOOL",
+  "city": "Musume Mission",
+  "activities": 0
+ },
+ {
+  "lead_id": "d2f7d044-3783-4426-be00-179312b7d39a",
+  "school_id": "e8cd79dc-48fc-49b4-828b-fe48348c48bd",
+  "name": "NTABAMHLOPHE SECONDARY SCHOOL",
+  "city": "Lower Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "f3f842f9-e229-4fb1-a4b9-ffaadd4b8c52",
+  "school_id": "135fbf8a-30ee-4c72-a765-99928596c82b",
+  "name": "RUZENGWE SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "08d71f97-42b5-4d15-a298-140741ee2c90",
+  "school_id": "f85cf858-a820-40f4-8072-9ba6fb93b400",
+  "name": "SIBOMVU SECONDARY SCHOOL",
+  "city": "Lower Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "4667bee7-9b48-467e-8bd0-dc6359d236a8",
+  "school_id": "6ccfd3e5-f8b4-4b82-91b9-e9dc5e8284c0",
+  "name": "SIKOMBINGO ADVENTIST HIGGH SCHOOL",
+  "city": "Lower Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "cd037e68-91b8-409a-9d35-e5bc00ee0585",
+  "school_id": "760bbef3-0d88-407e-b806-cb3cbeac81a0",
+  "name": "THORNHILL HIGH SCHOOL",
+  "city": "Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "259f185d-b1ee-4423-b954-e61314e40eea",
+  "school_id": "9ce270ed-46f4-4a74-843f-10fbaefde059",
+  "name": "VUBWE HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "9996c51e-c101-4db5-8229-3f8fc687b807",
+  "school_id": "008825c9-165e-4c94-b635-eaeb616be11b",
+  "name": "VUNGU SECONDARY SCHOOL",
+  "city": "Lower Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "5e168465-fdf5-4e66-868d-4b7aaf84aa40",
+  "school_id": "79718e8e-e89b-420c-a522-4e5790a4bdff",
+  "name": "VURASHA HIGH SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "0e11c1ab-fbef-4ae4-b8eb-7a11118e69c7",
+  "school_id": "adadc3d5-e888-47a7-9ee3-04c6c6171738",
+  "name": "VURASHA SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "6b492407-fbb8-4ad8-84fa-66f10f336165",
+  "school_id": "ceccddab-e537-4723-b5ca-0c61df6d3e8d",
+  "name": "VURONGA SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "dba1af2f-d34b-4118-912d-ce2c22b9cadb",
+  "school_id": "3814b883-5764-4a82-af84-21bc4e0fcbbf",
+  "name": "ZVAMAGWIRO SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "45fe8ed9-95f4-472f-8c91-85c767a2a8b0",
+  "school_id": "45dc8a99-88b1-494b-8ece-512d2c818df4",
+  "name": "ZVAMANWIRO SECONDARY SCHOOL",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "7d4262be-03c8-4035-8162-aeda46b7d9cb",
+  "school_id": "93252983-7332-4ffd-b12a-6f3101a7194a",
+  "name": "ZVOMUKONDE HIGH SCHOOL",
+  "city": "Gweru",
+  "activities": 0
+ },
+ {
+  "lead_id": "f71dff9a-32e6-48ab-82cf-2a1fb6d81e75",
+  "school_id": "93bd8603-5c26-44db-aff9-2a1c524bfe51",
+  "name": "AVHUNGA SECONDARY SCHOOL",
+  "city": "Mwenezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "a2bd667d-b327-42f3-b217-a3968cae43c3",
+  "school_id": "f8665349-78d8-4c46-984f-1687308745d6",
+  "name": "BWANYA SECONDARY SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "dca3a7b0-4aa3-4ff5-ba1c-e67b8196a3a4",
+  "school_id": "91a8072d-e375-43f2-ad94-749e7425c112",
+  "name": "CHAMASVINGA SECONDARY SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "47234b4b-14f0-424b-ae61-35ffe23a89a4",
+  "school_id": "c498e3cc-7841-4a4c-8fbb-9a4d3c5ae628",
+  "name": "CHARINGENO SECONDARY SCHOOL",
+  "city": "Zaka",
+  "activities": 0
+ },
+ {
+  "lead_id": "07bd00ba-3b7c-444e-afb4-cbe17d0887d2",
+  "school_id": "5cd1f547-0a23-40c5-a442-e5ed5bdb420e",
+  "name": "CHATIKOBO HIGH SCHOOL",
+  "city": "Gutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "8efbf81f-4a0b-4423-bce2-70ab855269e7",
+  "school_id": "cea1099b-221a-4acd-a839-e5a7a24e369d",
+  "name": "CHEKAI SECONDARY SCHOOL",
+  "city": "Mutenda Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "96e16f8d-fd37-4ed5-8ea0-56b8fe228676",
+  "school_id": "3ed8d13b-9fd9-40f1-8b6a-3b7ed051ed08",
+  "name": "CHESVINGO SECONDARY SCHOOL",
+  "city": "Gutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "06f5cd1a-4407-4681-9411-b274c7923d65",
+  "school_id": "4ba44f6f-97b8-4d57-b2e1-5c6f4d5e928c",
+  "name": "CHIKWIRIRE SECONDARY SCHOOL",
+  "city": "Chiredzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "bb5ade69-5ab7-4403-90c9-ab989ad04be9",
+  "school_id": "85c5bb38-4d71-43f7-aca1-8751b17deaec",
+  "name": "CHIMBWEMBWE SECONDARY SCHOOL",
+  "city": "Zivenge Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "5539fe83-6208-49ea-abed-ea6a61012c87",
+  "school_id": "756d96bf-d463-4407-a788-190a4a32e29c",
+  "name": "CHINGELE SECONDARY SCHOOL",
+  "city": "Chiredzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "359fb97c-7f92-4020-a7f9-867ad0421dab",
+  "school_id": "f19e30a6-7308-4a0a-b726-6644b17bd2bf",
+  "name": "CHIWANZA SECONDARY SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "a71a8f55-4327-484f-af5b-7631f6d5193c",
+  "school_id": "ac6ba6ff-17c9-404c-a309-d7189820d5dc",
+  "name": "CHIWAWA SDA SECONDARY SCHOOL",
+  "city": "Masvingo",
+  "activities": 0
+ },
+ {
+  "lead_id": "2b3d4c9c-916c-48c5-9993-1b28f6f673a0",
+  "school_id": "981794fa-916a-4452-83bb-dfb8db0f6700",
+  "name": "CHONGOGWE HIGH SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "e1e84a59-3262-4e33-9b74-ce70c87e969d",
+  "school_id": "08bec9cf-8e31-4b2f-964f-1008456f344e",
+  "name": "DANHAMOMBE HIGH SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "c87a9b3c-99c1-453e-bcb8-b277007b22b3",
+  "school_id": "49987d2e-45df-4e54-bb0e-2cd4734563c9",
+  "name": "DENGENYA SECONDARY SCHOOL",
+  "city": "Mwenezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "fecb7f14-d176-44d0-b08b-59a9f0dbd554",
+  "school_id": "b6ab2f66-4625-47a4-a86c-cea79a31cd6d",
+  "name": "DOMBOSHAVA SECONDARY SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "2b790be8-304b-4478-97c6-64f3a17fc429",
+  "school_id": "74472a40-1f01-4855-b49c-ab931483afc0",
+  "name": "DZORO HIGH SCHOOL",
+  "city": "Zaka",
+  "activities": 0
+ },
+ {
+  "lead_id": "c89e2a10-26ff-42c9-a62c-6af4bf059da9",
+  "school_id": "d0a48acc-4042-4b56-a586-1f8783fc89cc",
+  "name": "GUTU HIGH SCHOOL",
+  "city": "Gutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "6b00f3fc-8527-4009-9bff-30a12076a6dd",
+  "school_id": "d6a6cc2b-5be7-48dd-b9e4-9a563caf3c21",
+  "name": "HEBRON HIGH SCHOOL",
+  "city": "Mwenezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "b8ea9bcf-cea8-498f-83a4-b05ea84c6118",
+  "school_id": "f526378f-de8d-4275-9a40-df349cd90d8f",
+  "name": "JAKA SECONDARY SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "131a1de4-4178-4304-93ae-56f1455531b9",
+  "school_id": "dc3c5d10-b1bf-4f46-9b0b-6965372d2d15",
+  "name": "JICHIDZA HIGH SCHOOL",
+  "city": "Zaka",
+  "activities": 0
+ },
+ {
+  "lead_id": "60e42405-498d-4f31-bb00-f5fa6435894b",
+  "school_id": "f19bf58d-adc9-439c-b042-83759e481a53",
+  "name": "M. HUGO HIGH SCHOOL",
+  "city": "Masvingo",
+  "activities": 0
+ },
+ {
+  "lead_id": "e55a14bf-cb4b-415c-b93d-93fe93d6e18d",
+  "school_id": "3da7c72d-eedb-4364-9cec-e3fc2853922d",
+  "name": "MAGURA HIGH SCHOOL",
+  "city": "Zaka",
+  "activities": 0
+ },
+ {
+  "lead_id": "9939e7a6-30eb-4d99-8f28-8ebb7bcd471c",
+  "school_id": "c6263fda-37b7-4009-a456-902842f3b5ef",
+  "name": "MAKONI SECONDARY SCHOOL",
+  "city": "Masvingo",
+  "activities": 0
+ },
+ {
+  "lead_id": "2f20dff8-c5ae-40da-829d-5039c757e9eb",
+  "school_id": "1dca25cc-31b0-4cfb-95c0-b53893b0bc3f",
+  "name": "MASOGWE BAPTIST HIGH SCHOOL",
+  "city": "Mwenezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "41c914ff-d652-486b-8206-6f8c6ba68e11",
+  "school_id": "0e60547c-bb21-4a48-8b69-95d7483ea305",
+  "name": "MATARUSE SECONDARY SCHOOL",
+  "city": "Gutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "84a58c59-95e1-43f2-90ac-49d17397da7c",
+  "school_id": "0b16486f-1a94-4572-ab72-31b6dfd38dae",
+  "name": "MFULA SECONDARY SCHOOL",
+  "city": "Mwenezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "453a5971-2a27-439c-aef8-99eaa4ca8fca",
+  "school_id": "209aa819-a629-459d-8a04-8d90694548f9",
+  "name": "MUCHEKE HIGH SCHOOL",
+  "city": "Masvingo",
+  "activities": 0
+ },
+ {
+  "lead_id": "4ec435f3-58b8-432e-a8fd-80c2947f34c4",
+  "school_id": "98cffbe8-2fb9-4f38-909a-ecd0576f4295",
+  "name": "MUSHAVIRI SECONDARY SCHOOL",
+  "city": "Mushaviri Resettlement Area",
+  "activities": 0
+ },
+ {
+  "lead_id": "8ad1cee6-58be-41f0-a48b-817737f90353",
+  "school_id": "528de21d-7da7-487a-bfba-6965784e18d2",
+  "name": "NEMAUKU SECONDARY SCHOOL",
+  "city": "Nemauku",
+  "activities": 0
+ },
+ {
+  "lead_id": "852ea12d-d28c-40cf-bb35-d21db78b9a19",
+  "school_id": "32e7ac08-e76b-40c1-90f3-6ffc91102083",
+  "name": "NGUNDU HALT HIGH SCHOOL",
+  "city": "Ngundu",
+  "activities": 0
+ },
+ {
+  "lead_id": "52e94a2c-ae19-4ffe-ab4e-05de0eb5abc3",
+  "school_id": "c439baa7-87fa-4d29-8700-d999a3b41937",
+  "name": "NYAHOMBE SECONDARY SCHOOL",
+  "city": "Chivi",
+  "activities": 0
+ },
+ {
+  "lead_id": "78419208-6424-44f7-9d71-099d97876fec",
+  "school_id": "9520ae98-ab42-453d-9602-fa27c96995e1",
+  "name": "RUPARE HIGH SCHOOL",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "40c72155-598d-49dc-85d2-fd175ffa41c0",
+  "school_id": "80e736ea-cd36-4c92-88f4-161180daa8e2",
+  "name": "Dope High School",
+  "city": "Gandanzara",
+  "activities": 0
+ },
+ {
+  "lead_id": "d53d52be-087a-4197-8ab6-e95d296d4bbd",
+  "school_id": "35561292-4d18-4798-95f7-1cbbcf8dc7ca",
+  "name": "Nyarumvurwe Secondary",
+  "city": "Nyarumvurwe Resettlement",
+  "activities": 0
+ },
+ {
+  "lead_id": "7c448404-4881-4929-8981-3f08524c0f73",
+  "school_id": "b02a6036-0eb6-40f5-908d-28f9298dbfa1",
+  "name": "Mt Zonwe Secondary",
+  "city": "Mutanda",
+  "activities": 0
+ },
+ {
+  "lead_id": "c4ac8174-2b61-40d3-997c-6d5aa4fa1a20",
+  "school_id": "e23a3eb3-0e97-4511-a179-fcc0c6c6d851",
+  "name": "Claremonnt Secondary",
+  "city": "Nyanga",
+  "activities": 0
+ },
+ {
+  "lead_id": "8703f255-f8b9-4e64-9367-8586b14da19f",
+  "school_id": "5dfed5fe-9fb0-4a00-9ace-43fc78dad343",
+  "name": "Zurara Secondary",
+  "city": "Neshena Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "7e336a15-d751-4a6d-a752-850b8d9bfe1c",
+  "school_id": "7b38d9c3-1088-4189-a9d2-8c3a86ae2b69",
+  "name": "Mhakwe High",
+  "city": "Chayamiti",
+  "activities": 0
+ },
+ {
+  "lead_id": "8770d009-76fc-4e70-b97d-9e203115e2f8",
+  "school_id": "9febfab6-ddbe-4107-8b96-6bd03281f433",
+  "name": "Nyarwizi Secondary",
+  "city": "Svikiro Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "4f1ffea1-0d87-4f77-adff-991eff1e0296",
+  "school_id": "7d40b4be-86b5-436b-915d-3590ad6cf4c9",
+  "name": "Nuatate High schhol",
+  "city": "Nyatate",
+  "activities": 0
+ },
+ {
+  "lead_id": "6cc0c07b-0519-4651-af12-c6f120af4604",
+  "school_id": "8ac16319-9d8c-434e-8a5b-f60d4a464eb3",
+  "name": "Shundure High",
+  "city": "Shundure 3 Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "aa009099-f7d8-48e1-90e3-f6312b358a98",
+  "school_id": "d2e4bb4d-42ca-4683-80b6-c567d85d8f4b",
+  "name": "Chikwariro High School",
+  "city": "Chikwariro Village, Marange",
+  "activities": 0
+ },
+ {
+  "lead_id": "071f3c75-c9fb-4066-9db8-aa4aac4b3d10",
+  "school_id": "89aa9c2b-97d1-4714-933e-3e3cf8c3cec2",
+  "name": "Mutsvangwa Secondary",
+  "city": "Mamboza Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "d3391fdb-3a27-4a0f-ba70-4f9f28ccf056",
+  "school_id": "9b3c27f0-8eca-4b2f-a16a-cbead836c2a1",
+  "name": "Marange High School",
+  "city": "Marange (Odzi)",
+  "activities": 0
+ },
+ {
+  "lead_id": "db90306b-40bf-4f00-a406-434270e4cb9a",
+  "school_id": "d6a8ef08-10e6-4b38-ae16-0961ea946cd2",
+  "name": "Nyashanu High",
+  "city": "Murambinda",
+  "activities": 0
+ },
+ {
+  "lead_id": "dcbdce12-ced8-4057-be1c-a7c873f4eee2",
+  "school_id": "69f1ab8f-bd34-4397-8143-b65a3adeadb7",
+  "name": "Zambara Secondary",
+  "city": "Mufusire Resettlement",
+  "activities": 0
+ },
+ {
+  "lead_id": "5d63a8dd-ff91-4139-b739-7d14ae93a184",
+  "school_id": "4978d8f1-5321-4268-9f4f-3ff8f650a1ed",
+  "name": "Gosho Secondary",
+  "city": "Sojini Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "d792b71f-277d-4f5d-8152-5dce00b969c3",
+  "school_id": "69cf7c07-0e3e-4875-9f0a-dde3a91b16f9",
+  "name": "Mudza,iri Secondary",
+  "city": "Huchu Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "59dea018-bd9a-4c78-977c-6ab86a663946",
+  "school_id": "f19a4e4e-a08a-4e62-9519-93f6eccda331",
+  "name": "Tsikada Secondary",
+  "city": "Rusape (Chinhenga)",
+  "activities": 0
+ },
+ {
+  "lead_id": "60441bcf-e768-4e3f-bd02-35c085b09422",
+  "school_id": "8aea9b59-b92c-4d0e-8e89-86125d8ac04a",
+  "name": "Nyarwidzi Secondary",
+  "city": "Svikiro Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "9fada479-e434-4050-973d-3397c08c7a1e",
+  "school_id": "639d6d7b-b542-4f1e-b2df-d9857660a922",
+  "name": "STAugustine",
+  "city": "Penhalonga",
+  "activities": 0
+ },
+ {
+  "lead_id": "8e719daf-6163-4650-b5b8-79d10eb0912b",
+  "school_id": "a88b54c2-8c43-484d-8c32-3a13dfbe561a",
+  "name": "Bemitiwa Secondary School",
+  "city": "Mutare",
+  "activities": 0
+ },
+ {
+  "lead_id": "748d6aa8-8956-4856-9e03-d328e96992a3",
+  "school_id": "0572a229-6c63-4250-9962-037c4495d1da",
+  "name": "Sherenje Secondary School",
+  "city": "Makoni",
+  "activities": 0
+ },
+ {
+  "lead_id": "568704d4-d5c0-45e2-b693-8024862a12fc",
+  "school_id": "29e9fd32-86bd-49d1-a97a-e5b8a13ca37b",
+  "name": "Kandenga Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "0afe9b59-136b-4362-a960-867c73feb1d3",
+  "school_id": "38a8be6e-50ef-4932-a28b-a5e1c17b5a7c",
+  "name": "zvembira Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "30a576dc-0e81-4d2d-8fa5-a6b1f7acb7cd",
+  "school_id": "1a798a7d-8b1a-4202-90b0-bf9743d2cfa5",
+  "name": "Bumhira Sec",
+  "city": "Nyanga",
+  "activities": 0
+ },
+ {
+  "lead_id": "8a946830-a3cd-405c-8f0f-a74db9430898",
+  "school_id": "7eb6abe0-ea07-4f50-8923-7460f93603da",
+  "name": "Mutepfe Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "632a3dbc-b849-4ad6-9d85-e3bf2c70915b",
+  "school_id": "039b9fb4-0b7f-49e5-bc9b-86fb417831c5",
+  "name": "Gwidza Secondary",
+  "city": "Makoni",
+  "activities": 0
+ },
+ {
+  "lead_id": "622f62e8-f766-42eb-bb71-029af13242a6",
+  "school_id": "1080e104-f0c4-422e-869e-b734403f8b82",
+  "name": "Rongwe High School",
+  "city": "Makoni",
+  "activities": 0
+ },
+ {
+  "lead_id": "7601a92c-020d-4077-a94f-fe6ad6eea1f6",
+  "school_id": "d75ac152-65bf-4cd3-b9df-109372980614",
+  "name": "Kanyimo Secondaey",
+  "city": "Nyanga",
+  "activities": 0
+ },
+ {
+  "lead_id": "b139b9a5-1ed9-41b6-8f53-1bb50325dcf4",
+  "school_id": "5b9d2994-d54d-4a8f-8203-bd3915cfa825",
+  "name": "Chapandura Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "b2c33935-302f-4a2a-a1f7-54a2baecd75f",
+  "school_id": "0efbf5c2-ac8f-4d8d-b4ea-4705c43d3f53",
+  "name": "Nechikowa Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "393c203a-7756-4216-80f6-450efdfaf7a7",
+  "school_id": "509de1ba-ba7f-4325-b593-1e0bd3bde345",
+  "name": "Tsindi Secondary",
+  "city": "Makoni",
+  "activities": 0
+ },
+ {
+  "lead_id": "6090d7e4-fbcc-483b-9f8f-a72d27e9df63",
+  "school_id": "12b3412b-8546-45e5-8d27-c7191dcaa280",
+  "name": "chikwakwa secondary",
+  "city": "Chimanimani",
+  "activities": 0
+ },
+ {
+  "lead_id": "e9722720-6b41-48a7-82af-bf74ff2b0c26",
+  "school_id": "5b678d15-a8dd-4106-9c8c-fc18065ecabc",
+  "name": "Gwebu High",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "0e4a3030-a6ba-4e56-9234-7b27a780a57f",
+  "school_id": "eab458c8-604f-4486-8cd4-5a9c5212b8bf",
+  "name": "Chirinda High",
+  "city": "Mutare",
+  "activities": 0
+ },
+ {
+  "lead_id": "cbb1e672-173f-4500-853c-ec208223031b",
+  "school_id": "c0f207c2-3532-4396-8bef-7e429cc61a03",
+  "name": "Chinyauhwera High School",
+  "city": "Zimunya",
+  "activities": 0
+ },
+ {
+  "lead_id": "2e9b7d7a-ca7e-405c-991a-48a62b6958de",
+  "school_id": "d2b96868-fecf-4b69-a8d8-195dd8e682ba",
+  "name": "Gunura Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "5bb9a650-f676-4ecd-80a0-d79f293bdd6c",
+  "school_id": "d2b96868-fecf-4b69-a8d8-195dd8e682ba",
+  "name": "Gunura Secondary",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "145e2f84-a714-4a93-ac7d-3104a7908aee",
+  "school_id": "5122e640-b553-48b4-865f-e351ed1a5d05",
+  "name": "Mazarura High School",
+  "city": "Nyanga",
+  "activities": 0
+ },
+ {
+  "lead_id": "cfdc69f2-aa69-44d3-969a-327bfcc195fb",
+  "school_id": "a5923b68-e903-4d5e-9d4e-de12d2f730b2",
+  "name": "Gideon Mihlanga High",
+  "city": "Chipinge",
+  "activities": 0
+ },
+ {
+  "lead_id": "2639047f-410b-4bbc-bf49-56b930a7ae83",
+  "school_id": "614f1357-e7a2-4209-a7e7-17a98a6db42f",
+  "name": "Buhera High School",
+  "city": "Buhera",
+  "activities": 0
+ },
+ {
+  "lead_id": "61ed1739-8865-4791-9ac4-aa7c36fd528d",
+  "school_id": "1c701807-14dd-417c-8c80-115a26400ea8",
+  "name": "Elisegledhill High",
+  "city": "Mutare",
+  "activities": 0
+ },
+ {
+  "lead_id": "412e690c-8607-407e-81d1-45b8bc27c009",
+  "school_id": "3193596a-b8a5-45cb-9264-e4d7852f0772",
+  "name": "Nyamajura Secondary",
+  "city": "Nyamajura",
+  "activities": 0
+ },
+ {
+  "lead_id": "0ff26c87-0dbc-4f54-bf15-ee96ddc663a0",
+  "school_id": "97fd8ceb-9f3d-47d8-8a3e-f42123abeba6",
+  "name": "Anderson Secondary",
+  "city": "Mutiweshiri",
+  "activities": 0
+ },
+ {
+  "lead_id": "662ebc28-49fb-4a9c-a707-37f70ad5d6e7",
+  "school_id": "b167523c-97cb-4eaa-9856-d0622f8aa40a",
+  "name": "Beatrice High",
+  "city": "Seke",
+  "activities": 0
+ },
+ {
+  "lead_id": "f0997fc5-9c44-4ec1-a53a-6128e3ddd102",
+  "school_id": "767b803b-5f0a-4c89-8769-755e9f2fea85",
+  "name": "Bosha Secondary",
+  "city": "Goromonzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "716882e0-ec52-4305-b4ac-0865acf10500",
+  "school_id": "b30548ea-ac58-4555-a205-707e15bb2381",
+  "name": "Chabwino High",
+  "city": "Goromonzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "3815d42b-fad7-4abd-a25e-720ca6d79900",
+  "school_id": "7709eabf-8147-4f78-ab4f-dd4bd238132c",
+  "name": "Chatiza High",
+  "city": "Mutoko",
+  "activities": 0
+ },
+ {
+  "lead_id": "bfdd1770-45af-4ac1-a6f2-39f2fe0f81a5",
+  "school_id": "ef43fba1-bea3-420e-8e2b-b23dcee7e8f4",
+  "name": "Chikwidibire Secondary",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "2717be8e-e75f-48ef-981c-a856846c234b",
+  "school_id": "1a096ccf-8da5-4895-8e72-52fa4c53d308",
+  "name": "Chikwizo Secondary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "1019f52f-2fb9-4169-822a-1738713c1e97",
+  "school_id": "0c0867c1-7f24-4563-87b3-8b5e7c6716e9",
+  "name": "Chimukoko Secondary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "33bd5eee-2da4-4bb6-bb31-6aa9f71feddb",
+  "school_id": "70632969-6d04-4465-8170-1f83d66cb5ab",
+  "name": "Chipfunde Secondary",
+  "city": "Uzumba-Maramba-Pfungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "30a41813-0bb0-4926-9e73-3e977797cce1",
+  "school_id": "5503c467-7929-4d89-a41b-8ff59976d198",
+  "name": "Chisambiro Secondary",
+  "city": "Mutoko",
+  "activities": 0
+ },
+ {
+  "lead_id": "8d8b2bc8-9a15-49c7-9740-206b7f65d333",
+  "school_id": "1a544c2a-d786-40c3-8b12-f1d885f3ac38",
+  "name": "chisangano High",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "25fe855d-da0a-4782-adf9-78b089e30a93",
+  "school_id": "8afda5cd-3779-4e6c-8f9e-cde23dc101f5",
+  "name": "Chitepo Secondary",
+  "city": "Marondera",
+  "activities": 0
+ },
+ {
+  "lead_id": "f963e28b-3373-4272-b3d3-bedc7fde1d17",
+  "school_id": "85430141-8f11-4b05-bc79-8ae2a7862c24",
+  "name": "Chivenga Secondary",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "ac2406e3-8f07-483b-98e3-7bade306dd7e",
+  "school_id": "b5c81cbe-ced7-4208-adaf-f2131d059449",
+  "name": "Chiwwashira Secondary",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "a9c09733-246f-4ba4-b960-b2c1533ce34f",
+  "school_id": "e661ce29-d621-4569-a1f0-b0319992716c",
+  "name": "Dombodzvuku Secondary",
+  "city": "Murehwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "963fa034-a236-466a-acfa-35229d49ce94",
+  "school_id": "77d33200-b207-4610-947a-77663f388022",
+  "name": "Domboramavara",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "7cc7af22-bfaa-487c-b664-8f9e5e9638b2",
+  "school_id": "3bc88c9b-57bb-4a51-8940-2c861e48d747",
+  "name": "Eagle Secondary",
+  "city": "Marondera",
+  "activities": 0
+ },
+ {
+  "lead_id": "f55d8fa2-dab1-4d9e-89c0-f11337c46fa4",
+  "school_id": "c1177d23-c846-49da-a9e1-a4fbe481c04b",
+  "name": "Goromonzi Secondary",
+  "city": "Goromonzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "063aa231-dbdd-45b3-9bb1-2c46411dec2b",
+  "school_id": "199ef9f1-afe2-4cb8-aa32-37c701970278",
+  "name": "Govere Secondary",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "b9b660cd-c365-4c17-8277-91177e08fbce",
+  "school_id": "8e75dd7d-79ad-449b-b206-580234739c2a",
+  "name": "Gozi Secondary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "bc18bda2-59af-4c43-8e33-57869cc9fa28",
+  "school_id": "e2705d3e-d514-4c5e-b65c-5c755e3a7245",
+  "name": "Guruuswa Secondary",
+  "city": "Hwedza",
+  "activities": 0
+ },
+ {
+  "lead_id": "ef262c87-cdbe-45ac-b924-8dc24156a1d5",
+  "school_id": "4b78b22a-6a86-4cb7-8187-e9835eaa5c45",
+  "name": "Guyu Secondary",
+  "city": "Uzumba-Maramba-Pfungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "eae1f860-8454-475c-bb27-d79bf21435dd",
+  "school_id": "564110c6-a5f8-45a1-9bbb-407cf6eee6ca",
+  "name": "Hanwa Secondary",
+  "city": "Murehwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "d6f6b6d6-1645-4712-984a-12af68f6c2d5",
+  "school_id": "521cce50-da85-4e73-b20b-c56ba64c9597",
+  "name": "Holy Spirit Ruzane Secondary",
+  "city": "Hwedza",
+  "activities": 0
+ },
+ {
+  "lead_id": "af254d51-51c9-4ed8-af44-06d2cb0c5f94",
+  "school_id": "9d2fa4a7-40eb-4063-b090-82a4b4721e13",
+  "name": "Katsande Secondary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "7cf3aca4-ef93-46cf-8423-44be1d5057b8",
+  "school_id": "2ce02f57-d62a-4989-83af-16884656c366",
+  "name": "Kotwa High",
+  "city": "Kotwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "e7fbbe05-fd36-44f0-bab6-4adf447f387b",
+  "school_id": "04821a5c-00ff-4a10-9e98-01d281219387",
+  "name": "Liebenberg High",
+  "city": "Chivhu",
+  "activities": 0
+ },
+ {
+  "lead_id": "8014f42f-e0cb-4e58-9a15-df6db5e25c0c",
+  "school_id": "e8e9f2e9-8238-4ccc-b893-13ed0b74ddf5",
+  "name": "Mahusvu Secondary",
+  "city": "Chivhu",
+  "activities": 0
+ },
+ {
+  "lead_id": "1b082a25-ef10-4d99-87d2-f4e87fc44737",
+  "school_id": "84fa804e-553e-4ec4-a1c5-91af63c1f994",
+  "name": "Manyene Secondary",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "d1d0234f-b5bc-436d-bd7b-022d390ff2b9",
+  "school_id": "3aaa6a11-9e12-4daa-a658-1a943f24e4fb",
+  "name": "Mapombo High",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "615fddd2-fb5e-4954-8f53-f0b75d0350db",
+  "school_id": "fbd0f7df-3d93-4593-bc3b-37a718d55881",
+  "name": "Marikopo Secondary",
+  "city": "Seke",
+  "activities": 0
+ },
+ {
+  "lead_id": "32c12b70-0ba6-4c9e-a1f1-9e9c0aa12219",
+  "school_id": "613d2600-1a71-45ef-b64b-6fd7555f50df",
+  "name": "Masasa Secodary",
+  "city": "Masasa Resettlement Ward 18",
+  "activities": 0
+ },
+ {
+  "lead_id": "2d184ce1-fde3-4b27-adfb-23e29f7119d2",
+  "school_id": "282c5ff8-188b-4333-b81e-e2c899829c4d",
+  "name": "Mhari High",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "4f4fe45b-6ba0-46cb-b532-631853328c7d",
+  "school_id": "b905f406-5b4f-4863-93dd-c6495212fb05",
+  "name": "Morris Secondary",
+  "city": "Uzumba-Maramba-Pfungwe (UMP)",
+  "activities": 0
+ },
+ {
+  "lead_id": "7af712da-a5cc-4e89-85e1-693c09576206",
+  "school_id": "132134ea-15dc-4834-8a67-ce28ed49eba8",
+  "name": "MUREHWA DISTRICT",
+  "city": "Murehwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "cb5f77a1-a29b-4eb7-96cc-f3b2a1fcd959",
+  "school_id": "15016792-cb3b-4bdc-bdb3-fc35e5d9c29f",
+  "name": "Mutanhaurwa",
+  "city": "Goromonzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "0ca37e66-7fa0-44cc-9283-32e767a07c0d",
+  "school_id": "d102e53e-2b6a-41c8-a36f-50595e707f3e",
+  "name": "Muvande Secondary",
+  "city": "Seke",
+  "activities": 0
+ },
+ {
+  "lead_id": "d5931839-4a9c-4bde-8ca6-6027b45eb5b6",
+  "school_id": "2a387153-98df-48f6-9e07-dbdbeea0c860",
+  "name": "Naglehouse",
+  "city": "Marondera",
+  "activities": 0
+ },
+ {
+  "lead_id": "a9040bbd-aec7-49cd-8921-6dde18608abb",
+  "school_id": "ea25a1e6-4e02-4750-a258-7c78c9066172",
+  "name": "Nyahuni Adventist High",
+  "city": "Murehwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "268e4744-2bc3-4103-af20-f77c5d3e6495",
+  "school_id": "cc7999a1-07b4-4e56-864e-497f4781997f",
+  "name": "Nyamapanda Seconary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "a01d0181-0216-46e8-9a7b-598e31fa7a46",
+  "school_id": "e5ba8855-ebbf-449e-a077-4b87cbf4f6ef",
+  "name": "Nyamashato Secondary",
+  "city": "Murehwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "849f4f22-080a-4e31-855d-23734d188bba",
+  "school_id": "aa7dc3ba-210e-411e-ade6-cb629dfab9d2",
+  "name": "Nyamukoho Secondary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "c7fed5d0-a87c-4ac1-b506-4738a0fddf6a",
+  "school_id": "4f8fad36-d562-4f5d-a80d-7cc7e734026d",
+  "name": "Parirewa High",
+  "city": "Goromonzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "c888243f-512a-42d1-929d-8399d4913b16",
+  "school_id": "21f21dfc-c9f5-40d2-a03a-e4baba6ac98d",
+  "name": "Rwamba Secondary",
+  "city": "Mudzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "ea69f085-aa42-4c98-ba59-51f9edb16c7a",
+  "school_id": "f0eacb99-b04b-4ed5-bd91-8d02470f3183",
+  "name": "Sadza Secondary",
+  "city": "Chikomba",
+  "activities": 0
+ },
+ {
+  "lead_id": "3243e243-069a-421b-b348-e307a1cf02ec",
+  "school_id": "b3fe6cb4-e93a-492c-85ad-3fd0c0f79db7",
+  "name": "SEKE DISTRICT",
+  "city": "Seke",
+  "activities": 0
+ },
+ {
+  "lead_id": "427023fb-b512-486e-89ed-bbb47ec2866e",
+  "school_id": "8b589be6-f803-4904-a5e2-7449eb7e9e48",
+  "name": "Shamu Secondary",
+  "city": "Murehwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "332fd957-3bab-4418-b910-d9d5c160b755",
+  "school_id": "2d4f7594-c486-4684-8792-f36d1a592da1",
+  "name": "St Hughs Ushewekunzi Sec",
+  "city": "Seke",
+  "activities": 0
+ },
+ {
+  "lead_id": "3b52aa04-b735-43f6-a504-d2066a8c6480",
+  "school_id": "6dfe9bb2-c1c0-408f-805c-b709daef3651",
+  "name": "St Marys Makanda Sec",
+  "city": "Hwedza",
+  "activities": 0
+ },
+ {
+  "lead_id": "5be57222-18a7-44b5-9962-a286d2a2af0c",
+  "school_id": "2b05afaa-22f3-48ad-94f3-25f6be1a59f8",
+  "name": "St Pauls Sango Secondary",
+  "city": "Hwedza",
+  "activities": 0
+ },
+ {
+  "lead_id": "510da1f5-2dc2-49bb-9206-d4331bc0a818",
+  "school_id": "a3ea8cef-7fa5-4b50-a15b-fddd1079beaa",
+  "name": "St Peter Makwarimba Secondary",
+  "city": "Hwedza",
+  "activities": 0
+ },
+ {
+  "lead_id": "4d8d045b-02e1-49b7-8c09-5daae2c29840",
+  "school_id": "b04538ee-f803-4a0c-b0c5-7142c9ff81d7",
+  "name": "St Vincent Secondary",
+  "city": "Goromonzi",
+  "activities": 0
+ },
+ {
+  "lead_id": "6b18e78d-69b4-41e8-a98d-8cb9a407075b",
+  "school_id": "d8e82ffa-f001-4073-9142-8b05ea3bdbd4",
+  "name": "Karigamombe Secondary",
+  "city": "Zvimba",
+  "activities": 0
+ },
+ {
+  "lead_id": "a4a876c0-967c-469d-a961-5e07185deffe",
+  "school_id": "17f6809b-4d47-41fb-a9d9-34f8ad536a5f",
+  "name": "Kudzanai Secondary",
+  "city": "Kariba",
+  "activities": 0
+ },
+ {
+  "lead_id": "db02f1e9-c6c6-4351-a7b8-2c71fe9804fd",
+  "school_id": "d249088b-eabb-47fa-ae86-82aeeb26f81d",
+  "name": "Chiedza Karoi High",
+  "city": "Karoi",
+  "activities": 0
+ },
+ {
+  "lead_id": "36435843-3aa4-4b64-9f68-a3dc5702d4b6",
+  "school_id": "f6c196ab-8bf1-49d0-8157-0c05b69dd0ef",
+  "name": "Mauya High",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "a66a70c3-bc57-4637-87c7-c477f1b4833e",
+  "school_id": "31bede6b-8ac9-4007-8c67-b90ba016e7c4",
+  "name": "Urume Secondary",
+  "city": "Makonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "cadff6e2-8d8e-4bd1-b0b0-53d0abea575f",
+  "school_id": "3b2aa678-4d90-4825-8af9-3db9ac9123dc",
+  "name": "Zebra Downs Secondary",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "dd0647d7-43d9-485d-bada-c5f9a4c08bfa",
+  "school_id": "dfc09f71-ad1e-4727-ad60-5e01e6e7552c",
+  "name": "Marere Secondary",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "e77f559a-af5c-400f-a65a-011fe7e65a78",
+  "school_id": "86a50b00-d985-4861-9501-e01df4f6ba0b",
+  "name": "Lynx Secondary",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "99b1c570-ca85-46d5-bd72-1c3a4267d6a2",
+  "school_id": "246d5e87-015f-45d6-a377-8c8cb4f13176",
+  "name": "Royden Secondary",
+  "city": "Zvimba",
+  "activities": 0
+ },
+ {
+  "lead_id": "0b1792ff-5469-4b9c-ac0a-7f733f152f76",
+  "school_id": "ad705cda-28b2-41e1-9fa9-30e489d17c27",
+  "name": "Mutsonzowa Secondary",
+  "city": "Zvimba",
+  "activities": 0
+ },
+ {
+  "lead_id": "51397bfb-a20d-401d-842b-acec711232c4",
+  "school_id": "83a07ab7-b7c1-48a1-840e-bd556048e4e9",
+  "name": "Rimuka 2 High",
+  "city": "Kadoma",
+  "activities": 0
+ },
+ {
+  "lead_id": "eb4f872f-9ae9-449a-a54f-489d4e56a839",
+  "school_id": "e1666ca9-6d5d-4578-b45c-840fd21321ca",
+  "name": "Dalny High",
+  "city": "Chakari",
+  "activities": 0
+ },
+ {
+  "lead_id": "5e85d0a3-71ba-408b-8ce2-708c883ff62f",
+  "school_id": "12261519-eecd-4104-8ad7-71d1d56c8f54",
+  "name": "Chinove Secondary",
+  "city": "Mhondoro-Ngezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "37470610-d810-4670-82ce-a0b4dc53f112",
+  "school_id": "a3b2e07c-0194-4058-83e3-4c8991efee5e",
+  "name": "Ponderosa Secondary",
+  "city": "Makonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "8f4b9e93-37b6-46ba-88e6-14099c5b60f6",
+  "school_id": "9eff4ead-da35-489d-bc8d-4668f1dcb860",
+  "name": "Vimbai High",
+  "city": "Norton",
+  "activities": 0
+ },
+ {
+  "lead_id": "3961e590-386a-4e7e-9284-5e4f9d08fae9",
+  "school_id": "d4cd9628-0abf-441c-a90b-f796ed3938c7",
+  "name": "Nyamatani Secondary",
+  "city": "Sanyati",
+  "activities": 0
+ },
+ {
+  "lead_id": "e263cab7-2ff1-426c-a653-5486066e7bac",
+  "school_id": "cf1746d7-4626-4e3c-a0ea-f15f311d66a9",
+  "name": "Mopani Park Secondary",
+  "city": "Sanyati",
+  "activities": 0
+ },
+ {
+  "lead_id": "b2f17cff-bfd7-4211-81fd-9c3e86758a94",
+  "school_id": "86e378d3-7159-4295-9396-24a6379849b0",
+  "name": "Maysma Secondary",
+  "city": "Makonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "0c19d70b-e308-46df-9d4f-c684449bca3e",
+  "school_id": "e9812d7b-5313-4078-a2a9-1753f517d5e7",
+  "name": "Zowa High",
+  "city": "Marevanani Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "7722435c-8180-4093-abb4-4dca08b8ebd2",
+  "school_id": "6feee496-1830-47f5-9a90-b0f69624d3d0",
+  "name": "Trelawney Secondary",
+  "city": "Zvimba",
+  "activities": 0
+ },
+ {
+  "lead_id": "c35171bd-be5d-4c4f-9e10-219737dc2a16",
+  "school_id": "3412325c-3fa9-40bb-becf-d082a751973c",
+  "name": "Mucheki Secondary",
+  "city": "Sanyati",
+  "activities": 0
+ },
+ {
+  "lead_id": "eeab0b16-5d62-4cda-8e02-41045a765a40",
+  "school_id": "5f9d4421-9943-424a-8e87-b1f945b4afa8",
+  "name": "Ngezi Barracks High",
+  "city": "Mhondoro-Ngezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "8d64800b-84ae-498a-86eb-72e6c81ec2f3",
+  "school_id": "6b152820-eb68-4eab-84b4-e343b6cdbd50",
+  "name": "Denderedzi Secondary",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "0eb6bccc-4586-4c5c-a670-d2b0dc47f623",
+  "school_id": "2813974e-6535-46ea-a001-5eb2cb653e34",
+  "name": "Tawstock Secondary",
+  "city": "Sanyati",
+  "activities": 0
+ },
+ {
+  "lead_id": "5f4cfe90-bd9b-4571-a64f-24ed343d0d95",
+  "school_id": "fd85ec8f-d9fb-46c0-b5d4-bc0a5522b941",
+  "name": "Junction Adventist",
+  "city": "Chegutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "b88be50d-7f20-4420-9192-21743ca1d7a6",
+  "school_id": "d0558a9d-1817-4dc3-81ce-aa5b54b87ee0",
+  "name": "Magogi Secondary",
+  "city": "Makonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "bce49432-4031-4e9e-925d-2d933e6f30f6",
+  "school_id": "c318b006-fa1c-42c3-a0e4-81482bc5b1ee",
+  "name": "Inyati Secondary",
+  "city": "Makonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "8eb633b0-2c7d-4f33-9b71-a71ada69d6c3",
+  "school_id": "336ae756-8833-4459-b15d-4f2bc9b7f6f6",
+  "name": "David Guzuzu high",
+  "city": "Mhondoro-Ngezi",
+  "activities": 0
+ },
+ {
+  "lead_id": "28cb81c2-fbd7-4182-88c7-2ce7b126f87a",
+  "school_id": "234fb585-c817-48ba-9479-838b52d0b86b",
+  "name": "Nyatsanga Secondary",
+  "city": "Chegutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "cd7f60b3-1938-459d-9a26-5a2e667003be",
+  "school_id": "fb43279d-36d5-4919-bca6-6653d53a801a",
+  "name": "Chifundi secindary",
+  "city": "Makonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "a6cc08a7-e48d-4dd6-b92f-2007cd386e5f",
+  "school_id": "451c8b56-0a2c-43b2-bc82-6e86eecb86eb",
+  "name": "Masiyarwa High",
+  "city": "Darwendale",
+  "activities": 0
+ },
+ {
+  "lead_id": "2ab49e5e-d9c1-41ee-b4c7-1e1cc14a4f02",
+  "school_id": "ad4aed1d-7b04-403f-852f-9e7c5a8584b4",
+  "name": "Kazangarare High",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "75140654-f517-482a-be18-2a8e04c820c0",
+  "school_id": "b6a833e4-3b8b-4525-9937-653b23c7e565",
+  "name": "Chipfuko Secondary",
+  "city": "Hurungwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "6efcc5b9-ce61-4b9d-9b6f-8a0206f6fd93",
+  "school_id": "889add98-f0e7-41c1-b94d-aae7a69df030",
+  "name": "Bungwe Srcondary",
+  "city": "Rushinga",
+  "activities": 0
+ },
+ {
+  "lead_id": "7e91e9db-548e-472d-a5f1-e17827a1228b",
+  "school_id": "b6d6c27e-d767-4851-8076-f4f8cdc86027",
+  "name": "Caesar Mine Secondary",
+  "city": "Mvurwi",
+  "activities": 0
+ },
+ {
+  "lead_id": "0628b3ab-7bc4-476d-aef4-b493c466aca8",
+  "school_id": "23019924-4803-4f7f-aa74-76090f0fba3e",
+  "name": "Chawanda High",
+  "city": "Mt Darwin",
+  "activities": 0
+ },
+ {
+  "lead_id": "9a2b66ac-f16a-4d26-89ed-c8ff74441b58",
+  "school_id": "372e6f13-f5b7-4ebe-91ab-7805d89911d3",
+  "name": "Chimurenga 3 Secondary",
+  "city": "Mazowe",
+  "activities": 0
+ },
+ {
+  "lead_id": "7c29231d-e06a-416b-abb3-ae4a987cd7c6",
+  "school_id": "c027fa4a-240e-4cad-9c40-d4de827cf9ba",
+  "name": "Gee Jay Secondary",
+  "city": "Muzarabani",
+  "activities": 0
+ },
+ {
+  "lead_id": "88d58a8b-1a4d-4cbc-9c2e-c3fe3de2fa6e",
+  "school_id": "58165c77-0fce-4aa7-b363-2b14a5246e7e",
+  "name": "Gwangwava High",
+  "city": "Rushinga",
+  "activities": 0
+ },
+ {
+  "lead_id": "49269f70-c0f3-4bf7-8d49-752f84d9447b",
+  "school_id": "d86ca77e-f607-4e27-a521-784978f04bed",
+  "name": "Kadzi Secondary",
+  "city": "Mbire",
+  "activities": 0
+ },
+ {
+  "lead_id": "2546c128-b69c-479f-88f5-c2b805a2b1d3",
+  "school_id": "dcb11152-7430-4ca2-933d-9eccd4ebee70",
+  "name": "Kugotsi Secondary",
+  "city": "Guruve",
+  "activities": 0
+ },
+ {
+  "lead_id": "87009bbf-aa2a-45c2-842b-5906b413ee9d",
+  "school_id": "2f8067e5-97d5-44ca-8300-6b389c14b6bf",
+  "name": "Kundayi High",
+  "city": "Mazowe",
+  "activities": 0
+ },
+ {
+  "lead_id": "6d2fb7a3-07ce-4818-bf96-bcd9d8872234",
+  "school_id": "c7d3e7f8-b0f1-4c52-a69e-b015125fc4a7",
+  "name": "Mahuwe High",
+  "city": "Mahuwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "9a87f017-3575-42a1-a48a-61d014048447",
+  "school_id": "3f0891d7-bd7f-4e00-8589-74553297e067",
+  "name": "Marongwe Secondary",
+  "city": "Mazowe",
+  "activities": 0
+ },
+ {
+  "lead_id": "66539137-ef1f-4c0e-be3d-ea116659e0a1",
+  "school_id": "8269ab12-1f47-446c-9c49-9c7c247fa1ef",
+  "name": "Mbari Secondary",
+  "city": "Mvurwi",
+  "activities": 0
+ },
+ {
+  "lead_id": "78c82e32-5bd9-48d5-a95e-5f8a6f4a035f",
+  "school_id": "b038d048-ddfb-4a29-af90-ef52eb96f326",
+  "name": "Mhokore Secondary",
+  "city": "Shamva",
+  "activities": 0
+ },
+ {
+  "lead_id": "a2bfa68d-6246-4d76-98ec-092150a478de",
+  "school_id": "50096173-6f9d-459a-8cd6-cded147efc63",
+  "name": "Mupfurudzi Secondary",
+  "city": "Shamva",
+  "activities": 0
+ },
+ {
+  "lead_id": "4a99063e-f5fb-4fcf-9b2b-d5b412e37440",
+  "school_id": "0fdc8108-6e65-40ea-a46d-fb3ba66d44c2",
+  "name": "Mutondwe School",
+  "city": "Mt Darwin",
+  "activities": 0
+ },
+ {
+  "lead_id": "b47c0c5f-5351-49a5-955b-a2ae5d5a20c0",
+  "school_id": "18906c43-1aaf-4810-a3f9-f64b432e9931",
+  "name": "Mvurwi High",
+  "city": "Mvurwi",
+  "activities": 0
+ },
+ {
+  "lead_id": "b17518dc-7ab6-4078-bb59-9412601f3140",
+  "school_id": "6b8fef0c-3bf3-4611-ac17-acd336755d34",
+  "name": "Nyamuseve Secodary",
+  "city": "Guruve",
+  "activities": 0
+ },
+ {
+  "lead_id": "12d0b7bc-a967-42c7-a818-8d720521eef9",
+  "school_id": "0c1ca3d2-bc7b-4fde-8ab4-b2017cd81a12",
+  "name": "Nyanhunzi Seconadry",
+  "city": "Guruve",
+  "activities": 0
+ },
+ {
+  "lead_id": "4d8022a9-1604-4d04-980a-6ce080e97e10",
+  "school_id": "6d5ecb81-f44b-4324-afad-99cce12ccc69",
+  "name": "Soma Secondary",
+  "city": "Shamva",
+  "activities": 0
+ },
+ {
+  "lead_id": "215df4d6-e742-42f7-b40e-1d399716a7ff",
+  "school_id": "6b280de6-e7d5-44e1-9409-83ccdb268148",
+  "name": "Tabex Secondary",
+  "city": "Mt Darwin",
+  "activities": 0
+ },
+ {
+  "lead_id": "435ca3f8-3a54-4a4b-8f8b-5e9428826c4b",
+  "school_id": "babb7f7b-b684-4504-894f-997b35e75758",
+  "name": "Wadzanai High",
+  "city": "Shamva",
+  "activities": 0
+ },
+ {
+  "lead_id": "69ba0b59-2e01-46da-85a9-279ffe93899b",
+  "school_id": "c94a9c8e-1efe-4c35-a40f-a6590a498cc8",
+  "name": "Wayerera High",
+  "city": "Bindura",
+  "activities": 0
+ },
+ {
+  "lead_id": "dfd7987b-f7e2-4966-b3d7-cba9a0c70812",
+  "school_id": "8c1b5add-f2dd-490a-b407-4b24b8f5cbed",
+  "name": "Whaddon Chase Secondary",
+  "city": "Mazowe",
+  "activities": 0
+ },
+ {
+  "lead_id": "ab23b035-711b-48a7-978c-d82d99a160fd",
+  "school_id": "42144f1a-11c5-4c84-ba89-f49bfe8f05dd",
+  "name": "Makikuwa Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "c9f87fd3-d1a8-40c5-a386-bec97a0f215b",
+  "school_id": "d5a0f4d2-c0b6-40f5-a086-c8dc0b1e2265",
+  "name": "Msakorokoro Secondary School",
+  "city": "Makorokoro",
+  "activities": 0
+ },
+ {
+  "lead_id": "0178ffb6-f38d-4380-b7d9-c90bc5c9f704",
+  "school_id": "f784860c-48c0-4ebd-942f-70fef8f20133",
+  "name": "Nhwali High School",
+  "city": "Hwali (Nhwali)",
+  "activities": 0
+ },
+ {
+  "lead_id": "968362b9-a321-4c75-82a3-cd298448f641",
+  "school_id": "91d28472-abf1-4231-bc32-f8a7f681c0f9",
+  "name": "Ntalale High Secondary School",
+  "city": "Ntalale",
+  "activities": 0
+ },
+ {
+  "lead_id": "ae806cb8-b8ff-40c6-b970-121baeacefe7",
+  "school_id": "5461048b-d766-4af1-8d5e-2cae0b378080",
+  "name": "Sibhata Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a4841817-ccbb-43b5-a306-ec81b48a88e2",
+  "school_id": "13fdb96f-e726-4db5-8866-8097b181a34c",
+  "name": "Siwazi High School",
+  "city": "Insiza",
+  "activities": 0
+ },
+ {
+  "lead_id": "774a280f-0262-40ce-b656-f73d6c7c8fa5",
+  "school_id": "4a4ca166-5da5-4a0f-b22d-7903ea8ae68e",
+  "name": "Solusi Adventist High School",
+  "city": "Solusi / Figtree",
+  "activities": 0
+ },
+ {
+  "lead_id": "e53263e8-5ef1-4125-b6e4-d922a519d9c8",
+  "school_id": "e765023c-6fd0-46b3-820a-bacfe13d63f6",
+  "name": "Tahangana Secondary School",
+  "city": "Madzibembulu Village (Nguwayana Ward 14)",
+  "activities": 0
+ },
+ {
+  "lead_id": "8e891ff9-0787-486f-94d5-e6fe1f38de7f",
+  "school_id": "098e7290-4a9c-4523-9f18-4221e7edb8e9",
+  "name": "Tongwe High School",
+  "city": "Beitbridge",
+  "activities": 0
+ },
+ {
+  "lead_id": "8dc632d9-536b-48ab-a4db-85c7067b0f45",
+  "school_id": "e8a5d13a-01d2-49f3-b3d9-8f6c6cc4ed43",
+  "name": "Tshanyaugwe Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "efd5f9b5-76f6-4982-87c2-139ce73d6f3b",
+  "school_id": "20b1ea08-51a2-4e1d-a22a-2c6a8b566110",
+  "name": "Valukhalo Secondary School",
+  "city": "Empandeni (Chief Tshitshi)",
+  "activities": 0
+ },
+ {
+  "lead_id": "a07c9953-df04-400c-aa9f-d97e95106e31",
+  "school_id": "cfc7eede-a16c-43c4-a4f9-f9f4886e1eb0",
+  "name": "Ntalale Secondary School",
+  "city": "Ntalale",
+  "activities": 0
+ },
+ {
+  "lead_id": "b842c8cb-efd2-4591-b74e-2cb4c0d3ef23",
+  "school_id": "0b3e9fd1-1d94-4e63-8c72-abb87096bf9b",
+  "name": "AMR Convent High School",
+  "city": "Lupane",
+  "activities": 0
+ },
+ {
+  "lead_id": "29d11818-0789-4c96-9f9b-d5f88a3ed299",
+  "school_id": "f61a2ce2-ecb5-4271-853a-ecda9edaf6cd",
+  "name": "Bembesi Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "e311c3dc-9f6c-460e-bddf-021eacb2ec5e",
+  "school_id": "792ffdb3-2889-4b36-b834-2320ea3d068a",
+  "name": "Chibila Adventist Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "942b2c6b-57d7-475b-92bb-722f2563c5e9",
+  "school_id": "ca6c3e0c-0fb8-492a-977c-9b5b34337732",
+  "name": "Chinonge Secondary School",
+  "city": "Binga",
+  "activities": 0
+ },
+ {
+  "lead_id": "f08f7489-a397-49e2-a1ab-5d187d3a9b81",
+  "school_id": "5a645abe-5530-4d56-b6e0-ed1c3ced0194",
+  "name": "Chipale Secondary School",
+  "city": "Sinamagonde",
+  "activities": 0
+ },
+ {
+  "lead_id": "689fef9b-08f2-436b-9cc6-04a480f37a92",
+  "school_id": "e0b15759-904d-47b1-9c84-668c5bfced9f",
+  "name": "Mnondo Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "4d5e61f2-d42e-497c-a199-73dd54ebbd6b",
+  "school_id": "b6c9a090-7ab8-46fd-bcdd-aeedc10d19ee",
+  "name": "RCZ Manyanda Secondary School",
+  "city": "Manyanda",
+  "activities": 0
+ },
+ {
+  "lead_id": "9d24cca0-06b2-481d-bc74-0df98c726fbf",
+  "school_id": "d0847764-a35b-45e3-9bf7-ffebcfadecf4",
+  "name": "Samende Secondary School",
+  "city": "Siabuwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "5c759c7f-b9a6-45cd-a7af-06f0baecbf3d",
+  "school_id": "d06a1ee4-85a4-491d-9d5b-807bb3ea264f",
+  "name": "Sinangengwe Secondary School",
+  "city": "Sinansengwe",
+  "activities": 0
+ },
+ {
+  "lead_id": "6694a895-3a4d-4b65-8bbb-b535befd3fea",
+  "school_id": "51fd48a9-a409-47e6-81a3-c9e767103ba7",
+  "name": "Sizinda Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a4d9ec9b-b587-44b1-b85e-1355cab58c87",
+  "school_id": "ea246b63-dcfc-45d3-8bfd-43420d61ad66",
+  "name": "Tame Secondary School",
+  "city": "Bubi Crescent",
+  "activities": 0
+ },
+ {
+  "lead_id": "4045f215-e76e-4b1e-ac71-51e0a76c03cd",
+  "school_id": "d9b71554-ce1d-4e05-bfc5-251bfd0c2a22",
+  "name": "Zambezi Secondary School",
+  "city": "Zumanana",
+  "activities": 0
+ },
+ {
+  "lead_id": "d89afdca-3a7b-4e8a-ad06-4aca3cda6e84",
+  "school_id": "4c8ed35d-c1e7-418c-bf9c-3e15db4851dc",
+  "name": "Bayayi Secondary School",
+  "city": "Lugege",
+  "activities": 0
+ },
+ {
+  "lead_id": "b44578a3-6538-4258-9f30-f0064a2b79ed",
+  "school_id": "115d9f47-3606-42a2-b9ba-f0d358324271",
+  "name": "Bonstead Secondary School",
+  "city": "Sessombi",
+  "activities": 0
+ },
+ {
+  "lead_id": "f87cd5bc-8dfa-44d1-a17b-1e1ace446c2b",
+  "school_id": "2e5a8133-5d74-43e9-b72f-2c84dd697f98",
+  "name": "Chibhuku Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "c0e41bc7-8554-44fa-a7e5-2c85121d50d7",
+  "school_id": "41d15ebb-e19b-449a-924f-0604603f565a",
+  "name": "Chikeya High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "90e0d504-bd7c-474f-8d3c-d7c9007d2039",
+  "school_id": "df01b726-fcb8-46e7-95ca-5f9614dc49f8",
+  "name": "Chivona Secondary School",
+  "city": "Mhende",
+  "activities": 0
+ },
+ {
+  "lead_id": "e805af9a-b73c-4008-80cb-08d572f9b390",
+  "school_id": "d4bda6d7-3c18-455c-a32d-7e6649ac34da",
+  "name": "Chovurach Secondary School",
+  "city": "Ntolongo",
+  "activities": 0
+ },
+ {
+  "lead_id": "4b8586f6-8379-4a96-ba32-b26ba9a6dfb4",
+  "school_id": "d486a0ee-de94-4069-91e0-1e2a88042f51",
+  "name": "Chushuku Secondary School",
+  "city": "Chishuku",
+  "activities": 0
+ },
+ {
+  "lead_id": "0d18bd90-f6f6-4979-b250-e3dc4174b7d9",
+  "school_id": "a53136a9-9482-4c72-8803-3bfa1587866b",
+  "name": "Defe High School",
+  "city": "Defe",
+  "activities": 0
+ },
+ {
+  "lead_id": "2f1c0449-9251-4e8d-8e78-eea907caf35c",
+  "school_id": "662260b5-caa6-4f3c-a385-f8b2dcf2aefa",
+  "name": "Dorset Secondary School",
+  "city": "Dorset",
+  "activities": 0
+ },
+ {
+  "lead_id": "eaa1ba5e-e2e5-4e4b-bb73-db7e4343ebd6",
+  "school_id": "a76e2018-28bf-453b-993a-00180cff1f1f",
+  "name": "Kaguwe Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "209e8a39-4b8c-4503-a167-27a029849400",
+  "school_id": "da45ad61-e2cf-4b21-a8e6-593c8b27745b",
+  "name": "Manzinyama Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a13f4e41-3617-4c3c-806f-50046d590ea0",
+  "school_id": "86408be8-314a-4725-a823-fc5b374c67c0",
+  "name": "Mbungu Secondary School",
+  "city": "Masocha",
+  "activities": 0
+ },
+ {
+  "lead_id": "98111bee-a339-4750-9f9e-41c6f24e6161",
+  "school_id": "2e3da461-4f22-4914-84cf-adcacb919728",
+  "name": "Mpadashaya High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "abc7990a-c36e-4d8a-8563-883f5287020c",
+  "school_id": "d3cf5c10-9e21-469f-b48c-6eb35bf82340",
+  "name": "Mpandashango High School",
+  "city": "Mberengwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "01397d9e-d592-4953-9800-e825f4c67c8b",
+  "school_id": "9d839698-699c-4922-bb07-1d1d658128b7",
+  "name": "Mtshingwe Platinum High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "87af1878-2886-418d-b084-7315576949a1",
+  "school_id": "b61660c6-d400-4aef-a92c-990f6551bd17",
+  "name": "Ndlamatulu Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "cfcc3353-4ffe-4ac1-8fac-d99a18e178b1",
+  "school_id": "b10704b9-e0b1-4b23-98ff-d59da82de8ab",
+  "name": "Norah Secondary School",
+  "city": "Gokwe North",
+  "activities": 0
+ },
+ {
+  "lead_id": "7bc510b6-4cc0-4590-aa64-79af33841823",
+  "school_id": "60428283-6940-4c1e-b002-2b325276783f",
+  "name": "Sawirangwanda Secondary School",
+  "city": "J. Jojo Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "cad180fa-5460-4547-9b66-c677cba58b07",
+  "school_id": "0ac6efc5-8b47-40af-bda3-5750a81ec631",
+  "name": "Svibe High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "f9e4df55-6c42-4b4e-a727-c31e8f437a07",
+  "school_id": "526522ad-c539-41ea-9dd5-9a9c9d89c280",
+  "name": "Zvavashe Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "01a3de3e-8336-4b92-b73b-94e8daff9194",
+  "school_id": "4faf3e32-c26c-4027-829d-6885f97f3b5b",
+  "name": "Chatworth Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "50b4e2fa-721a-4892-88c8-adb7d26d4611",
+  "school_id": "52bc2c8e-f1f1-4c0f-b807-b103fb7852cb",
+  "name": "Cheninga Hiwa Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "5410eb0c-fd61-460a-996b-53718f791fa7",
+  "school_id": "9bfd1aa0-c2e5-430b-830c-7da2e0349407",
+  "name": "Chitovo Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "c54e8664-d83f-47cc-8568-231ee13e6332",
+  "school_id": "b948537d-7804-4438-8943-19d72a21fd3d",
+  "name": "Chiwanumba High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "8436d0c1-72d5-48c4-ad4b-763b818bac92",
+  "school_id": "e30217de-b1c4-494f-8147-5a2e5a8f4797",
+  "name": "Domborembawa High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "e4cad9ba-356b-4772-aa18-0608a75fbc97",
+  "school_id": "da450d1c-ebdf-4e86-8167-6aadd6cb55e4",
+  "name": "Justin Chauke Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a87f5baa-004d-4598-88f4-0971721e339e",
+  "school_id": "a006270e-20df-44b2-9783-f4302e9a06a6",
+  "name": "Machingambi High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "46ea4f4d-85ee-4e21-8f55-aa3a96a495fa",
+  "school_id": "4b060030-09cc-41cd-9b99-6c05a52b17b1",
+  "name": "Madangamombe Gvt High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "5dbe51cd-dfa3-4ebc-b94c-22bd431dee68",
+  "school_id": "e282f2b7-72a9-4cfb-96bf-11a383dff60c",
+  "name": "Murere Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "14504f59-6633-4432-a56d-e049514c9aab",
+  "school_id": "e282f2b7-72a9-4cfb-96bf-11a383dff60c",
+  "name": "Murere Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "da4c8e2c-60d1-4724-ab3f-140d5bd15183",
+  "school_id": "19f52a2b-8324-4185-b082-e1ddb76e7c3a",
+  "name": "Musenyereku High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "27866e6e-e744-4b85-8219-a3ba0b1ba253",
+  "school_id": "e4d1253a-83ed-436e-9cf3-481d50f293ba",
+  "name": "Mushungwa Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a3fa0c92-adbc-4c40-941d-95a5af54452e",
+  "school_id": "191088c0-a965-4052-b872-0eea893ab264",
+  "name": "Mutangi Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "ebd4b035-9d2f-477d-ad39-581061cd9c1a",
+  "school_id": "3255f293-5b03-42d8-a03b-325b7d7f7eb5",
+  "name": "Nerupiri High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "716880b8-e3a7-4d54-b92d-949ad3c8ac61",
+  "school_id": "8cb2fff3-c110-452d-a7bd-381b9cd4998e",
+  "name": "Neshuro High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a7cc2e33-4649-4b5d-8378-c632ac8799d6",
+  "school_id": "2e8e6dd5-0dff-45b5-a438-8556a51649e9",
+  "name": "Pfungidzo High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "f8f79f88-fe7c-47e5-a2cb-ff2af3934179",
+  "school_id": "b34f72da-d898-4117-b583-51b00c15d9ba",
+  "name": "Rambakutemwa Secondary School",
+  "city": "Masvingo",
+  "activities": 0
+ },
+ {
+  "lead_id": "5a32ffbe-1902-4ccf-a953-802697e23a2c",
+  "school_id": "382bb7bf-7e6d-4df5-bc42-ccf2d8e69896",
+  "name": "Rumizha Secondary Scchool",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "e5025a50-e3b5-4b10-b0fd-0f75e157e597",
+  "school_id": "fca96957-457e-4edc-90a0-5baeae4be6f9",
+  "name": "Rupiri Mukosi High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "84731720-17f0-48ae-9a66-63f63fe4c9e0",
+  "school_id": "7052cc11-0293-4876-aff9-a83a4e6efea3",
+  "name": "Sabert High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "503d81c3-ebab-4cbc-858e-c6996859b554",
+  "school_id": "2bf36d7f-d68e-43a1-8747-8fd8e08912fb",
+  "name": "Sagewari Secondary School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a878a610-0ce1-49d8-a28f-d0129e4e855a",
+  "school_id": "0023317c-a288-4960-8b36-5c6ef936afa1",
+  "name": "Shindi Secondary School",
+  "city": "Shindi Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "a6982c08-78f6-4deb-a139-3fcd9d236d11",
+  "school_id": "49b8afb3-6d52-4409-81ea-d543d91fa621",
+  "name": "St Stanislaus Secondary School",
+  "city": "Masvingo",
+  "activities": 0
+ },
+ {
+  "lead_id": "33788612-fa8e-428d-89ab-218a0f951870",
+  "school_id": "fef5c5f2-9632-415d-a0bb-5c531d8bf74d",
+  "name": "Tereraire High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "a60d0f3e-d6f4-4d43-bd3f-bc8be74dd3ea",
+  "school_id": "e83f34c9-ba67-4553-82c1-fefa8eb4cb48",
+  "name": "Tungamirai High School",
+  "city": "Gutu",
+  "activities": 0
+ },
+ {
+  "lead_id": "46ca0a58-6a9a-48c6-a197-60dcdb2daef8",
+  "school_id": "7acc1845-5e98-4768-b8cc-5502bcbea6a8",
+  "name": "Wondedzo Secondary School",
+  "city": "Wondedzo",
+  "activities": 0
+ },
+ {
+  "lead_id": "b7e48822-fe09-4139-956e-834be88bd69a",
+  "school_id": "437d7d4c-0c2d-4fcb-a125-f19233c68d72",
+  "name": "Zivezano High School",
+  "city": "Chawa Village",
+  "activities": 0
+ },
+ {
+  "lead_id": "9599cb97-3ca7-4c01-9be7-82fe4dfc6b40",
+  "school_id": "c1d093ce-b102-467b-ab7b-10c714b811e3",
+  "name": "Makura Secondary School",
+  "city": "Makura Village, Chief Munyikwa",
+  "activities": 0
+ },
+ {
+  "lead_id": "14629359-af2a-4cdd-acc7-afb89570713f",
+  "school_id": "61eed02f-694c-4b7b-a7f9-26380110afec",
+  "name": "Dekeza High School",
+  "city": "Munjanja Village, Chief Bota",
+  "activities": 0
+ },
+ {
+  "lead_id": "99dd1bb6-042d-4924-a19a-7bb15122d60b",
+  "school_id": "83122dbb-3580-4807-8ee9-6835e64070d2",
+  "name": "Magudu Secondary School",
+  "city": "Chikunguru Village, Chief Nyajena",
+  "activities": 0
+ },
+ {
+  "lead_id": "b4430a1d-0d07-4b15-82e7-701a79384c31",
+  "school_id": "840e7d33-b30a-4fda-99a3-3f3220f4995a",
+  "name": "Masunda North Secondary School",
+  "city": "Mashava",
+  "activities": 0
+ },
+ {
+  "lead_id": "e9a894e0-f0d3-4474-9c70-452646092b48",
+  "school_id": "989a7c43-4937-4cf3-a841-29b20baad62e",
+  "name": "Zororai Secondary School",
+  "city": "Madzvivadodo",
+  "activities": 0
+ },
+ {
+  "lead_id": "9c64c0a0-19fb-45bb-934d-77f6110bf102",
+  "school_id": "f6578915-bd35-42b1-bae8-db16ca3e9fb2",
+  "name": "Allan Wilson",
+  "city": "Harare",
+  "activities": 0
+ },
+ {
+  "lead_id": "33d2c1a1-a564-4076-9eb7-bd88563c58ea",
+  "school_id": "fd7bfdfb-c711-4f9c-aade-ce3486370890",
+  "name": "Domboramusari High",
+  "city": "Epworth",
+  "activities": 0
+ },
+ {
+  "lead_id": "94e1986c-09e4-4936-8398-2838722f69ac",
+  "school_id": "a02625ef-f1a4-43cd-9988-0447a3c2f6a2",
+  "name": "Emerald Hill",
+  "city": "Harare",
+  "activities": 0
+ },
+ {
+  "lead_id": "3bcab0e0-2eec-4097-b77a-f4a0a9708512",
+  "school_id": "9b64f944-fd40-453d-a5e7-0632c40ce8db",
+  "name": "Hatcliff High",
+  "city": "Harare",
+  "activities": 0
+ },
+ {
+  "lead_id": "92e85069-751c-4c26-b484-65719111b3b8",
+  "school_id": "101a23e8-2246-43cd-864c-83f9c70dbaac",
+  "name": "Muguta Secondary",
+  "city": "Epworth",
+  "activities": 0
+ },
+ {
+  "lead_id": "7c17ea9d-cf82-4896-a666-d4e191cfd80d",
+  "school_id": "37517696-1563-4b3d-b038-aa431488b254",
+  "name": "Mukai High",
+  "city": "Harare",
+  "activities": 0
+ },
+ {
+  "lead_id": "89efdd54-821b-4fdd-ba76-6ce6ba7e9de2",
+  "school_id": "97fb4319-97e8-4545-956d-58a400ab7697",
+  "name": "Oriel Girls High",
+  "city": "Harare",
+  "activities": 0
+ },
+ {
+  "lead_id": "573a453b-f8f9-4b42-993d-8ed0b5490eb4",
+  "school_id": "44f3bfd1-793b-4b61-a0f9-72a611038313",
+  "name": "Warren Park High",
+  "city": "Harare",
+  "activities": 0
+ },
+ {
+  "lead_id": "79851f68-dda2-4da9-9ea1-d01e76201c35",
+  "school_id": "05caf0e6-8e77-4722-a3e4-9c77d830aa4a",
+  "name": "Gweru High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "25f24b32-bf31-47a3-bbb9-d2b428913381",
+  "school_id": "c1aabe8d-4cde-4ccf-93f4-f61cae39a88e",
+  "name": "Gwirundindi High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "3425966b-aab0-4948-b99b-bf9eeeb514c3",
+  "school_id": "67f12c98-9db9-4548-887d-9e4d4b798f18",
+  "name": "Meadowlands",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "6ac6e92e-8f9e-4cf7-a7a5-03408b564206",
+  "school_id": "e9f8b69c-6f61-4fc9-b11d-69a3073447d3",
+  "name": "Mweyamunene High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "077517dd-80a8-4614-beda-0713de6787ab",
+  "school_id": "87ba742a-9a24-408a-b468-42313c9c4714",
+  "name": "Shekija Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "de2f21ed-1e8c-4eb8-90c7-6fba7d1dcd14",
+  "school_id": "82a3fdb4-b7a5-469e-8dc1-49e57cc7d2da",
+  "name": "Mwazheta High School",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "85283498-9f3b-4a00-938e-4ad444d27a19",
+  "school_id": "dbf383bf-f27b-43cc-853d-e4801303bcbc",
+  "name": "Chikanya High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "d0429828-ef7d-420c-ac4a-5ffff6ce64fd",
+  "school_id": "809712d3-ebfa-4e59-b155-7fa2df2230f0",
+  "name": "Karakwi High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "6dd43a0f-98b7-4380-ad2d-e6d76597654c",
+  "school_id": "da1e4aa8-c845-4500-b15a-e89e7c646762",
+  "name": "Bemutiwa Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "76a4dcfa-8329-4458-ab49-af334c2c4b23",
+  "school_id": "62fe5b46-b50c-4cb0-a2bf-575c35c60f1b",
+  "name": "Classic Academy",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "b281868a-4a5a-4a70-84c5-19c5d7aba8ca",
+  "school_id": "3f47bef1-acd4-40bf-aaeb-b80c76076d25",
+  "name": "Glenforest Dev Centre",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "17039b06-ab0e-439c-a9cc-57a1e085231a",
+  "school_id": "edd2174d-d35d-4918-b35d-0b4a129bad52",
+  "name": "Madzivira Range High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "c9d100ad-c461-4fe7-9379-35925979e547",
+  "school_id": "26e1a9aa-f1d7-4def-88f0-b61efbfe899f",
+  "name": "Musanhi High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "027537e0-41f1-46c6-b740-3cc92d725bcc",
+  "school_id": "26e1a9aa-f1d7-4def-88f0-b61efbfe899f",
+  "name": "Musanhi High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "aada3b52-2fac-485d-ae51-b4426221a376",
+  "school_id": "99436c4a-1c1f-4aa1-a31c-45a42aafa7c3",
+  "name": "Nyanitepo",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "5ae2b86a-bf6b-4356-896a-2c1d23b7e885",
+  "school_id": "f210c2bd-f423-4246-8551-cda9da28fd8f",
+  "name": "Runyararo Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "962e2642-5014-4c2d-9bf6-94db86b76ef8",
+  "school_id": "58857466-5e7a-4644-ae03-60b8e42a81e1",
+  "name": "St Charles Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "6c19eb1f-c9d7-4c6b-ab8b-f33fc1a9f136",
+  "school_id": "13899f2c-d41e-4cd3-ab1b-19d89e12195a",
+  "name": "Kardi High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "16496fcc-ff7f-49e2-a361-0872a9c36638",
+  "school_id": "8bc83cd3-b255-45c3-9c14-106a39f628ae",
+  "name": "Mungari Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "6fb15cda-8c75-46fb-83e8-dab9fd00011b",
+  "school_id": "1b6dfdcd-cbbc-4669-9518-13cbf14b44db",
+  "name": "Nyavika Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "0d299687-0991-4f01-88d9-a93b1f0b1b6b",
+  "school_id": "37ac87fe-841f-40c0-85ff-f4e48b944ba7",
+  "name": "Masau High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "21a0e694-fd7e-4a21-8646-e76b35cd3daf",
+  "school_id": "c0ef2165-fc4f-496b-aa6d-3ba105d2555a",
+  "name": "Machaga High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "37ab60da-37f2-4670-9e3e-a75e0d7adbf3",
+  "school_id": "a3d1343f-9dd3-4c6f-9e2b-2eff1b90b01c",
+  "name": "Sanyati Government High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "b7e31e2c-7dac-412e-b7aa-63449a0a5001",
+  "school_id": "6916916a-4aa7-4e12-ba63-a7f79e6e5cdf",
+  "name": "Amevu Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "d3293fd6-8370-428e-8f0d-b67a8cc5001f",
+  "school_id": "76ae6a9e-421b-4967-88fb-f2df4eca4399",
+  "name": "Chamutukutu Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "7b47bed2-9d6b-4eb8-8333-efbd708ae318",
+  "school_id": "b717c8b3-b63e-45dd-b06f-15211e2883cb",
+  "name": "Chidikamwadzi Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "82a6b68d-3177-4100-8e98-13b2f9adeb1d",
+  "school_id": "0a7c5b19-51d3-482d-93be-ceff374ab1cc",
+  "name": "Chihuri",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "dcb7999f-4cfb-4b7c-b6b5-cad898c240dc",
+  "school_id": "5ab33dc3-decc-41ef-976c-2eae54a61f79",
+  "name": "Chirisori Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "4ed40f71-74ba-489b-b9c4-dab4e9086615",
+  "school_id": "ca06e658-c443-4c49-b525-43b20c95546c",
+  "name": "Machadondwa Secondary",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "082b63fb-6e2a-4b0f-ae5c-37a29df8d03c",
+  "school_id": "d6a8f3db-0f05-422e-b026-da7ad3813323",
+  "name": "Machanga High",
+  "city": null,
+  "activities": 0
+ },
+ {
+  "lead_id": "2a852919-cbd9-47d2-bdde-adb3b229a623",
+  "school_id": "544efc28-c8cc-4a18-8577-32f64951e1be",
+  "name": "Nyandoro Secondary",
+  "city": null,
+  "activities": 0
+ }
+]
