@@ -36,8 +36,11 @@ export class PaymentsController {
   async create(
     @Body() dto: CreatePaymentDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const payment = await this.paymentsService.create(dto, userId);
+    // C-03: a rep can only record a payment on an invoice they own.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const payment = await this.paymentsService.create(dto, userId, scopeUserId);
     return {
       success: true,
       message: 'Payment recorded successfully',

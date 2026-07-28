@@ -11,7 +11,7 @@ import {
   UseGuards,
   HttpStatus,
   ParseUUIDPipe,
-  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { subject } from '@casl/ability';
@@ -79,10 +79,18 @@ export class DealsController {
   async create(
     @Body() dto: CreateDealDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
     const userRoles = (currentUser?.roles || []).map((r) => r.name);
-    const data = await this.dealsService.createDeal(dto, userId, userRoles);
+    // DEAL-1: a rep can only convert their own lead, onto themselves.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.dealsService.createDeal(
+      dto,
+      userId,
+      userRoles,
+      scopeUserId,
+    );
     return { success: true, data, message: 'Deal created successfully' };
   }
 
@@ -94,8 +102,14 @@ export class DealsController {
   @Roles('admin', 'sales_manager', 'sales_rep')
   @ApiOperation({ summary: 'Get paginated archived (closed) deals' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Archived deals list' })
-  async getDeals(@Query() query: QueryDealsDto) {
-    const result = await this.dealsService.getDeals(query);
+  async getDeals(
+    @Query() query: QueryDealsDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // DEAL-1: reps see their own deals; managers/admins see the team's.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const result = await this.dealsService.getDeals(query, scopeUserId);
     return {
       success: true,
       data: result.items,
@@ -107,8 +121,13 @@ export class DealsController {
   @Roles('admin', 'sales_manager', 'sales_rep')
   @ApiOperation({ summary: 'Get paginated archived (closed) deals' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Archived deals list' })
-  async getArchivedDeals(@Query() query: QueryArchivedDealsDto) {
-    const result = await this.dealsService.getArchivedDeals(query);
+  async getArchivedDeals(
+    @Query() query: QueryArchivedDealsDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const result = await this.dealsService.getArchivedDeals(query, scopeUserId);
     return {
       success: true,
       data: result.items,
@@ -198,9 +217,13 @@ export class DealsController {
   @ApiOperation({ summary: 'Export deals as CSV' })
   async exportCsv(
     @Query() query: any,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Res() res: Response,
   ) {
-    const result = await this.dealsService.getDeals(query);
+    // DEAL-1: a rep's export contains their own deals only.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const result = await this.dealsService.getDeals(query, scopeUserId);
     const deals = result.items;
 
     const headers = ['Title', 'Value', 'Stage', 'Status', 'School', 'Assigned To', 'Health Score', 'Created At'];
@@ -292,15 +315,19 @@ export class DealsController {
 
     // manage:all / manage:Deal → full access (admin, sales_manager)
     // read:Deal { conditions } → ownership-scoped access (sales_rep)
+    //
+    // DEAL-1: the read check must run against THIS deal (the subject
+    // instance) — `can(READ, 'Deal')` at class level answers yes for a
+    // rep whose rule merely has conditions, which made the ownership
+    // check a no-op and let any rep open any deal. And the refusal is a
+    // 404, not a 403, so ids cannot be probed.
     const canManage =
       ability.can(Action.MANAGE, 'all' as any) ||
       ability.can(Action.MANAGE, 'Deal');
-    const canRead =
-      ability.can(Action.READ, 'Deal') ||
-      ability.can(Action.READ, subject('Deal', data as Deal));
+    const canRead = ability.can(Action.READ, subject('Deal', data as Deal));
 
     if (!canManage && !canRead) {
-      throw new ForbiddenException('You do not have access to this deal');
+      throw new NotFoundException('Deal not found');
     }
 
     return { success: true, data };
@@ -315,8 +342,14 @@ export class DealsController {
   @ApiOperation({ summary: 'Get deal health scores' })
   @ApiParam({ name: 'id', description: 'Deal UUID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Deal health scores' })
-  async getDealHealth(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.dealsService.getDealHealth(id);
+  async getDealHealth(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // DEAL-1: a rep can only read the health of their own deal.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.dealsService.getDealHealth(id, scopeUserId);
     return { success: true, data };
   }
 
@@ -335,8 +368,14 @@ export class DealsController {
   async calculateDealHealth(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const data = await this.dealsService.calculateDealHealth(id, userId);
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.dealsService.calculateDealHealth(
+      id,
+      userId,
+      scopeUserId,
+    );
     return { success: true, data, message: 'Health score calculated' };
   }
 
@@ -356,8 +395,11 @@ export class DealsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDealDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const data = await this.dealsService.update(id, dto, userId);
+    // DEAL-1: a rep can only change a deal assigned to them.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.dealsService.update(id, dto, userId, scopeUserId);
     return { success: true, data, message: 'Deal updated successfully' };
   }
 
@@ -374,8 +416,15 @@ export class DealsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDealStageDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const data = await this.dealsService.updateStage(id, dto, userId);
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.dealsService.updateStage(
+      id,
+      dto,
+      userId,
+      scopeUserId,
+    );
     return { success: true, data, message: 'Deal stage updated' };
   }
 
@@ -392,8 +441,11 @@ export class DealsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CloseDealDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const data = await this.dealsService.closeDeal(id, dto, userId);
+    // DEAL-1: only the owning rep (or a manager/admin) closes a deal.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.dealsService.closeDeal(id, dto, userId, scopeUserId);
     return {
       success: true,
       data,
@@ -425,15 +477,15 @@ export class DealsController {
     action: Action,
   ): Promise<void> {
     const deal = await this.dealsService.findDealDetails(id);
+    // DEAL-1: instance check only — the class-level can() answers yes
+    // for any rep with a conditional rule, which made this a no-op.
     const canManage =
       ability.can(Action.MANAGE, 'all' as any) ||
       ability.can(Action.MANAGE, 'Deal');
-    const canAct =
-      ability.can(action, 'Deal') ||
-      ability.can(action, subject('Deal', deal as Deal));
+    const canAct = ability.can(action, subject('Deal', deal as Deal));
 
     if (!canManage && !canAct) {
-      throw new ForbiddenException('You do not have access to this deal');
+      throw new NotFoundException('Deal not found');
     }
   }
 }

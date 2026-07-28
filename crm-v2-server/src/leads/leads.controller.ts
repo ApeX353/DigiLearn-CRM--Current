@@ -241,8 +241,16 @@ export class LeadsController {
     @Param('id') id: string,
     @Body() dto: CreateLeadStakeholderDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const stakeholder = await this.leadsService.addStakeholder(id, dto, userId);
+    // A rep can only add stakeholders to a lead assigned to them.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const stakeholder = await this.leadsService.addStakeholder(
+      id,
+      dto,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Stakeholder added successfully',
@@ -290,14 +298,18 @@ export class LeadsController {
     @Param('id') id: string,
     @Body() updateLeadDto: UpdateLeadDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
     const userRoles = (currentUser?.roles || []).map((r) => r.name);
+    // A rep can only edit a lead assigned to them.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const lead = await this.leadsService.update(
       id,
       updateLeadDto,
       userId,
       userRoles,
+      scopeUserId,
     );
     return {
       success: true,
@@ -412,8 +424,16 @@ export class LeadsController {
     @Param('id') id: string,
     @Body('status') status: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const lead = await this.leadsService.updateStatus(id, status, userId);
+    // A rep can only re-stage a lead assigned to them.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const lead = await this.leadsService.updateStatus(
+      id,
+      status,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Lead status updated successfully',

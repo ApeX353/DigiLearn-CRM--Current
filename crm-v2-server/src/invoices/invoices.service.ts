@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Like } from 'typeorm';
+import { Repository, DataSource, Like, EntityManager } from 'typeorm';
 import {
   paginate,
   Pagination,
@@ -88,12 +88,51 @@ export class InvoicesService {
   // CRUD Operations
   // ========================
 
+  /**
+   * C-03: a rep may only hang finance paperwork on their own records. A
+   * foreign id answers 404 — not 403 — so ids cannot be probed. Elevated
+   * roles pass scopeUserId=undefined and skip the check.
+   */
+  private async assertDealAttachable(
+    manager: EntityManager,
+    dealId: string,
+    scopeUserId?: string,
+  ): Promise<void> {
+    if (!scopeUserId) return;
+    const deal = await manager.findOne(Deal, { where: { id: dealId } });
+    if (!deal || deal.assigned_to !== scopeUserId) {
+      throw new NotFoundException(`Deal with ID ${dealId} not found`);
+    }
+  }
+
+  private async assertQuoteAttachable(
+    manager: EntityManager,
+    quoteId: string,
+    scopeUserId?: string,
+  ): Promise<void> {
+    if (!scopeUserId) return;
+    const quote = await manager.findOne(Quote, { where: { id: quoteId } });
+    if (!quote || quote.owner_id !== scopeUserId) {
+      throw new NotFoundException(`Quote ${quoteId} not found`);
+    }
+  }
+
   async create(
     dto: CreateInvoiceDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<InvoiceCreationResult> {
     return this.dataSource.transaction(async (manager) => {
-      const invoiceNumber = await this.generateInvoiceNumber();
+      // C-03: creating an invoice rewrites the linked deal's value and
+      // flips the linked quote to Accepted — so both links must belong
+      // to the caller when the caller is a rep.
+      if (dto.deal_id) {
+        await this.assertDealAttachable(manager, dto.deal_id, scopeUserId);
+      }
+      if (dto.quote_id) {
+        await this.assertQuoteAttachable(manager, dto.quote_id, scopeUserId);
+      }
+      const invoiceNumber = await this.generateInvoiceNumber(manager);
 
       const { items: itemDtos, interest, ...invoiceData } = dto;
       const calculatedItems = this.calculateItemTotals(itemDtos);
@@ -335,6 +374,7 @@ export class InvoicesService {
     id: string,
     dto: UpdateInvoiceDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<Invoice> {
     const invoice = await this.findOne(id);
     const oldValues = { ...invoice };
@@ -344,6 +384,15 @@ export class InvoicesService {
     }
 
     return this.dataSource.transaction(async (manager) => {
+      // C-03: the guard has authorized the invoice itself, but the body
+      // can still re-point deal_id/quote_id at somebody else's records,
+      // whose value/status this method then rewrites.
+      if (dto.deal_id && dto.deal_id !== invoice.deal_id) {
+        await this.assertDealAttachable(manager, dto.deal_id, scopeUserId);
+      }
+      if (dto.quote_id && dto.quote_id !== invoice.quote_id) {
+        await this.assertQuoteAttachable(manager, dto.quote_id, scopeUserId);
+      }
       Object.assign(invoice, dto);
       const updatedInvoice = await manager.save(Invoice, invoice);
 
@@ -506,14 +555,27 @@ export class InvoicesService {
     quoteId: string,
     userId: string,
     dealId?: string,
+    scopeUserId?: string,
   ): Promise<InvoiceCreationResult> {
     return this.dataSource.transaction(async (manager) => {
+      // Locked for the whole transaction: two simultaneous conversions of
+      // the same quote serialize here, and the second one then fails the
+      // status check below. The old system had no such lock and holds five
+      // quotes that were really converted twice — so this is done with a
+      // row lock, not a unique constraint the historical data would fail.
+      // (Only scalar columns are read from the quote, so no relations.)
       const quote = await manager.findOne(Quote, {
         where: { id: quoteId },
-        relations: ['school', 'person', 'deal'],
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!quote) {
+        throw new NotFoundException(`Quote ${quoteId} not found`);
+      }
+
+      // C-03: a rep can only convert their own quote; a foreign id
+      // answers 404 so ids cannot be probed.
+      if (scopeUserId && quote.owner_id !== scopeUserId) {
         throw new NotFoundException(`Quote ${quoteId} not found`);
       }
 
@@ -523,7 +585,21 @@ export class InvoicesService {
         );
       }
 
-      const invoiceNumber = await this.generateInvoiceNumber();
+      // Draft and Sent may convert (the previous CRM's data shows Draft
+      // conversions were the normal way of working — 42 of 56). A quote
+      // that was Rejected or has Expired may not.
+      if (quote.status === 'Rejected' || quote.status === 'Expired') {
+        throw new BadRequestException(
+          `A ${quote.status} quote cannot be converted to an invoice`,
+        );
+      }
+
+      // C-03: the optional dealId override must also belong to the caller.
+      if (dealId && !quote.deal_id) {
+        await this.assertDealAttachable(manager, dealId, scopeUserId);
+      }
+
+      const invoiceNumber = await this.generateInvoiceNumber(manager);
 
       const quoteItems = await manager.find(DocumentItem, {
         where: { document_type: 'Quote', document_id: quoteId },
@@ -927,22 +1003,34 @@ export class InvoicesService {
     });
   }
 
-  async generateInvoiceNumber(): Promise<string> {
+  /**
+   * AUD-H11. Two rules, both learned the hard way:
+   *
+   * 1. Take MAX of the numeric part, never "newest row by created_at":
+   *    Postgres freezes now() for a whole transaction, so a master and
+   *    its instalment children all share one created_at and the ordering
+   *    trick hands out the same number twice (this is why creating an
+   *    invoice with a payment plan 500'd — the old CRM ran MySQL, where
+   *    timestamps are per-statement, so the identical code worked there).
+   * 2. When inside a transaction, hold an advisory lock so two invoices
+   *    raised at the same moment cannot draw the same number.
+   */
+  async generateInvoiceNumber(manager?: EntityManager): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `INV-${year}-`;
 
-    const lastInvoice = await this.invoiceRepository.findOne({
-      where: { invoice_number: Like(`${prefix}%`) },
-      order: { created_at: 'DESC' },
-    });
-
-    let nextNumber = 1;
-    if (lastInvoice) {
-      const match = lastInvoice.invoice_number.match(/INV-\d{4}-(\d+)/);
-      if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
-      }
+    const conn = manager ?? this.invoiceRepository.manager;
+    if (manager) {
+      await manager.query(
+        "SELECT pg_advisory_xact_lock(hashtext('invoice_number'))",
+      );
     }
+    const rows: Array<{ max: number | null }> = await conn.query(
+      `SELECT MAX((substring(invoice_number from '(\\d+)$'))::int) AS max
+         FROM invoices WHERE invoice_number LIKE $1`,
+      [`${prefix}%`],
+    );
+    const nextNumber = Number(rows[0]?.max ?? 0) + 1;
 
     return `${prefix}${String(nextNumber).padStart(4, '0')}`;
   }
@@ -951,7 +1039,11 @@ export class InvoicesService {
   // Invoice Stats
   // ========================
 
-  async getInvoiceStats() {
+  /**
+   * @param scopeUserId When set (sales reps), the KPIs are computed over
+   *   the rep's own invoices only, matching what their list shows (C-03).
+   */
+  async getInvoiceStats(scopeUserId?: string) {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
@@ -959,14 +1051,17 @@ export class InvoicesService {
     const yearStart = new Date(now.getFullYear(), 0, 1);
 
     const buildStats = async (start: Date) => {
-      const rows = await this.invoiceRepository
+      const rowsQb = this.invoiceRepository
         .createQueryBuilder('i')
         .select('i.status', 'status')
         .addSelect('COUNT(*)', 'count')
         .addSelect('COALESCE(SUM(i.total), 0)', 'totalValue')
         .where('i.created_at >= :start', { start })
-        .groupBy('i.status')
-        .getRawMany();
+        .groupBy('i.status');
+      if (scopeUserId) {
+        rowsQb.andWhere('i.owner_id = :scopeUserId', { scopeUserId });
+      }
+      const rows = await rowsQb.getRawMany();
 
       // Overdue is computed by DATE, not by the `status` column — no
       // code path ever sets status='Overdue', which is why the KPI
@@ -974,7 +1069,7 @@ export class InvoicesService {
       // COALESCE(grace_due_date, due_date) < NOW(); this now matches.
       // Value = unpaid balance, and overdue stays a subset of
       // outstanding ("outstanding, of which overdue").
-      const overdueRow = await this.invoiceRepository
+      const overdueQb = this.invoiceRepository
         .createQueryBuilder('i')
         .select('COUNT(*)', 'count')
         .addSelect('COALESCE(SUM(i.total - i.amount_paid), 0)', 'value')
@@ -983,8 +1078,11 @@ export class InvoicesService {
           cancelledStatus: 'Cancelled',
         })
         .andWhere('i.payment_status != :paidStatus', { paidStatus: 'Paid' })
-        .andWhere('COALESCE(i.grace_due_date, i.due_date) < NOW()')
-        .getRawOne();
+        .andWhere('COALESCE(i.grace_due_date, i.due_date) < NOW()');
+      if (scopeUserId) {
+        overdueQb.andWhere('i.owner_id = :scopeUserId', { scopeUserId });
+      }
+      const overdueRow = await overdueQb.getRawOne();
 
       let total = 0;
       let totalValue = 0;

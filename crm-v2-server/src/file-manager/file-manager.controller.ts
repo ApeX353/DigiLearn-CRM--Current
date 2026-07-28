@@ -84,8 +84,15 @@ export class FileManagerController {
 
   @Get()
   @ApiOperation({ summary: 'List files with filters' })
-  async findAll(@Query() query: QueryFileDto) {
-    const data = await this.fileManagerService.findAll(query);
+  async findAll(
+    @Query() query: QueryFileDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // DOC-1: a rep's file list covers their own records and uploads,
+    // not every contract, PO and ID scan in the company.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.fileManagerService.findAll(query, scopeUserId);
     return {
       data: data.items,
       meta: data.meta,
@@ -97,8 +104,13 @@ export class FileManagerController {
   @Get(':id')
   @ApiOperation({ summary: 'Get file by ID' })
   @ApiParam({ name: 'id', description: 'File UUID' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.fileManagerService.findOne(id);
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.fileManagerService.findOne(id, scopeUserId);
     return { data, status: 'success' };
   }
 
@@ -113,10 +125,14 @@ export class FileManagerController {
   async findByEntity(
     @Param('entityType') entityType: FileEntityType,
     @Param('entityId') entityId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const data = await this.fileManagerService.findByEntity(
       entityType,
       entityId,
+      scopeUserId,
     );
     return { data, status: 'success' };
   }
@@ -129,13 +145,21 @@ export class FileManagerController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateFileDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const data = await this.fileManagerService.update(id, dto, userId);
+    // DOC-1: a rep can only rename files on records they can see.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.fileManagerService.update(
+      id,
+      dto,
+      userId,
+      scopeUserId,
+    );
     return { data, status: 'success' };
   }
 
 
-  // TODO - Make sure to also delete the file on vercel blob storage, 
+  // TODO - Make sure to also delete the file on vercel blob storage,
   // or whatever storage being used.
   @Delete(':id')
   @Roles('admin', 'sales_manager', 'sales_rep')
@@ -144,8 +168,11 @@ export class FileManagerController {
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    await this.fileManagerService.remove(id, userId);
+    // DOC-1: a rep can only delete files on records they can see.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    await this.fileManagerService.remove(id, userId, scopeUserId);
     return { status: 'success', message: 'File deleted' };
   }
 }

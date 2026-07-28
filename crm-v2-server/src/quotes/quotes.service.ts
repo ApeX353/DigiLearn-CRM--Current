@@ -70,12 +70,37 @@ export class QuotesService {
   // CRUD Operations
   // ========================
 
+  /**
+   * C-03: a rep may only hang finance paperwork on their own deal. A
+   * foreign deal id answers 404 — not 403 — so ids cannot be probed.
+   * Elevated roles pass scopeUserId=undefined and skip the check.
+   */
+  private async assertDealAttachable(
+    manager: EntityManager,
+    dealId: string,
+    scopeUserId?: string,
+  ): Promise<void> {
+    if (!scopeUserId) return;
+    const deal = await manager.findOne(Deal, { where: { id: dealId } });
+    if (!deal || deal.assigned_to !== scopeUserId) {
+      throw new NotFoundException(`Deal with ID ${dealId} not found`);
+    }
+  }
+
   async create(
     dto: CreateQuoteDto,
     userId: string,
     manager?: EntityManager,
+    scopeUserId?: string,
   ): Promise<Quote> {
     const run = async (transactionManager: EntityManager) => {
+      if (dto.deal_id) {
+        await this.assertDealAttachable(
+          transactionManager,
+          dto.deal_id,
+          scopeUserId,
+        );
+      }
       const quoteNumber = await this.generateQuoteNumber(transactionManager);
 
       // Calculate totals from items
@@ -279,6 +304,7 @@ export class QuotesService {
     id: string,
     dto: UpdateQuoteDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<Quote> {
     const quote = await this.findOne(id);
     const oldValues = { ...quote };
@@ -288,6 +314,12 @@ export class QuotesService {
     }
 
     return await this.dataSource.transaction(async (manager) => {
+      // C-03: the guard has authorized the quote itself, but the body can
+      // still re-point deal_id at somebody else's deal — whose value this
+      // method then rewrites. Check before assigning.
+      if (dto.deal_id && dto.deal_id !== quote.deal_id) {
+        await this.assertDealAttachable(manager, dto.deal_id, scopeUserId);
+      }
       Object.assign(quote, dto);
       const updatedQuote = await manager.save(Quote, quote);
 
@@ -664,23 +696,27 @@ export class QuotesService {
     });
   }
 
+  /**
+   * AUD-H11: MAX of the numeric part under an advisory lock — "newest by
+   * created_at" both loses to out-of-order history and collides inside a
+   * transaction, where Postgres freezes now() (see the invoice generator).
+   */
   async generateQuoteNumber(manager?: EntityManager): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `QUO-${year}-`;
 
-    const repo = manager ? manager.getRepository(Quote) : this.quoteRepository;
-    const lastQuote = await repo.findOne({
-      where: { quote_number: Like(`${prefix}%`) },
-      order: { created_at: 'DESC' },
-    });
-
-    let nextNumber = 1;
-    if (lastQuote) {
-      const match = lastQuote.quote_number.match(/QUO-\d{4}-(\d+)/);
-      if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
-      }
+    const conn = manager ?? this.quoteRepository.manager;
+    if (manager) {
+      await manager.query(
+        "SELECT pg_advisory_xact_lock(hashtext('quote_number'))",
+      );
     }
+    const rows: Array<{ max: number | null }> = await conn.query(
+      `SELECT MAX((substring(quote_number from '(\\d+)$'))::int) AS max
+         FROM quotes WHERE quote_number LIKE $1`,
+      [`${prefix}%`],
+    );
+    const nextNumber = Number(rows[0]?.max ?? 0) + 1;
 
     return `${prefix}${String(nextNumber).padStart(4, '0')}`;
   }
@@ -689,7 +725,12 @@ export class QuotesService {
   // Quote Stats
   // ========================
 
-  async getQuoteStats() {
+  /**
+   * @param scopeUserId When set (sales reps), the KPIs are computed over
+   *   the rep's own quotes only, matching what their list shows (C-03:
+   *   the read rule is owner-scoped, so the stats must be too).
+   */
+  async getQuoteStats(scopeUserId?: string) {
     const now = new Date();
 
     // Monthly: start of current month
@@ -703,14 +744,17 @@ export class QuotesService {
     const yearStart = new Date(now.getFullYear(), 0, 1);
 
     const buildStats = async (start: Date) => {
-      const rows = await this.quoteRepository
+      const qb = this.quoteRepository
         .createQueryBuilder('q')
         .select('q.status', 'status')
         .addSelect('COUNT(*)', 'count')
         .addSelect('COALESCE(SUM(q.total), 0)', 'totalValue')
         .where('q.created_at >= :start', { start })
-        .groupBy('q.status')
-        .getRawMany();
+        .groupBy('q.status');
+      if (scopeUserId) {
+        qb.andWhere('q.owner_id = :scopeUserId', { scopeUserId });
+      }
+      const rows = await qb.getRawMany();
 
       let total = 0;
       let accepted = 0;

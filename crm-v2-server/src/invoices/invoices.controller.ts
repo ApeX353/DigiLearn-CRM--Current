@@ -46,8 +46,11 @@ export class InvoicesController {
   async create(
     @Body() dto: CreateInvoiceDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const invoice = await this.invoicesService.create(dto, userId);
+    // C-03: a rep can only raise an invoice against their own deal/quote.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const invoice = await this.invoicesService.create(dto, userId, scopeUserId);
     return {
       success: true,
       message: 'Invoice created successfully',
@@ -91,8 +94,13 @@ export class InvoicesController {
     status: HttpStatus.OK,
     description: 'Invoice stats retrieved successfully',
   })
-  async getStats() {
-    const data = await this.invoicesService.getInvoiceStats();
+  async getStats(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // C-03: a rep's KPIs cover their own invoices, not the whole company.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.invoicesService.getInvoiceStats(scopeUserId);
     return {
       success: true,
       data,
@@ -137,8 +145,17 @@ export class InvoicesController {
     @Param('id') id: string,
     @Body() dto: UpdateInvoiceDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const invoice = await this.invoicesService.update(id, dto, userId);
+    // C-03: the guard covers the invoice; the service checks any
+    // deal_id/quote_id change in the body against the caller.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const invoice = await this.invoicesService.update(
+      id,
+      dto,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Invoice updated successfully',
@@ -196,12 +213,16 @@ export class InvoicesController {
   async convertFromQuote(
     @Param('quoteId') quoteId: string,
     @CurrentUser('id') userId: string,
-    @Body('dealId') dealId?: string  
+    @CurrentUser('role') role: string,
+    @Body('dealId') dealId?: string,
   ) {
+    // C-03: a rep can only convert their own quote.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const invoice = await this.invoicesService.convertFromQuote(
       quoteId,
       userId,
       dealId,
+      scopeUserId,
     );
     return {
       success: true,

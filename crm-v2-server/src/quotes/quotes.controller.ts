@@ -46,8 +46,16 @@ export class QuotesController {
   async create(
     @Body() createQuoteDto: CreateQuoteDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const quote = await this.quotesService.create(createQuoteDto, userId);
+    // C-03: a rep can only raise a quote against their own deal.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const quote = await this.quotesService.create(
+      createQuoteDto,
+      userId,
+      undefined,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Quote created successfully',
@@ -89,8 +97,13 @@ export class QuotesController {
     status: HttpStatus.OK,
     description: 'Quote stats retrieved successfully',
   })
-  async getStats() {
-    const data = await this.quotesService.getQuoteStats();
+  async getStats(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // C-03: a rep's KPIs cover their own quotes, not the whole company.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.quotesService.getQuoteStats(scopeUserId);
     return {
       success: true,
       data,
@@ -147,8 +160,17 @@ export class QuotesController {
     @Param('id') id: string,
     @Body() updateQuoteDto: UpdateQuoteDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const quote = await this.quotesService.update(id, updateQuoteDto, userId);
+    // C-03: the guard covers the quote; the service checks any deal_id
+    // change in the body against the caller.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const quote = await this.quotesService.update(
+      id,
+      updateQuoteDto,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Quote updated successfully',

@@ -656,10 +656,25 @@ export class LeadsService {
     return stakeholders;
   }
 
+  /**
+   * DEAL-1 family: a rep may only write to a lead assigned to them. A
+   * foreign id answers 404 — not 403 — so ids cannot be probed. Elevated
+   * roles pass scopeUserId=undefined and skip the check.
+   */
+  private assertLeadInScope(
+    lead: Pick<Lead, 'assigned_to' | 'id'>,
+    scopeUserId?: string,
+  ): void {
+    if (scopeUserId && lead.assigned_to !== scopeUserId) {
+      throw new NotFoundException(`Lead with ID ${lead.id} not found`);
+    }
+  }
+
   async addStakeholder(
     leadId: string,
     dto: CreateLeadStakeholderDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<LeadStakeholder> {
     const toNullableString = (value?: string): string | null => {
       const trimmed = value?.trim();
@@ -675,6 +690,7 @@ export class LeadsService {
       if (!lead) {
         throw new NotFoundException(`Lead with ID ${leadId} not found`);
       }
+      this.assertLeadInScope(lead, scopeUserId);
       if (!lead.school_id) {
         throw new BadRequestException(
           'Lead must be linked to a school before adding stakeholders',
@@ -786,8 +802,10 @@ export class LeadsService {
     updateLeadDto: UpdateLeadDto,
     userId: string,
     userRoles: string[] = [],
+    scopeUserId?: string,
   ): Promise<Lead> {
     const lead = await this.findOne(id);
+    this.assertLeadInScope(lead, scopeUserId);
 
     const { disqualify_reason, nurture_reason, other_value, ...rest } =
       updateLeadDto;
@@ -1369,7 +1387,16 @@ export class LeadsService {
     id: string,
     status: string,
     userId: string,
+    scopeUserId?: string,
   ): Promise<Lead> {
+    if (scopeUserId) {
+      const lead = await this.leadRepository.findOne({
+        where: { id },
+        select: ['id', 'assigned_to'],
+      });
+      if (!lead) throw new NotFoundException(`Lead with ID ${id} not found`);
+      this.assertLeadInScope(lead, scopeUserId);
+    }
     const updatedLead = await this.transitionStatus(
       this.leadRepository.manager,
       id,

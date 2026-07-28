@@ -157,10 +157,25 @@ export class DealsService {
      1. CREATE DEAL (Transactional)
   ======================================== */
 
+  /**
+   * DEAL-1: a rep may only touch a deal assigned to them. A foreign id
+   * answers 404 — not 403 — so ids cannot be probed. Elevated roles pass
+   * scopeUserId=undefined and skip the check.
+   */
+  private assertDealInScope(
+    deal: Pick<Deal, 'assigned_to'>,
+    scopeUserId?: string,
+  ): void {
+    if (scopeUserId && deal.assigned_to !== scopeUserId) {
+      throw new NotFoundException('Deal not found');
+    }
+  }
+
   async createDeal(
     dto: CreateDealDto,
     userId: string,
     userRoles: string[] = [],
+    scopeUserId?: string,
   ): Promise<Deal> {
     // Validate lead exists and is not already converted
     const lead = await this.leadRepository.findOne({
@@ -168,6 +183,16 @@ export class DealsService {
       relations: ['primary_contact', 'stakeholders', 'stakeholders.contact'],
     });
     if (!lead) throw new NotFoundException('Lead not found');
+
+    // DEAL-1: a rep can only convert a lead assigned to them, and the
+    // resulting deal lands on that rep — the body cannot hand it away.
+    if (scopeUserId) {
+      if (lead.assigned_to !== scopeUserId) {
+        throw new NotFoundException('Lead not found');
+      }
+      dto.assigned_to = scopeUserId;
+    }
+
     if (lead.status === 'Converted') {
       throw new ConflictException('Lead has already been converted to a deal');
     }
@@ -463,12 +488,18 @@ export class DealsService {
      4. UPDATE DEAL
   ======================================== */
 
-  async update(id: string, dto: UpdateDealDto, userId: string): Promise<Deal> {
+  async update(
+    id: string,
+    dto: UpdateDealDto,
+    userId: string,
+    scopeUserId?: string,
+  ): Promise<Deal> {
     const deal = await this.dealRepository.findOne({
       where: { id },
       relations: ['current_stage'],
     });
     if (!deal) throw new NotFoundException('Deal not found');
+    this.assertDealInScope(deal, scopeUserId);
 
     const oldValues: Record<string, any> = {};
     const newValues: Record<string, any> = {};
@@ -584,9 +615,12 @@ export class DealsService {
     id: string,
     dto: CloseDealDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<Deal> {
     const deal = await this.dealRepository.findOne({ where: { id } });
     if (!deal) throw new NotFoundException('Deal not found');
+    // DEAL-1: only the owning rep (or a manager/admin) may close a deal.
+    this.assertDealInScope(deal, scopeUserId);
 
     if (deal.closeStatus !== DealCloseStatus.ONGOING) {
       throw new BadRequestException(
@@ -936,7 +970,9 @@ export class DealsService {
     const isSalesManager =
       roleNames.includes('sales_manager') ||
       roleNames.includes('sales-manager');
-    const isAssigned = dealsToUpdate.some(
+    // DEAL-1: owning ONE deal in the batch used to unlock the WHOLE
+    // batch (.some). A rep must own every deal they bulk-update.
+    const isAssigned = dealsToUpdate.every(
       (deal) => deal.assigned_to === actorId,
     );
 
@@ -1063,12 +1099,14 @@ export class DealsService {
     dealId: string,
     dto: UpdateDealStageDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<Deal> {
     const deal = await this.dealRepository.findOne({
       where: { id: dealId },
       relations: ['current_stage'],
     });
     if (!deal) throw new NotFoundException('Deal not found');
+    this.assertDealInScope(deal, scopeUserId);
 
     if (deal.current_stage_id === dto.stage_id) {
       throw new BadRequestException('Deal is already in this stage');
@@ -1113,11 +1151,16 @@ export class DealsService {
      9. CALCULATE DEAL HEALTH
   ======================================== */
 
-  async calculateDealHealth(dealId: string, userId: string): Promise<Deal> {
+  async calculateDealHealth(
+    dealId: string,
+    userId: string,
+    scopeUserId?: string,
+  ): Promise<Deal> {
     const deal = await this.dealRepository.findOne({
       where: { id: dealId },
     });
     if (!deal) throw new NotFoundException('Deal not found');
+    this.assertDealInScope(deal, scopeUserId);
 
     const health = await this.dealHealthCalculationService.calculateDealHealth({
       dealId,
@@ -1146,7 +1189,17 @@ export class DealsService {
      10. GET DEAL HEALTH
   ======================================== */
 
-  async getDealHealth(dealId: string) {
+  async getDealHealth(dealId: string, scopeUserId?: string) {
+    // DEAL-1: the health service knows nothing about ownership, so the
+    // deal is checked here before its score is handed out.
+    if (scopeUserId) {
+      const deal = await this.dealRepository.findOne({
+        where: { id: dealId },
+        select: ['id', 'assigned_to'],
+      });
+      if (!deal) throw new NotFoundException('Deal not found');
+      this.assertDealInScope(deal, scopeUserId);
+    }
     const health =
       await this.dealHealthCalculationService.getDealHealth(dealId);
     if (!health) throw new NotFoundException('Deal not found');
@@ -1167,6 +1220,7 @@ export class DealsService {
 
   async getArchivedDeals(
     dto: QueryArchivedDealsDto,
+    scopeUserId?: string,
   ): Promise<Pagination<Deal>> {
     const page = parseInt(dto.page || '1', 10);
     const limit = parseInt(dto.limit || '10', 10);
@@ -1182,6 +1236,11 @@ export class DealsService {
         ongoing: DealCloseStatus.ONGOING,
       })
       .orderBy('deal.actualCloseDate', 'DESC');
+
+    // DEAL-1: reps see their own archive, not the whole company's.
+    if (scopeUserId) {
+      qb.andWhere('deal.assigned_to = :scopeUserId', { scopeUserId });
+    }
 
     if (dto.close_status) {
       qb.andWhere('deal.closeStatus = :closeStatus', {
@@ -1221,7 +1280,10 @@ export class DealsService {
      11. GET DEALS (Paginated)
   ======================================== */
 
-  async getDeals(dto: QueryDealsDto): Promise<Pagination<Deal>> {
+  async getDeals(
+    dto: QueryDealsDto,
+    scopeUserId?: string,
+  ): Promise<Pagination<Deal>> {
     const page = parseInt(dto.page || '1', 10);
     const limit = parseInt(dto.limit || '10', 10);
 
@@ -1243,6 +1305,11 @@ export class DealsService {
         close_status: effectiveCloseStatus,
       })
       .orderBy('deal.actualCloseDate', 'DESC');
+
+    // DEAL-1: reps see (and export) their own deals, not the company's.
+    if (scopeUserId) {
+      qb.andWhere('deal.assigned_to = :scopeUserId', { scopeUserId });
+    }
 
     if (dto.search) {
       qb.andWhere(

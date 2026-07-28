@@ -615,25 +615,29 @@ export class PaymentTermsService {
     });
   }
 
+  /**
+   * AUD-H11: MAX of the numeric part under an advisory lock — never
+   * "newest row by created_at". Postgres freezes now() per transaction,
+   * so a master and its children share one created_at and the ordering
+   * trick dealt the same number twice (every invoice-with-instalments
+   * failed on the unique index; MySQL's per-statement timestamps are why
+   * the identical code worked in the previous CRM).
+   */
   private async generateInvoiceNumber(
     manager: EntityManager,
   ): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `INV-${year}-`;
 
-    const repo = manager.getRepository(Invoice);
-    const lastInvoice = await repo.findOne({
-      where: { invoice_number: Like(`${prefix}%`) },
-      order: { created_at: 'DESC' },
-    });
-
-    let nextNumber = 1;
-    if (lastInvoice) {
-      const match = lastInvoice.invoice_number.match(/INV-\d{4}-(\d+)/);
-      if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
-      }
-    }
+    await manager.query(
+      "SELECT pg_advisory_xact_lock(hashtext('invoice_number'))",
+    );
+    const rows: Array<{ max: number | null }> = await manager.query(
+      `SELECT MAX((substring(invoice_number from '(\\d+)$'))::int) AS max
+         FROM invoices WHERE invoice_number LIKE $1`,
+      [`${prefix}%`],
+    );
+    const nextNumber = Number(rows[0]?.max ?? 0) + 1;
 
     return `${prefix}${String(nextNumber).padStart(4, '0')}`;
   }

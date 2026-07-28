@@ -36,9 +36,20 @@ export class PaymentsService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  async create(dto: CreatePaymentDto, userId: string): Promise<Payment> {
+  async create(
+    dto: CreatePaymentDto,
+    userId: string,
+    scopeUserId?: string,
+  ): Promise<Payment> {
     // Verify invoice exists
     const invoice = await this.invoicesService.findOne(dto.invoice_id);
+    // C-03: a rep can only record money against their own invoice. A
+    // foreign id answers 404 — not 403 — so ids cannot be probed.
+    if (scopeUserId && invoice.owner_id !== scopeUserId) {
+      throw new NotFoundException(
+        `Invoice with ID ${dto.invoice_id} not found`,
+      );
+    }
     if (invoice.is_summary_invoice) {
       throw new BadRequestException(
         `Invoice ${dto.invoice_id} is a summary invoice and cannot accept payments`,
