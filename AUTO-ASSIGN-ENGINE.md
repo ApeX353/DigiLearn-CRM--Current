@@ -1,23 +1,26 @@
 # Lead distribution (auto-assign) engine — build spec
 
-> **STATUS 29 July: HALTED, awaiting Kim.** Server + client built and
-> verified on staging (see the staging run below). Three questions are
-> with Kim; do not resume until she answers:
-> 1. Should a manager be able to absorb a large batch to reach parity, or
->    do managers get a smaller capped share? (Staging run gave a manager
->    +190 of 200 because he started far behind — the literal result of
->    "both balanced equally within cohort".)
-> 2. Confirm the engine only *adds* leads — it can't rebalance an existing
->    book (a rep already at 521 stays ahead; the ≤50 gap is only reachable
->    for people who are behind).
-> 3. The per-run cap is 200 leads; the pool is larger, so it drains over
->    several runs — OK?
+> **STATUS 29 July: rebuilt to Kim's answers; ready for staging.** Engine
+> stays OFF on prod until sign-off. Kim's clarifications, now implemented:
+>
+> 1. **Distribution is to SALES REPS only.** Managers are NOT auto-assign
+>    recipients — they approve proposals and handle reassignment. Fairness
+>    (≤50 gap) is measured **rep-vs-rep** (Manake ↔ Tanya), never
+>    rep-vs-manager. (This replaces the earlier "both balanced within
+>    cohort" reading that put a manager at +190 on the first staging run.)
+> 2. **The engine only ADDS leads — it never strips an existing book.**
+>    "Bringing a rep down" (e.g. moving Byo-province leads off Tanya to a
+>    new Byo rep — Simba's idea) is a **manager reassignment** decision,
+>    settled as a manual manager action considering all factors. Not the
+>    engine's job.
+> 3. **No cap — a batch-size chooser instead:** 50 / 100 / 250 / 500 /
+>    All. Slow is fine; it checks each lead's factors one by one. Final
+>    tuning to be discussed once Kim sees it on staging.
 >
 > **The pool is today's NEW leads.** On prod the schools already exist;
 > the leads for them have not been made yet. Those newly-created,
 > unassigned, no-activity leads are exactly what the engine distributes
-> (matches the `getDistributablePool` filter). Import the leads, then run.
-> Engine stays OFF on prod until sign-off.
+> (matches `getDistributablePool`). Import the leads, then run.
 
 
 **From the 29 July 2026 meeting.** This is the authority for the AUTO1 /
@@ -68,11 +71,13 @@ So the engine's working set is the ~408 unassigned New leads, not all
    busiest and least-busy rep is **at most 50 leads**.
 2. **Location second.** Route by province territory (CONFIRMED
    29 July — the two groups cover all 10 provinces with no overlap):
-   - **Kim + Manake** → Midlands, Matabeleland South, Bulawayo, Masvingo,
-     **Matabeleland North**.
-   - **Tanya + Busi** → **all Mashonaland** (East, West, Central),
-     Manicaland, Harare.
-3. **The reassignment button is admin + manager only.**
+   - **Manake (rep)** → Midlands, Matabeleland South, Bulawayo, Masvingo,
+     Matabeleland North. (Kim manages this region but does not receive
+     auto-assigned leads.)
+   - **Tanya (rep)** → all Mashonaland (East, West, Central), Manicaland,
+     Harare. (Busi manages this region.)
+3. **The reassignment button is admin + manager only** — and reassignment
+   is where an existing book gets rebalanced (the engine never does).
 
 ## What is already on the leads page (build on this, don't duplicate)
 

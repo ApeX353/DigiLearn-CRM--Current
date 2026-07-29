@@ -105,13 +105,28 @@ export interface DistributionResult {
   preview: DistributionPreviewRow[];
 }
 
-/** The "Run auto-assign" button — proposes only, returns the preview. */
+/** Batch sizes the manager can distribute at once; null = all leads. */
+export const DISTRIBUTION_BATCH_SIZES: Array<number | null> = [
+  50,
+  100,
+  250,
+  500,
+  null,
+];
+
+/**
+ * The "Run auto-assign" button — proposes only, returns the preview.
+ * `limit` is the chosen batch size; null = distribute all eligible leads.
+ */
 export function useRunAutoAssign() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<DistributionResult> => {
+    mutationFn: async (
+      limit: number | null,
+    ): Promise<DistributionResult> => {
+      const q = limit === null ? "all" : String(limit);
       const res = await apiClientAuth.post(
-        `/automation/assignment-proposals/run`,
+        `/automation/assignment-proposals/run?limit=${q}`,
       );
       return res.data?.data ?? res.data;
     },

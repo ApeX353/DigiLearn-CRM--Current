@@ -19,26 +19,31 @@
 export const TERMINAL_LEAD_STATUSES = ['Disqualified', 'Converted'] as const;
 
 /**
- * ASSIGNMENT POLICY (confirmed 29 July meeting, see AUTO-ASSIGN-ENGINE.md).
- * Recipients are active users who have a territory configured
- * (users.territory_provinces) AND hold one of these roles. Territory is
- * the opt-in: a user with no territory set never receives auto-assigned
- * leads. Both reps and managers receive; they are balanced within their
- * own role cohort (a rep against reps, a manager against managers).
+ * ASSIGNMENT POLICY (confirmed 29 July, Kim — see AUTO-ASSIGN-ENGINE.md).
+ * Auto-distribution goes to SALES REPS only. Recipients are active
+ * sales_reps who have a territory configured (users.territory_provinces);
+ * territory is the opt-in. Managers do NOT receive auto-assigned leads —
+ * they approve the proposals and handle reassignment manually.
  */
-export const ROUTABLE_ROLES = ['sales_rep', 'sales_manager'] as const;
+export const ROUTABLE_ROLES = ['sales_rep'] as const;
 
 /**
- * The maximum lead-count gap allowed WITHIN a role cohort (priority 1 —
- * fair distribution). No cohort member may end up more than this many
- * leads ahead of the least-loaded member of the same cohort. This is a
- * HARD cap: when honouring territory would break it, fairness wins and
- * the lead overflows to the lighter-loaded member even out of territory.
+ * The maximum lead-count gap allowed between reps (priority 1 — fair
+ * distribution). No rep may end up more than this many leads ahead of the
+ * least-loaded rep. HARD cap: when honouring territory would break it,
+ * fairness wins and the lead overflows to a lighter-loaded rep even out
+ * of territory. The engine only ADDS leads — it never strips an existing
+ * book; rebalancing a rep down is a manager reassignment decision.
  */
 export const FAIRNESS_GAP = 50;
 
-/** Max leads routed per cron pass (keeps a backlog drain from spiking the DB). */
-export const ROUTER_BATCH_LIMIT = 200;
+/**
+ * Batch sizes the manager may choose on the Run button. `null` = all
+ * distributable leads in one go (slow is fine — it checks every lead's
+ * factors one by one). The cron default, when nobody chose, is 200.
+ */
+export const DISTRIBUTION_BATCH_SIZES = [50, 100, 250, 500, null] as const;
+export const DEFAULT_BATCH_LIMIT = 200;
 
 /** Reactivation cohort thresholds (days). */
 export const REACTIVATION = {

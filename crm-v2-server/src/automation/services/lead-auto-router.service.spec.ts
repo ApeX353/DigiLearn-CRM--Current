@@ -2,24 +2,22 @@ import { LeadAutoRouterService } from './lead-auto-router.service';
 import { AssignmentProposalStatus } from '../entities/lead-assignment-proposal.entity';
 
 /**
- * The confirmed 29 July model:
- *   Recipients (opt-in via territory):
- *     Manake  — rep     — West/South provinces
- *     Kim     — manager — West/South provinces
- *     Tanya   — rep     — Mash/East provinces
- *     Busi    — manager — Mash/East provinces
- *   Fairness (≤50 gap) measured WITHIN role cohort: reps {Manake,Tanya},
- *   managers {Kim,Busi}. Territory preferred; fairness wins on collision.
+ * The confirmed 29 July model (Kim's clarifications):
+ *   Auto-distribution goes to SALES REPS only (managers approve/reassign).
+ *   Recipients opt in via territory:
+ *     Manake — rep — West/South provinces
+ *     Tanya  — rep — Mash/East provinces
+ *   Fairness (≤50 gap) is measured between the reps. Territory preferred;
+ *   fairness wins on collision (overflow out of territory). The engine
+ *   only ADDS leads — it never strips an existing book.
  */
 const WEST = ['Bulawayo', 'Midlands', 'Masvingo'];
 const MASH = ['Harare', 'Mashonaland East'];
 
-function recipientRows() {
+function repRows() {
   return [
-    { id: 'manake', first_name: 'Manake', last_name: 'D', territory_provinces: JSON.stringify(WEST), is_manager: false },
-    { id: 'kim', first_name: 'Kim', last_name: 'M', territory_provinces: JSON.stringify(WEST), is_manager: true },
-    { id: 'tanya', first_name: 'Tanya', last_name: 'G', territory_provinces: JSON.stringify(MASH), is_manager: false },
-    { id: 'busi', first_name: 'Busi', last_name: 'D', territory_provinces: JSON.stringify(MASH), is_manager: true },
+    { id: 'manake', first_name: 'Manake', last_name: 'D', territory_provinces: JSON.stringify(WEST) },
+    { id: 'tanya', first_name: 'Tanya', last_name: 'G', territory_provinces: JSON.stringify(MASH) },
   ];
 }
 
@@ -32,7 +30,7 @@ function makeQb(rows: any[]) {
   return qb;
 }
 
-describe('LeadAutoRouterService — distribution engine', () => {
+describe('LeadAutoRouterService — distribution engine (reps only)', () => {
   let service: LeadAutoRouterService;
   let leadRepo: any;
   let proposalRepo: any;
@@ -41,9 +39,7 @@ describe('LeadAutoRouterService — distribution engine', () => {
 
   function build(pool: any[], startCounts: Record<string, number>) {
     saved = [];
-    dataSource = {
-      createQueryBuilder: jest.fn().mockReturnValue(makeQb(recipientRows())),
-    };
+    dataSource = { createQueryBuilder: jest.fn().mockReturnValue(makeQb(repRows())) };
     const countsRows = Object.entries(startCounts).map(([rep, cnt]) => ({ rep, cnt: String(cnt) }));
     leadRepo = {
       createQueryBuilder: jest
@@ -54,7 +50,7 @@ describe('LeadAutoRouterService — distribution engine', () => {
       update: jest.fn().mockResolvedValue(undefined),
     };
     proposalRepo = {
-      find: jest.fn().mockResolvedValue([]), // no pending proposals
+      find: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((x: any) => x),
       save: jest.fn().mockImplementation((x: any) => { saved.push(x); return Promise.resolve(x); }),
     };
@@ -70,52 +66,47 @@ describe('LeadAutoRouterService — distribution engine', () => {
 
   const lead = (id: string, province: string) => ({ id, school: { province } });
 
-  it('routes a lead to a territory-covering recipient, lightest first (id tie-break)', async () => {
-    build([lead('l1', 'Bulawayo')], {});
-    const res = await service.runDistribution();
-    expect(res.proposed).toBe(1);
-    // Kim(mgr,0) and Manake(rep,0) both cover West; equal load → lower id.
-    expect(saved[0].proposed_rep_id).toBe('kim');
-  });
-
-  it('balances rep vs manager within a territory by picking the lighter one', async () => {
-    build([lead('l1', 'Bulawayo')], { kim: 3 });
+  it('routes a West lead to the West rep and a Mash lead to the Mash rep', async () => {
+    build([lead('w', 'Bulawayo'), lead('m', 'Harare')], {});
     await service.runDistribution();
-    expect(saved[0].proposed_rep_id).toBe('manake');
+    const byLead = Object.fromEntries(saved.map((s) => [s.lead_id, s.proposed_rep_id]));
+    expect(byLead.w).toBe('manake');
+    expect(byLead.m).toBe('tanya');
   });
 
-  it('fairness cap: a rep 50 ahead of the other rep is capped, even in-territory', async () => {
-    // Manake(rep) 50 ahead of Tanya(rep) → capped. West lead falls to
-    // Kim(mgr), still in territory (different cohort, not capped).
-    build([lead('l1', 'Bulawayo')], { manake: 50, tanya: 0 });
-    await service.runDistribution();
-    expect(saved[0].proposed_rep_id).toBe('kim');
-  });
-
-  it('fairness overflows out of territory when both territory holders are capped', async () => {
-    // Mash lead. Tanya(rep) 60 vs Manake(rep) 0 → Tanya capped.
-    // Busi(mgr) 60 vs Kim(mgr) 0 → Busi capped. Overflow to a West holder.
-    build([lead('l1', 'Harare')], { tanya: 60, busi: 60 });
+  it('managers are never recipients (only reps came back from getRecipients)', async () => {
+    // getRecipients query filters role=sales_rep; the mock returns reps only.
+    build([lead('w', 'Bulawayo')], {});
     const res = await service.runDistribution();
-    expect(['kim', 'manake']).toContain(saved[0].proposed_rep_id);
-    expect(res.preview.find((p) => p.rep_id === saved[0].proposed_rep_id)!.will_gain).toBe(1);
+    expect(res.preview.every((p) => p.cohort === 'rep')).toBe(true);
+    expect(res.preview.map((p) => p.rep_id).sort()).toEqual(['manake', 'tanya']);
   });
 
-  it('spreads a batch evenly and reports the will-gain preview', async () => {
+  it('keeps West leads with the West rep while the gap stays ≤50, overflowing at the cap', async () => {
+    // Manake starts 48 ahead of Tanya (already within 50), so West leads
+    // keep going to Manake until he would exceed a 50-lead lead; once
+    // Tanya takes one the floor rises and Manake can edge up again. Net of
+    // 5 West leads: Manake +3 (→51), Tanya +2 — gap stays 49, ≤50.
     build(
-      [lead('a', 'Bulawayo'), lead('b', 'Bulawayo'), lead('c', 'Bulawayo'), lead('d', 'Bulawayo')],
-      {},
+      Array.from({ length: 5 }, (_, i) => lead('w' + i, 'Bulawayo')),
+      { manake: 48, tanya: 0 },
     );
     const res = await service.runDistribution();
-    expect(res.proposed).toBe(4);
-    const kim = res.preview.find((p) => p.rep_id === 'kim')!;
     const manake = res.preview.find((p) => p.rep_id === 'manake')!;
-    expect(kim.will_gain + manake.will_gain).toBe(4);
-    expect(Math.abs(kim.will_gain - manake.will_gain)).toBeLessThanOrEqual(1);
+    const tanya = res.preview.find((p) => p.rep_id === 'tanya')!;
+    expect(manake.will_gain).toBe(3);
+    expect(tanya.will_gain).toBe(2);
+    expect(manake.new_total - tanya.new_total).toBeLessThanOrEqual(50);
   });
 
-  it('does nothing when no recipient has a territory configured', async () => {
-    build([lead('l1', 'Bulawayo')], {});
+  it('fairness wins: a West lead goes to the Mash rep when the West rep is 50 ahead', async () => {
+    build([lead('w', 'Bulawayo')], { manake: 50, tanya: 0 });
+    await service.runDistribution();
+    expect(saved[0].proposed_rep_id).toBe('tanya'); // overflow out of territory
+  });
+
+  it('does nothing when no rep has a territory configured', async () => {
+    build([lead('w', 'Bulawayo')], {});
     dataSource.createQueryBuilder.mockReturnValue(makeQb([]));
     const res = await service.runDistribution();
     expect(res.proposed).toBe(0);

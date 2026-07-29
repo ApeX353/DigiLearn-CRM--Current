@@ -19,7 +19,7 @@ import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
 import {
   AUTOMATION_CRON,
   ROUTABLE_ROLES,
-  ROUTER_BATCH_LIMIT,
+  DEFAULT_BATCH_LIMIT,
   TERMINAL_LEAD_STATUSES,
   FAIRNESS_GAP,
 } from '../automation.constants';
@@ -97,7 +97,7 @@ export class LeadAutoRouterService {
         'auto_assign_enabled',
       );
       if (!enabled) return;
-      await this.runDistribution();
+      await this.runDistribution(undefined, DEFAULT_BATCH_LIMIT);
     } catch (error: any) {
       this.logger.error(
         `Auto-router pass failed: ${error?.message}`,
@@ -113,20 +113,25 @@ export class LeadAutoRouterService {
    * writes a PENDING proposal for each. Nothing is assigned here; the
    * manager approves from the Approval Queue.
    *
-   * Allocation, per the 29 July spec:
-   *   1. Fairness first — no cohort member may go more than FAIRNESS_GAP
-   *      leads ahead of the least-loaded member of their own role cohort.
-   *      This is a hard cap.
-   *   2. Location second — within that cap, a lead prefers a recipient
-   *      whose territory covers its province.
+   * Allocation, per the 29 July spec (Kim):
+   *   1. Fairness first — no rep may go more than FAIRNESS_GAP leads ahead
+   *      of the least-loaded rep. This is a hard cap.
+   *   2. Location second — within that cap, a lead prefers a rep whose
+   *      territory covers its province.
    *   3. When territory and fairness collide, fairness wins: the lead
-   *      overflows to the lighter-loaded recipient even out of territory.
+   *      overflows to a lighter-loaded rep even out of territory.
+   *
+   * @param limit How many leads to distribute this run (the manager's
+   *   batch choice); null = all distributable leads.
    */
-  async runDistribution(triggeredById?: string): Promise<DistributionResult> {
+  async runDistribution(
+    triggeredById?: string,
+    limit: number | null = null,
+  ): Promise<DistributionResult> {
     const recipients = await this.getRecipients();
     if (recipients.length === 0) {
       this.logger.warn(
-        'Auto-assign: no active recipients with a territory configured — nothing to do',
+        'Auto-assign: no active reps with a territory configured — nothing to do',
       );
       return { proposed: 0, skipped: 0, preview: [] };
     }
@@ -137,7 +142,7 @@ export class LeadAutoRouterService {
       recipients.map((r) => [r.id, 0]),
     );
 
-    const pool = await this.getDistributablePool();
+    const pool = await this.getDistributablePool(limit);
 
     let proposed = 0;
     let skipped = 0;
@@ -409,43 +414,36 @@ export class LeadAutoRouterService {
   }
 
   /**
-   * Recipients = active users who hold a rep/manager role AND have a
-   * territory configured. Territory is the opt-in: no territory, no
-   * auto-assigned leads. Cohort is the role they are balanced within.
+   * Recipients = active SALES REPS who have a territory configured.
+   * Territory is the opt-in: no territory, no auto-assigned leads.
+   * Managers are excluded — they approve and reassign, they don't receive
+   * auto-distributed leads (Kim, 29 July). All recipients are one 'rep'
+   * cohort, balanced against each other by the fairness gap.
    */
   private async getRecipients(): Promise<Recipient[]> {
     const rows = await this.dataSource
       .createQueryBuilder()
-      .select('user.id', 'id')
+      .select('DISTINCT user.id', 'id')
       .addSelect('user.first_name', 'first_name')
       .addSelect('user.last_name', 'last_name')
       .addSelect('user.territory_provinces', 'territory_provinces')
-      .addSelect(
-        `BOOL_OR(role.name = 'sales_manager')`,
-        'is_manager',
-      )
       .from('users', 'user')
       .innerJoin('user_roles', 'ur', 'ur.user_id = user.id')
       .innerJoin('roles', 'role', 'role.id = ur.role_id')
       .where('role.name IN (:...roles)', { roles: [...ROUTABLE_ROLES] })
       .andWhere('user.is_active = :active', { active: true })
       .andWhere('user.territory_provinces IS NOT NULL')
-      .groupBy('user.id')
-      .addGroupBy('user.first_name')
-      .addGroupBy('user.last_name')
-      .addGroupBy('user.territory_provinces')
       .getRawMany<{
         id: string;
         first_name: string;
         last_name: string;
         territory_provinces: string | null;
-        is_manager: boolean;
       }>();
     return rows
       .map((r) => ({
         id: r.id,
         name: `${r.first_name} ${r.last_name}`.trim(),
-        cohort: (r.is_manager ? 'manager' : 'rep') as 'rep' | 'manager',
+        cohort: 'rep' as const,
         territories: this.parseTerritories(r.territory_provinces),
       }))
       .filter((r) => r.territories.length > 0);
@@ -455,8 +453,10 @@ export class LeadAutoRouterService {
    * The distributable pool: unassigned leads that have never been worked
    * (no activity at all) and are not disqualified/converted or already
    * sitting on the manager's desk as a pending proposal.
+   *
+   * @param limit The manager's batch choice; null = all such leads.
    */
-  private async getDistributablePool(): Promise<Lead[]> {
+  private async getDistributablePool(limit: number | null): Promise<Lead[]> {
     const pendingLeadIds = (
       await this.proposalRepository.find({
         where: { status: AssignmentProposalStatus.PENDING },
@@ -476,8 +476,10 @@ export class LeadAutoRouterService {
       .andWhere(
         'NOT EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = lead.id)',
       )
-      .orderBy('lead.created_at', 'ASC')
-      .limit(ROUTER_BATCH_LIMIT);
+      .orderBy('lead.created_at', 'ASC');
+    if (typeof limit === 'number' && limit > 0) {
+      qb.limit(limit);
+    }
     if (pendingLeadIds.length) {
       qb.andWhere('lead.id NOT IN (:...pendingLeadIds)', { pendingLeadIds });
     }

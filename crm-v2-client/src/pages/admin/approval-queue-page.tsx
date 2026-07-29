@@ -53,6 +53,7 @@ import {
   useRejectAssignmentProposal,
   useApproveAssignmentProposalBatch,
   useRunAutoAssign,
+  DISTRIBUTION_BATCH_SIZES,
 } from "~/api/assignment-proposals";
 import type {
   AssignmentProposal,
@@ -398,6 +399,11 @@ function QueueTable({
   );
 }
 
+/** Select needs string values; null (all leads) maps to "all". */
+function batchLabel(n: number | null): string {
+  return n === null ? "all" : String(n);
+}
+
 function repName(p: AssignmentProposal): string {
   const r = p.proposed_rep;
   if (!r) return p.proposed_rep_id.slice(0, 8);
@@ -420,11 +426,12 @@ function AutoAssignQueue() {
   const approveBatch = useApproveAssignmentProposalBatch();
   const runAutoAssign = useRunAutoAssign();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
+  const [batchSize, setBatchSize] = useState<number | null>(50);
   const busy =
     approve.isPending || reject.isPending || approveBatch.isPending;
 
-  const runDistribution = () => {
-    runAutoAssign.mutate(undefined, {
+  const runDistribution = (limit: number | null) => {
+    runAutoAssign.mutate(limit, {
       onSuccess: (r) => {
         setPreview(r.preview.filter((p) => p.will_gain > 0));
         toast.success(
@@ -484,18 +491,36 @@ function AutoAssignQueue() {
   const toolbar = (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          onClick={runDistribution}
-          disabled={runAutoAssign.isPending}
-          data-testid="auto-assign-run"
-        >
-          {runAutoAssign.isPending ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="mr-1.5 h-4 w-4" />
-          )}
-          Run auto-assign
-        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Distribute</span>
+          <Select
+            value={batchLabel(batchSize)}
+            onValueChange={(v) => setBatchSize(v === "all" ? null : Number(v))}
+          >
+            <SelectTrigger className="w-28" data-testid="auto-assign-batch">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DISTRIBUTION_BATCH_SIZES.map((n) => (
+                <SelectItem key={batchLabel(n)} value={batchLabel(n)}>
+                  {n === null ? "All leads" : `${n} leads`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            onClick={() => runDistribution(batchSize)}
+            disabled={runAutoAssign.isPending}
+            data-testid="auto-assign-run"
+          >
+            {runAutoAssign.isPending ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1.5 h-4 w-4" />
+            )}
+            Run auto-assign
+          </Button>
+        </div>
         {pending.length > 0 && (
           <Button
             size="sm"

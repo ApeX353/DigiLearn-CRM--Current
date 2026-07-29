@@ -38,15 +38,25 @@ export class AutomationController {
   // ------------------- AUTO1: assignment proposals -------------------
   // The engine proposes; a manager decides. Reps never see this queue.
 
-  // The "Run auto-assign" button. A manager taps it; distribution runs
-  // and lands in the Approval Queue as proposals — nothing is assigned
-  // until the manager approves. Returns the per-person "will gain X"
-  // preview so the manager sees the shape before approving.
+  // The "Run auto-assign" button. A manager taps it and chooses a batch
+  // size (50/100/250/500 or "all"); distribution runs and lands in the
+  // Approval Queue as proposals — nothing is assigned until the manager
+  // approves. Returns the per-person "will gain X" preview.
   @Post('assignment-proposals/run')
   @Roles('admin', 'sales_manager')
   @ApiOperation({ summary: 'Run auto-assign distribution (proposes only)' })
-  async runAssignmentDistribution(@CurrentUser('id') userId: string) {
-    const data = await this.autoRouter.runDistribution(userId);
+  async runAssignmentDistribution(
+    @CurrentUser('id') userId: string,
+    @Query('limit') limitParam?: string,
+  ) {
+    // "all" (or nothing) → distribute every eligible lead; otherwise the
+    // chosen batch size. Anything unparseable falls back to all.
+    let limit: number | null = null;
+    if (limitParam && limitParam !== 'all') {
+      const n = Number.parseInt(limitParam, 10);
+      limit = Number.isFinite(n) && n > 0 ? n : null;
+    }
+    const data = await this.autoRouter.runDistribution(userId, limit);
     return { success: true, data };
   }
 
