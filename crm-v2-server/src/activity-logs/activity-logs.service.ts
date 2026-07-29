@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import {
   paginate,
   Pagination,
@@ -152,8 +152,14 @@ export class ActivityLogsService {
   }
 
   async findByEntity(entity: string, entityId: string): Promise<ActivityLog[]> {
+    // AUD1: the history trail is written with inconsistent casing —
+    // deals log as 'deal' while leads log as 'Lead' — and the record
+    // pages ask for 'Deal'/'Lead'. An exact match therefore returned
+    // nothing for deals, which is why the Audit History tab read empty.
+    // Match case-insensitively so every casing resolves to the same
+    // trail regardless of how a given writer spelled the entity.
     return this.activityLogRepository.find({
-      where: { entity, entity_id: entityId },
+      where: { entity: ILike(entity), entity_id: entityId },
       relations: ['user'],
       order: { created_at: 'DESC' },
     });

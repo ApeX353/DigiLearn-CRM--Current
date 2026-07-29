@@ -75,6 +75,13 @@ function AuditEntry({ entry }: { entry: AuditLogEntry }) {
           </span>
         </div>
 
+        {/* When we have no field-level diff (creates, deletes, or logs
+            that only carried a summary), show the human-readable line so
+            the entry still says what happened. */}
+        {(!entry.changes || entry.changes.length === 0) && entry.summary && (
+          <div className="text-xs text-muted-foreground">{entry.summary}</div>
+        )}
+
         {entry.changes && entry.changes.length > 0 && (
           <div className="space-y-1">
             {entry.changes.map((change, i) => (
