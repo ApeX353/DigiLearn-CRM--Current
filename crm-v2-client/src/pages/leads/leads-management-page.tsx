@@ -9,6 +9,7 @@ import {
   GitMerge,
   Loader2,
   Plus,
+  Sparkles,
   Target,
   Upload,
   UserRoundPlus,
@@ -16,6 +17,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { useRunAutoAssign } from "~/api/assignment-proposals";
 import {
   LEAD_SOURCES,
   useLeads,
@@ -32,6 +35,7 @@ import { DataTablePagination } from "~/components/data-table-pagination";
 import { AssignLeadsDialog } from "~/components/leads/assign-leads-dialog";
 import { LeadRowMarkers } from "~/components/leads/lead-row-markers";
 import { LeadsCsvImportModal } from "~/components/leads/leads-csv-import-modal";
+import { ImportLeadsDialog } from "~/components/leads/import-leads-dialog";
 import { MergeSelectedLeadsDialog } from "~/components/leads/merge-selected-leads-dialog";
 import PageHeader from "~/components/page-header";
 import { Badge } from "~/components/ui/badge";
@@ -271,6 +275,7 @@ export default function LeadsManagementPage() {
     () => searchParams.get("search") ?? "",
   );
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importLeadsOpen, setImportLeadsOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -282,6 +287,22 @@ export default function LeadsManagementPage() {
   const debouncedSearchTerm = useDebounce(searchTerm, 700);
 
   const navigate = useNavigate();
+  const runAutoAssign = useRunAutoAssign();
+  const runAutoAssignFromNew = () => {
+    // Distribute the whole new/unworked pool; approvals happen in the queue.
+    runAutoAssign.mutate(null, {
+      onSuccess: (r) => {
+        toast.success(
+          r.proposed > 0
+            ? `${r.proposed} lead(s) proposed — review them in the Approval Queue`
+            : "Nothing to distribute right now",
+        );
+        if (r.proposed > 0) navigate("/admin/approval-queue");
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Could not run auto-assign"),
+    });
+  };
   const canAssignLeads = useAnyRole(["admin", "sales_manager"]);
   // CSV5 — bulk import is a management action, not a rep one. Same
   // roles that own lead assignment own bringing leads into the system.
@@ -450,9 +471,9 @@ export default function LeadsManagementPage() {
         actions={
           <div className="flex gap-x-2">
             {canImportLeads && (
-              <Button variant="outline" size="sm" onClick={() => setImportModalOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => setImportLeadsOpen(true)}>
                 <Upload className="h-4 w-4 mr-1.5" />
-                Import CSV
+                Import Leads
               </Button>
             )}
             <Button size="sm" asChild>
@@ -512,6 +533,31 @@ export default function LeadsManagementPage() {
             )}
           </TabsList>
         </Tabs>
+
+        {/* Kim's flow: on the New filter, a manager can kick off
+            auto-assign for the freshly imported (unassigned, unworked)
+            leads. It proposes only — approvals happen in the queue. */}
+        {canImportLeads && leadFilter === "New" && (
+          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3">
+            <Button
+              size="sm"
+              onClick={runAutoAssignFromNew}
+              disabled={runAutoAssign.isPending}
+              data-testid="new-filter-auto-assign"
+            >
+              {runAutoAssign.isPending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-4 w-4" />
+              )}
+              Run auto-assign
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Distributes new, unassigned leads by territory and workload —
+              suggestions land in the Approval Queue for you to approve.
+            </span>
+          </div>
+        )}
 
         {/* Was a `<Card>` wrapper with its own `<CardHeader>` that
             duplicated the currently-selected tab label ("All Leads",
@@ -785,6 +831,10 @@ export default function LeadsManagementPage() {
       <LeadsCsvImportModal
         open={importModalOpen}
         onOpenChange={setImportModalOpen}
+      />
+      <ImportLeadsDialog
+        open={importLeadsOpen}
+        onOpenChange={setImportLeadsOpen}
       />
     </div>
   );

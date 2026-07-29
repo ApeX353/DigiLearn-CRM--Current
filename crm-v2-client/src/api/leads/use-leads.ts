@@ -66,6 +66,13 @@ const leadsApi = {
   import: (data: AddLeadValues[]): Promise<Lead> =>
     apiClientAuth.post("/leads/import", data).then((res) => res.data),
 
+  // Bulk import from an Excel workbook (base64). Server parses + creates.
+  importXlsx: (data: {
+    file_base64: string;
+    filename?: string;
+  }): Promise<{ success: boolean; message: string; data: LeadImportSummary }> =>
+    apiClientAuth.post("/leads/import", data).then((res) => res.data),
+
   // Update lead
   update: (id: string, data: UpdateLeadPayload): Promise<Lead> =>
     apiClientAuth.put(`/leads/${id}`, data).then((res) => res.data),
@@ -130,6 +137,30 @@ export function useCSVImport() {
     },
     onError: (error) => {
       console.error("Create lead error:", handleApiError(error));
+    },
+  });
+}
+
+export interface LeadImportSummary {
+  created: number;
+  skipped: number;
+  failed: number;
+  total: number;
+  rows: Array<{
+    row: number;
+    school: string;
+    status: "created" | "skipped" | "failed";
+    reason?: string;
+  }>;
+}
+
+/** Bulk-import leads from an Excel workbook (server-side parse). */
+export function useImportLeadsXlsx() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: leadsApi.importXlsx,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadsKeys.all });
     },
   });
 }
