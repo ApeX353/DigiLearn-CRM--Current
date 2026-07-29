@@ -90,6 +90,37 @@ export function useRejectAssignmentProposal() {
   });
 }
 
+export interface DistributionPreviewRow {
+  rep_id: string;
+  name: string;
+  cohort: "rep" | "manager";
+  current: number;
+  will_gain: number;
+  new_total: number;
+}
+
+export interface DistributionResult {
+  proposed: number;
+  skipped: number;
+  preview: DistributionPreviewRow[];
+}
+
+/** The "Run auto-assign" button — proposes only, returns the preview. */
+export function useRunAutoAssign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<DistributionResult> => {
+      const res = await apiClientAuth.post(
+        `/automation/assignment-proposals/run`,
+      );
+      return res.data?.data ?? res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+    },
+  });
+}
+
 export function useApproveAssignmentProposalBatch() {
   const queryClient = useQueryClient();
   return useMutation({

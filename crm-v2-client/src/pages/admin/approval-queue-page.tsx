@@ -7,6 +7,7 @@ import {
   Clock,
   Loader2,
   ShieldAlert,
+  Sparkles,
   UsersRound,
   Undo2,
   XCircle,
@@ -51,8 +52,12 @@ import {
   useApproveAssignmentProposal,
   useRejectAssignmentProposal,
   useApproveAssignmentProposalBatch,
+  useRunAutoAssign,
 } from "~/api/assignment-proposals";
-import type { AssignmentProposal } from "~/api/assignment-proposals";
+import type {
+  AssignmentProposal,
+  DistributionPreviewRow,
+} from "~/api/assignment-proposals";
 
 /**
  * Phase C.2 — Manager approval queue.
@@ -413,8 +418,26 @@ function AutoAssignQueue() {
   const approve = useApproveAssignmentProposal();
   const reject = useRejectAssignmentProposal();
   const approveBatch = useApproveAssignmentProposalBatch();
+  const runAutoAssign = useRunAutoAssign();
+  const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const busy =
     approve.isPending || reject.isPending || approveBatch.isPending;
+
+  const runDistribution = () => {
+    runAutoAssign.mutate(undefined, {
+      onSuccess: (r) => {
+        setPreview(r.preview.filter((p) => p.will_gain > 0));
+        toast.success(
+          r.proposed > 0
+            ? `${r.proposed} lead(s) proposed — review and approve below`
+            : "Nothing to distribute right now",
+        );
+        refetch();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Could not run auto-assign"),
+    });
+  };
 
   const decide = (p: AssignmentProposal, action: "approve" | "reject") => {
     const m = action === "approve" ? approve : reject;
@@ -456,33 +479,77 @@ function AutoAssignQueue() {
     );
   }
 
+  // Run button + the per-person "will gain X" preview — shown whether or
+  // not there are pending proposals, so a manager can trigger a run.
+  const toolbar = (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          onClick={runDistribution}
+          disabled={runAutoAssign.isPending}
+          data-testid="auto-assign-run"
+        >
+          {runAutoAssign.isPending ? (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-1.5 h-4 w-4" />
+          )}
+          Run auto-assign
+        </Button>
+        {pending.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={approveAll}
+            disabled={busy}
+            data-testid="auto-assign-approve-all"
+          >
+            {busy ? (
+              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            ) : (
+              <CheckCircle2 className="mr-1.5 h-3 w-3" />
+            )}
+            Approve all {pending.length}
+          </Button>
+        )}
+      </div>
+      {preview && preview.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="text-xs font-medium text-muted-foreground mb-2">
+            This run would give:
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {preview.map((p) => (
+              <Badge key={p.rep_id} variant="secondary" className="text-xs">
+                {p.name} +{p.will_gain}
+                <span className="ml-1 text-muted-foreground">
+                  ({p.current} → {p.new_total})
+                </span>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   if (pending.length === 0) {
     return (
-      <div className="p-12 text-center text-sm text-muted-foreground">
-        No assignment suggestions waiting. The engine only suggests when
-        it is switched on under Settings → Compliance &amp; Controls, and
-        it never assigns anyone without an approval here.
+      <div className="space-y-4">
+        {toolbar}
+        <div className="p-12 text-center text-sm text-muted-foreground">
+          No assignment suggestions waiting. Tap <strong>Run auto-assign</strong>{" "}
+          to distribute unworked, unassigned leads by territory and workload —
+          the suggestions land here for you to approve. Nothing is assigned to
+          anyone until you approve it.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          onClick={approveAll}
-          disabled={busy}
-          data-testid="auto-assign-approve-all"
-        >
-          {busy ? (
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-          ) : (
-            <CheckCircle2 className="mr-1.5 h-3 w-3" />
-          )}
-          Approve all {pending.length}
-        </Button>
-      </div>
+      {toolbar}
       <div className="rounded-lg border overflow-hidden">
         <table className="w-full" data-testid="auto-assign-queue">
           <thead className="bg-muted/50">
