@@ -42,6 +42,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { LeadReversalRequest, LeadSLA } from './entities';
 import { LeadSLAHistory } from './entities/lead-sla-history.entity';
 import { addHours } from 'date-fns';
+import { addBusinessHours } from '../common/utils/business-hours';
 import type { AppAbility } from '../auth/casl/casl-ability.factory';
 import { AbilityScopeService } from '../auth/casl/ability-scope.service';
 import { Action } from '../auth/constants/permissions';
@@ -361,7 +362,7 @@ export class LeadsService {
         source: leadInfo.source,
         status: 'New',
         assigned_to: assignedTo,
-        current_sla_due_date: addHours(new Date(), slaConfig.sla_hours),
+        current_sla_due_date: addBusinessHours(new Date(), slaConfig.sla_hours),
         estimated_value: leadInfo.estimated_value,
         notes: leadInfo.notes,
         source_campaign_id: leadInfo.source_campaign_id ?? null,
@@ -1459,7 +1460,7 @@ export class LeadsService {
 
     lead.status = status as any;
     lead.sla_breached = false;
-    lead.current_sla_due_date = slaConfig ? addHours(now, slaConfig.sla_hours) : null;
+    lead.current_sla_due_date = slaConfig ? addBusinessHours(now, slaConfig.sla_hours) : null;
 
     if (status === 'Converted') {
       lead.converted_at = now;

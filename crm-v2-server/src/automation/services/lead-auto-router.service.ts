@@ -16,6 +16,7 @@ import {
 import { UserNotificationsService } from '../../notifications/user-notifications.service';
 import { ComplianceSettingsService } from '../../settings/compliance-settings.service';
 import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
+import { addBusinessHours } from '../../common/utils/business-hours';
 import {
   AUTOMATION_CRON,
   ROUTABLE_ROLES,
@@ -255,9 +256,8 @@ export class LeadAutoRouterService {
       const slaByStatus = await this.getActiveSlaHoursByStatus();
       const slaHours = slaByStatus.get(lead.status as unknown as string);
       if (slaHours && slaHours > 0) {
-        patch.current_sla_due_date = new Date(
-          Date.now() + slaHours * 3_600_000,
-        );
+        // SLAW1: the SLA clock pauses over weekends.
+        patch.current_sla_due_date = addBusinessHours(new Date(), slaHours);
         patch.sla_breached = false;
       }
     }

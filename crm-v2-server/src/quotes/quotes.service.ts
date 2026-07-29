@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Repository, DataSource, Like, EntityManager } from 'typeorm';
 import {
   paginate,
@@ -65,6 +66,35 @@ export class QuotesService {
     private readonly appSettingsService: SettingsService,
     private readonly abilityScopeService: AbilityScopeService,
   ) {}
+
+  /**
+   * QUOTE2: quotes never expired on their own — a quote past its
+   * validity date still read as open, so 34 stale quotes (US$397,863)
+   * sat in the pipeline forever. This nightly sweep moves any Draft or
+   * Sent quote whose valid_until has passed to Expired. Accepted /
+   * Rejected quotes are left alone, and quotes with no validity date
+   * (QUOTE3) can never expire — they are skipped, not defaulted.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async expireOverdueQuotes(): Promise<void> {
+    try {
+      const result = await this.quoteRepository
+        .createQueryBuilder()
+        .update(Quote)
+        .set({ status: 'Expired' })
+        .where('status IN (:...open)', { open: ['Draft', 'Sent'] })
+        .andWhere('valid_until IS NOT NULL')
+        .andWhere('valid_until < :now', { now: new Date() })
+        .execute();
+      if (result.affected) {
+        this.logger.log(
+          `Expired ${result.affected} quote(s) past their validity date`,
+        );
+      }
+    } catch (e: any) {
+      this.logger.error(`Quote expiry sweep failed: ${e?.message}`);
+    }
+  }
 
   // ========================
   // CRUD Operations
