@@ -46,21 +46,38 @@ So the engine's working set is the ~408 unassigned New leads, not all
 
 1. **Fair distribution first.** Spread leads so the gap between the
    busiest and least-busy rep is **at most 50 leads**.
-2. **Location second.** Route by province territory:
-   - **Kim + Manake** → Midlands, Matabeleland South, Bulawayo, Masvingo.
-   - **Tanya + Busi** → the rest: Mashonaland East, Mashonaland West,
-     Mashonaland Central, Manicaland, Harare, and **Matabeleland North**.
-     ⚠️ The note read "mash east south north central, Manicaland and
-     Harare" — confirm the exact Mashonaland/Mat-North split against the
-     province list before wiring the territories.
+2. **Location second.** Route by province territory (CONFIRMED
+   29 July — the two groups cover all 10 provinces with no overlap):
+   - **Kim + Manake** → Midlands, Matabeleland South, Bulawayo, Masvingo,
+     **Matabeleland North**.
+   - **Tanya + Busi** → **all Mashonaland** (East, West, Central),
+     Manicaland, Harare.
 3. **The reassignment button is admin + manager only.**
 
-## Open items to confirm before building
+## What is already on the leads page (build on this, don't duplicate)
 
-- The **assignee filter with the AI markings** is said to already be on
-  production — confirm what is live before building on top of it.
-- The precise province split for group 2 (Mashonaland East/West/Central,
-  Matabeleland North).
+Reviewed 29 July. The "assignee filter with the AI markings" the meeting
+referred to is already live on the Leads page:
+
+- **Assignment filter**: All / Assigned Only / **Unassigned** — this
+  already isolates the 465 unassigned leads.
+- **Assigned To filter**: "All Assignees" + one option per staff member.
+- **The AI markings** = `LeadRowMarkers`, a strip of badges on every lead
+  row and kanban card: SLA breach, overdue follow-up, **No next
+  activity** (amber), incomplete data, unqualified, temperature
+  (hot/warm/cold), qualified.
+
+**Why this matters for the engine:** the two signals it needs already
+exist in the UI —
+
+- the **Unassigned** assignment filter = the candidate set, and
+- the **"No next activity"** marker = "this lead has never been worked".
+
+So the distributable pool is *Unassigned + no-activity*, which the page
+can already show. The engine should reuse these, not add a parallel
+filter. Server-side, "no activity" should be an explicit condition on the
+pool (today the router only excludes already-assigned leads — see the
+"to add" note below).
 
 ## How the built engine already maps to this
 
