@@ -38,6 +38,18 @@ export class AutomationController {
   // ------------------- AUTO1: assignment proposals -------------------
   // The engine proposes; a manager decides. Reps never see this queue.
 
+  // The "Run auto-assign" button. A manager taps it; distribution runs
+  // and lands in the Approval Queue as proposals — nothing is assigned
+  // until the manager approves. Returns the per-person "will gain X"
+  // preview so the manager sees the shape before approving.
+  @Post('assignment-proposals/run')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Run auto-assign distribution (proposes only)' })
+  async runAssignmentDistribution(@CurrentUser('id') userId: string) {
+    const data = await this.autoRouter.runDistribution(userId);
+    return { success: true, data };
+  }
+
   @Get('assignment-proposals')
   @Roles('admin', 'sales_manager')
   @ApiOperation({ summary: 'List auto-assign proposals awaiting a decision' })

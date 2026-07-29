@@ -21,12 +21,33 @@ import {
   ROUTABLE_ROLES,
   ROUTER_BATCH_LIMIT,
   TERMINAL_LEAD_STATUSES,
+  FAIRNESS_GAP,
 } from '../automation.constants';
 
-interface RoutableRep {
+/** A person the engine may propose leads to. */
+interface Recipient {
   id: string;
   name: string;
+  /** 'rep' or 'manager' — the fairness cohort they are balanced within. */
+  cohort: 'rep' | 'manager';
   territories: string[];
+}
+
+/** Per-person outcome of a distribution run, for the "will gain X" preview. */
+export interface DistributionPreviewRow {
+  rep_id: string;
+  name: string;
+  cohort: 'rep' | 'manager';
+  current: number;
+  will_gain: number;
+  new_total: number;
+}
+
+export interface DistributionResult {
+  proposed: number;
+  /** Leads that had no eligible recipient (e.g. everyone at the cap). */
+  skipped: number;
+  preview: DistributionPreviewRow[];
 }
 
 /**
@@ -63,86 +84,104 @@ export class LeadAutoRouterService {
     private readonly activityLogsService: ActivityLogsService,
   ) {}
 
+  /**
+   * Automatic background pass. Stays opt-in behind the
+   * `auto_assign_enabled` compliance setting (OFF in production). When on,
+   * it runs the same distribution as the manual button. Either way it only
+   * PROPOSES — a manager still approves before any lead changes hands.
+   */
   @Cron(AUTOMATION_CRON.unassignedRouting)
   async handleUnassignedLeadRouting(): Promise<void> {
     try {
-      // Engine is opt-in: admins / sales managers turn it on from the
-      // Settings → Compliance & Controls page. When off, leads stay
-      // unassigned for manual distribution.
       const enabled = await this.complianceSettings.getBoolean(
         'auto_assign_enabled',
       );
-      if (!enabled) {
-        return;
+      if (!enabled) return;
+      await this.runDistribution();
+    } catch (error: any) {
+      this.logger.error(
+        `Auto-router pass failed: ${error?.message}`,
+        error?.stack,
+      );
+    }
+  }
+
+  /**
+   * The distribution run — the work behind the manager's "Run auto-assign"
+   * button. Gauges each recipient's current load, walks the pool of
+   * distributable leads (unassigned, never worked, not disqualified), and
+   * writes a PENDING proposal for each. Nothing is assigned here; the
+   * manager approves from the Approval Queue.
+   *
+   * Allocation, per the 29 July spec:
+   *   1. Fairness first — no cohort member may go more than FAIRNESS_GAP
+   *      leads ahead of the least-loaded member of their own role cohort.
+   *      This is a hard cap.
+   *   2. Location second — within that cap, a lead prefers a recipient
+   *      whose territory covers its province.
+   *   3. When territory and fairness collide, fairness wins: the lead
+   *      overflows to the lighter-loaded recipient even out of territory.
+   */
+  async runDistribution(triggeredById?: string): Promise<DistributionResult> {
+    const recipients = await this.getRecipients();
+    if (recipients.length === 0) {
+      this.logger.warn(
+        'Auto-assign: no active recipients with a territory configured — nothing to do',
+      );
+      return { proposed: 0, skipped: 0, preview: [] };
+    }
+
+    const startLoad = await this.getOpenLeadCounts(recipients.map((r) => r.id));
+    const load = new Map(startLoad); // running load, mutated as we propose
+    const gained = new Map<string, number>(
+      recipients.map((r) => [r.id, 0]),
+    );
+
+    const pool = await this.getDistributablePool();
+
+    let proposed = 0;
+    let skipped = 0;
+    for (const lead of pool) {
+      const pick = this.allocate(recipients, load, lead.school?.province);
+      if (!pick) {
+        skipped++;
+        continue;
       }
+      await this.proposalRepository.save(
+        this.proposalRepository.create({
+          lead_id: lead.id,
+          proposed_rep_id: pick.recipient.id,
+          reason: pick.reason,
+          status: AssignmentProposalStatus.PENDING,
+        }),
+      );
+      load.set(pick.recipient.id, (load.get(pick.recipient.id) ?? 0) + 1);
+      gained.set(pick.recipient.id, (gained.get(pick.recipient.id) ?? 0) + 1);
+      proposed++;
+    }
 
-      const reps = await this.getRoutableReps();
-      if (reps.length === 0) {
-        this.logger.warn(
-          'Auto-router: no active routable reps found — skipping pass',
-        );
-        return;
-      }
+    const preview: DistributionPreviewRow[] = recipients
+      .map((r) => ({
+        rep_id: r.id,
+        name: r.name,
+        cohort: r.cohort,
+        current: startLoad.get(r.id) ?? 0,
+        will_gain: gained.get(r.id) ?? 0,
+        new_total: load.get(r.id) ?? 0,
+      }))
+      .sort((a, b) => b.will_gain - a.will_gain);
 
-      // Current open-lead load per routable rep (for keeping counts even).
-      const load = await this.getOpenLeadCountsByRep(reps.map((r) => r.id));
-
-      // Leads with a pending proposal are already on the manager's desk.
-      const pendingLeadIds = (
-        await this.proposalRepository.find({
-          where: { status: AssignmentProposalStatus.PENDING },
-          select: ['lead_id'],
-        })
-      ).map((p) => p.lead_id);
-
-      const qb = this.leadRepository
-        .createQueryBuilder('lead')
-        .leftJoinAndSelect('lead.school', 'school')
-        .where('lead.assigned_to IS NULL')
-        .andWhere('lead.deleted_at IS NULL')
-        .andWhere('lead.status NOT IN (:...terminal)', {
-          terminal: [...TERMINAL_LEAD_STATUSES],
-        })
-        .orderBy('lead.created_at', 'ASC')
-        .limit(ROUTER_BATCH_LIMIT);
-      if (pendingLeadIds.length) {
-        qb.andWhere('lead.id NOT IN (:...pendingLeadIds)', { pendingLeadIds });
-      }
-      const unassigned = await qb.getMany();
-
-      if (unassigned.length === 0) {
-        return;
-      }
-
-      let proposed = 0;
-      for (const lead of unassigned) {
-        const pick = this.pickAssignee(reps, load, lead.school?.province);
-
-        await this.proposalRepository.save(
-          this.proposalRepository.create({
-            lead_id: lead.id,
-            proposed_rep_id: pick.rep.id,
-            reason: pick.reason,
-            status: AssignmentProposalStatus.PENDING,
-          }),
-        );
-        // Count the proposal into the running load so one pass spreads
-        // a batch evenly instead of stacking everything on one rep.
-        load.set(pick.rep.id, (load.get(pick.rep.id) ?? 0) + 1);
-        proposed++;
-      }
-
-      // One digest to the deciders, not one ping per lead.
+    if (proposed > 0) {
       try {
         const managerIds = await this.getDeciderIds();
-        if (managerIds.length && proposed > 0) {
+        if (managerIds.length) {
           await this.userNotificationsService.sendToUsers({
             title: 'Lead assignments waiting for approval',
-            message: `The auto-assign engine has ${proposed} suggested assignment(s) waiting for a manager to approve.`,
+            message: `Auto-assign has ${proposed} suggested assignment(s) waiting for a manager to approve.`,
             severity: 'info',
             entity: 'Lead',
             entityId: 'auto-assign',
-            dedupeKey: `lead-autoassign-digest-${new Date().toISOString().slice(0, 10)}`,
+            dedupeKey: `lead-autoassign-digest-${triggeredById ?? 'cron'}`,
             actionUrl: '/leads?tab=assignment-proposals',
             userIds: managerIds,
           });
@@ -150,16 +189,12 @@ export class LeadAutoRouterService {
       } catch {
         // Notification failure never blocks proposal creation.
       }
-
-      this.logger.log(
-        `Auto-router: proposed ${proposed} assignment(s) across ${reps.length} rep(s) — awaiting manager approval`,
-      );
-    } catch (error: any) {
-      this.logger.error(
-        `Auto-router pass failed: ${error?.message}`,
-        error?.stack,
-      );
     }
+
+    this.logger.log(
+      `Auto-assign: proposed ${proposed}, skipped ${skipped}, across ${recipients.length} recipient(s) — awaiting approval`,
+    );
+    return { proposed, skipped, preview };
   }
 
   // ---------------------- proposal decisions ----------------------
@@ -292,67 +327,161 @@ export class LeadAutoRouterService {
   // ---------------------------- routing ----------------------------
 
   /**
-   * AUTO2: location beats load. Territory-matching reps (school
-   * province ∈ rep territories) form the candidate pool; only when
-   * nobody matches does the whole roster compete. Within the pool the
-   * least-loaded rep wins, deterministic tie-break by id.
+   * Choose a recipient for one lead. Returns null only when every
+   * recipient is at the fairness cap (nothing can take another lead
+   * without breaking a cohort's gap).
+   *
+   * `load` is the running load (starting counts + proposals made so far),
+   * so a single run spreads a batch evenly rather than stacking it.
    */
-  private pickAssignee(
-    reps: RoutableRep[],
+  private allocate(
+    recipients: Recipient[],
     load: Map<string, number>,
     schoolProvince?: string | null,
-  ): { rep: RoutableRep; reason: string } {
+  ): { recipient: Recipient; reason: string } | null {
     const province = (schoolProvince ?? '').trim().toLowerCase();
+
+    // The least-loaded member of each cohort — the floor the gap is
+    // measured from.
+    const cohortFloor = (cohort: 'rep' | 'manager'): number => {
+      const loads = recipients
+        .filter((r) => r.cohort === cohort)
+        .map((r) => load.get(r.id) ?? 0);
+      return loads.length ? Math.min(...loads) : 0;
+    };
+
+    // A recipient is "capped" when taking one more lead would push them
+    // more than FAIRNESS_GAP ahead of the least-loaded member of their
+    // own cohort.
+    const capped = (r: Recipient): boolean =>
+      (load.get(r.id) ?? 0) + 1 - cohortFloor(r.cohort) > FAIRNESS_GAP;
+
+    const leastLoaded = (pool: Recipient[]): Recipient | null => {
+      let best: Recipient | null = null;
+      let bestCount = Number.POSITIVE_INFINITY;
+      for (const r of [...pool].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+        const count = load.get(r.id) ?? 0;
+        if (count < bestCount) {
+          best = r;
+          bestCount = count;
+        }
+      }
+      return best;
+    };
+
     const territorial = province
-      ? reps.filter((r) =>
+      ? recipients.filter((r) =>
           r.territories.some((t) => t.trim().toLowerCase() === province),
         )
       : [];
-    const pool = territorial.length ? territorial : reps;
 
-    let best: RoutableRep | null = null;
-    let bestCount = Number.POSITIVE_INFINITY;
-    for (const rep of [...pool].sort((a, b) => (a.id < b.id ? -1 : 1))) {
-      const count = load.get(rep.id) ?? 0;
-      if (count < bestCount) {
-        best = rep;
-        bestCount = count;
-      }
+    // Priority: territory-covering recipients who aren't capped …
+    const territorialOpen = territorial.filter((r) => !capped(r));
+    // … then fairness wins — any recipient who isn't capped …
+    const anyOpen = recipients.filter((r) => !capped(r));
+
+    let chosen: Recipient | null;
+    let overflow = false;
+    if (territorialOpen.length) {
+      chosen = leastLoaded(territorialOpen);
+    } else if (anyOpen.length) {
+      chosen = leastLoaded(anyOpen);
+      overflow = territorial.length > 0; // had a territory match but it was capped
+    } else {
+      // Everyone capped (all cohorts maxed and equal) — hand to the
+      // globally least-loaded so a lead is never silently dropped.
+      chosen = leastLoaded(recipients);
     }
-    const rep = best as RoutableRep;
+    if (!chosen) return null;
 
-    const reason = territorial.length
-      ? `${rep.name} covers ${schoolProvince} and carries the fewest open leads there (${bestCount})`
-      : province
-        ? `No rep covers ${schoolProvince}; ${rep.name} carries the fewest open leads overall (${bestCount})`
-        : `Lead has no province on record; ${rep.name} carries the fewest open leads overall (${bestCount})`;
-
-    return { rep, reason };
+    const count = load.get(chosen.id) ?? 0;
+    let reason: string;
+    if (territorialOpen.length) {
+      reason = `${chosen.name} covers ${schoolProvince} and is the lightest-loaded there (${count} open)`;
+    } else if (overflow) {
+      reason = `${chosen.name}'s territory covers ${schoolProvince}, but its holders are at the ${FAIRNESS_GAP}-lead cap; routed to ${chosen.name} to keep the cohort fair (${count} open)`;
+    } else if (province) {
+      reason = `No recipient covers ${schoolProvince}; ${chosen.name} is the lightest-loaded overall (${count} open)`;
+    } else {
+      reason = `Lead has no province; ${chosen.name} is the lightest-loaded overall (${count} open)`;
+    }
+    return { recipient: chosen, reason };
   }
 
-  private async getRoutableReps(): Promise<RoutableRep[]> {
+  /**
+   * Recipients = active users who hold a rep/manager role AND have a
+   * territory configured. Territory is the opt-in: no territory, no
+   * auto-assigned leads. Cohort is the role they are balanced within.
+   */
+  private async getRecipients(): Promise<Recipient[]> {
     const rows = await this.dataSource
       .createQueryBuilder()
-      .select('DISTINCT user.id', 'id')
+      .select('user.id', 'id')
       .addSelect('user.first_name', 'first_name')
       .addSelect('user.last_name', 'last_name')
       .addSelect('user.territory_provinces', 'territory_provinces')
+      .addSelect(
+        `BOOL_OR(role.name = 'sales_manager')`,
+        'is_manager',
+      )
       .from('users', 'user')
       .innerJoin('user_roles', 'ur', 'ur.user_id = user.id')
       .innerJoin('roles', 'role', 'role.id = ur.role_id')
       .where('role.name IN (:...roles)', { roles: [...ROUTABLE_ROLES] })
       .andWhere('user.is_active = :active', { active: true })
+      .andWhere('user.territory_provinces IS NOT NULL')
+      .groupBy('user.id')
+      .addGroupBy('user.first_name')
+      .addGroupBy('user.last_name')
+      .addGroupBy('user.territory_provinces')
       .getRawMany<{
         id: string;
         first_name: string;
         last_name: string;
         territory_provinces: string | null;
+        is_manager: boolean;
       }>();
-    return rows.map((r) => ({
-      id: r.id,
-      name: `${r.first_name} ${r.last_name}`.trim(),
-      territories: this.parseTerritories(r.territory_provinces),
-    }));
+    return rows
+      .map((r) => ({
+        id: r.id,
+        name: `${r.first_name} ${r.last_name}`.trim(),
+        cohort: (r.is_manager ? 'manager' : 'rep') as 'rep' | 'manager',
+        territories: this.parseTerritories(r.territory_provinces),
+      }))
+      .filter((r) => r.territories.length > 0);
+  }
+
+  /**
+   * The distributable pool: unassigned leads that have never been worked
+   * (no activity at all) and are not disqualified/converted or already
+   * sitting on the manager's desk as a pending proposal.
+   */
+  private async getDistributablePool(): Promise<Lead[]> {
+    const pendingLeadIds = (
+      await this.proposalRepository.find({
+        where: { status: AssignmentProposalStatus.PENDING },
+        select: ['lead_id'],
+      })
+    ).map((p) => p.lead_id);
+
+    const qb = this.leadRepository
+      .createQueryBuilder('lead')
+      .leftJoinAndSelect('lead.school', 'school')
+      .where('lead.assigned_to IS NULL')
+      .andWhere('lead.deleted_at IS NULL')
+      .andWhere('lead.status NOT IN (:...terminal)', {
+        terminal: [...TERMINAL_LEAD_STATUSES],
+      })
+      // "No activity yet" — a lead with any activity has been picked up.
+      .andWhere(
+        'NOT EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = lead.id)',
+      )
+      .orderBy('lead.created_at', 'ASC')
+      .limit(ROUTER_BATCH_LIMIT);
+    if (pendingLeadIds.length) {
+      qb.andWhere('lead.id NOT IN (:...pendingLeadIds)', { pendingLeadIds });
+    }
+    return qb.getMany();
   }
 
   private parseTerritories(raw: string | null): string[] {
@@ -384,7 +513,12 @@ export class LeadAutoRouterService {
     return rows.map((r) => r.id);
   }
 
-  private async getOpenLeadCountsByRep(
+  /**
+   * Current open-lead load per recipient — open meaning not deleted and
+   * not disqualified/converted (the owner's rule: disqualified leads
+   * don't count toward a person's load).
+   */
+  private async getOpenLeadCounts(
     repIds: string[],
   ): Promise<Map<string, number>> {
     const load = new Map<string, number>(repIds.map((id) => [id, 0]));

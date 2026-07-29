@@ -19,14 +19,23 @@
 export const TERMINAL_LEAD_STATUSES = ['Disqualified', 'Converted'] as const;
 
 /**
- * ASSIGNMENT POLICY (OPEN DECISION — register §7.8).
- * Default: load-balanced round-robin across active users holding one of
- * these roles. Switch to territory/province-based routing by changing
- * this set and the `pickAssignee` strategy in lead-auto-router.service.
- * Confirmed lead-carriers in the data are sales_reps + two sales_managers;
- * we default to sales_rep only so managers aren't auto-loaded.
+ * ASSIGNMENT POLICY (confirmed 29 July meeting, see AUTO-ASSIGN-ENGINE.md).
+ * Recipients are active users who have a territory configured
+ * (users.territory_provinces) AND hold one of these roles. Territory is
+ * the opt-in: a user with no territory set never receives auto-assigned
+ * leads. Both reps and managers receive; they are balanced within their
+ * own role cohort (a rep against reps, a manager against managers).
  */
-export const ROUTABLE_ROLES = ['sales_rep'] as const;
+export const ROUTABLE_ROLES = ['sales_rep', 'sales_manager'] as const;
+
+/**
+ * The maximum lead-count gap allowed WITHIN a role cohort (priority 1 —
+ * fair distribution). No cohort member may end up more than this many
+ * leads ahead of the least-loaded member of the same cohort. This is a
+ * HARD cap: when honouring territory would break it, fairness wins and
+ * the lead overflows to the lighter-loaded member even out of territory.
+ */
+export const FAIRNESS_GAP = 50;
 
 /** Max leads routed per cron pass (keeps a backlog drain from spiking the DB). */
 export const ROUTER_BATCH_LIMIT = 200;
