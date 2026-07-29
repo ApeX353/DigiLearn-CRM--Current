@@ -423,7 +423,8 @@ export class LeadAutoRouterService {
   private async getRecipients(): Promise<Recipient[]> {
     const rows = await this.dataSource
       .createQueryBuilder()
-      .select('DISTINCT user.id', 'id')
+      .select('user.id', 'id')
+      .distinct(true)
       .addSelect('user.first_name', 'first_name')
       .addSelect('user.last_name', 'last_name')
       .addSelect('user.territory_provinces', 'territory_provinces')
