@@ -312,11 +312,14 @@ export default function LeadsManagementPage() {
   // Total count stays stable as the rep narrows the Showing view.
   const { data: totalsData } = useLeads({ page: 1, limit: 1 });
   const unfilteredTotalCount = totalsData?.meta?.totalItems ?? 0;
+  // The assignee filter lists people you can filter leads by — only
+  // active staff belong here. "all" pulled in deactivated and test
+  // accounts (e.g. the ZZ Verify accounts) and cluttered the dropdown.
   const { data: staff } = useAllStaff({
     page: 1,
-    limit: 15,
+    limit: 100,
     search: "",
-    status: "all",
+    status: "active",
   });
   const { data: leadBreaches } = useLeadSlaBreaches();
   useCheckLeadSlaBreaches({ enabled: canRunSlaCheck });
@@ -610,10 +613,12 @@ export default function LeadsManagementPage() {
                         label: "All Assignees",
                         value: "all",
                       },
-                      ...allStaff.map((staff) => ({
-                        label: `${staff.first_name} ${staff.last_name}`,
-                        value: staff.id,
-                      })),
+                      ...allStaff
+                        .filter((staff) => staff.is_active)
+                        .map((staff) => ({
+                          label: `${staff.first_name} ${staff.last_name}`,
+                          value: staff.id,
+                        })),
                     ],
                   },
                   {
