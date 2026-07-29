@@ -8,6 +8,7 @@ import { LeadSLAHistory } from './entities/lead-sla-history.entity';
 import { LeadQualificationCriteria } from './entities/lead-qualification-criteria.entity';
 import { LeadSLAService } from './services/lead-sla.service';
 import { LeadQualificationService } from './services/lead-qualification.service';
+import { LeadsXlsxImportService } from './services/leads-xlsx-import.service';
 import { LeadSLAController } from './lead-sla.controller';
 import { LeadQualificationController } from './lead-qualification.controller';
 import { LeadReversalRequestsController } from './lead-reversal-requests.controller';
@@ -67,6 +68,7 @@ import { SettingsModule } from '../settings/settings.module';
     LeadTemperatureService,
     LeadEscalationService,
     DuplicateDetectionService,
+    LeadsXlsxImportService,
   ],
   exports: [
     LeadsService,

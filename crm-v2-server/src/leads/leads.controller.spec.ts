@@ -13,11 +13,16 @@ describe('LeadsController', () => {
     findByLeadId: jest.fn(),
   };
 
+  const xlsxImportService = {
+    importFromBase64: jest.fn(),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     controller = new LeadsController(
       leadsService as any,
       qualificationService as any,
+      xlsxImportService as any,
     );
   });
 

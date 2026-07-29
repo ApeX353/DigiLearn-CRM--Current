@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
@@ -15,9 +16,14 @@ import cookieParser from 'cookie-parser';
 config({ path: join(__dirname, '../.env') });
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // enable cookie parser
   app.use(cookieParser());
+
+  // Raise the JSON body limit so the lead import can post an .xlsx as a
+  // base64 payload (the default 100kb is too small for a full workbook).
+  app.useBodyParser('json', { limit: '25mb' });
+  app.useBodyParser('urlencoded', { limit: '25mb', extended: true });
 
   // Global API prefix
   app.setGlobalPrefix('api/v2');

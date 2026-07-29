@@ -15,6 +15,8 @@ import {
 import type { Response } from 'express';
 import { LeadsService } from './leads.service';
 import { LeadQualificationService } from './services/lead-qualification.service';
+import { LeadsXlsxImportService } from './services/leads-xlsx-import.service';
+import { ImportLeadsXlsxDto } from './dto/import-leads-xlsx.dto';
 import {
   CreateLeadDto,
   UpdateLeadDto,
@@ -39,6 +41,7 @@ export class LeadsController {
   constructor(
     private readonly leadsService: LeadsService,
     private readonly qualificationService: LeadQualificationService,
+    private readonly leadsXlsxImport: LeadsXlsxImportService,
   ) {}
 
   // @Post()
@@ -92,6 +95,32 @@ export class LeadsController {
       success: true,
       message: 'Lead created successfully with school and contacts',
       data: result,
+    };
+  }
+
+  // Kim's "Import Leads" button. The manager uploads an .xlsx (sent as
+  // base64 JSON — no file-upload middleware, no client Excel library);
+  // the server parses it and creates a school + head contact + unassigned
+  // New lead per row, logging the whole import with its count.
+  @Post('import')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Bulk-import leads from an Excel (.xlsx) file' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Import summary' })
+  async importXlsx(
+    @Body() dto: ImportLeadsXlsxDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    const data = await this.leadsXlsxImport.importFromBase64(
+      dto.file_base64,
+      userId,
+      userRole,
+      dto.filename,
+    );
+    return {
+      success: true,
+      message: `Imported ${data.created} lead(s)`,
+      data,
     };
   }
 

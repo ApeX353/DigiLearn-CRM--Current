@@ -130,6 +130,7 @@ export class LeadsService {
     input: CreateLeadWithSchoolContactsDto,
     userId: string,
     userRole?: string,
+    opts?: { bulkImport?: boolean },
   ): Promise<{
     lead: Lead;
     school: School;
@@ -208,8 +209,13 @@ export class LeadsService {
           // schools endpoint already had. Without it the Nash import
           // rejected every school whose city the web lookup could not
           // find, which is exactly the case the import exists to handle.
+          // City exemption: the bulk import (opts.bulkImport) and the
+          // admin/admin_support roles may create a school without a city
+          // (it renders "Click here to enter city" for anyone to fill).
           const importRoles = ['admin', 'admin_support'];
-          if (!leadInfo.city?.trim() && !importRoles.includes(userRole ?? '')) {
+          const cityExempt =
+            opts?.bulkImport === true || importRoles.includes(userRole ?? '');
+          if (!leadInfo.city?.trim() && !cityExempt) {
             throw new BadRequestException(
               'City is required to create a new school',
             );
