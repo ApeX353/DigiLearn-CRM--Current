@@ -17,6 +17,27 @@ config({ path: join(__dirname, '../.env') });
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Security hardening (no extra dependency):
+  //  - stop advertising the tech stack (X-Powered-By: Express)
+  //  - set the standard protective response headers
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+  app.use((_req: any, res: any, next: any) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    if (isProduction) {
+      res.setHeader(
+        'Strict-Transport-Security',
+        'max-age=31536000; includeSubDomains',
+      );
+    }
+    next();
+  });
+
   // enable cookie parser
   app.use(cookieParser());
 
@@ -98,22 +119,25 @@ async function bootstrap() {
     .addTag('Activity Logs', 'System activity and audit logging')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-
-  // Mount Scalar API documentation
-  app.use(
-    '/api/v2/docs',
-    apiReference({
-      spec: {
-        content: document,
-      },
-      theme: 'purple',
-      darkMode: true,
-      layout: 'modern',
-      showSidebar: true,
-      searchHotKey: 'k',
-    } as any),
-  );
+  // API documentation (Scalar) — NOT mounted in production, where it
+  // would otherwise expose the full endpoint/schema surface to anyone.
+  // Set ENABLE_API_DOCS=true to force it on in production if ever needed.
+  if (!isProduction || process.env.ENABLE_API_DOCS === 'true') {
+    const document = SwaggerModule.createDocument(app, config);
+    app.use(
+      '/api/v2/docs',
+      apiReference({
+        spec: {
+          content: document,
+        },
+        theme: 'purple',
+        darkMode: true,
+        layout: 'modern',
+        showSidebar: true,
+        searchHotKey: 'k',
+      } as any),
+    );
+  }
 
   // Port resolution — honour `PORT` first (standard), fall back to
   // the legacy misnamed `SMS_PORT` still set in some local `.env`
