@@ -1,5 +1,25 @@
 # Lead distribution (auto-assign) engine — build spec
 
+> **STATUS 29 July: HALTED, awaiting Kim.** Server + client built and
+> verified on staging (see the staging run below). Three questions are
+> with Kim; do not resume until she answers:
+> 1. Should a manager be able to absorb a large batch to reach parity, or
+>    do managers get a smaller capped share? (Staging run gave a manager
+>    +190 of 200 because he started far behind — the literal result of
+>    "both balanced equally within cohort".)
+> 2. Confirm the engine only *adds* leads — it can't rebalance an existing
+>    book (a rep already at 521 stays ahead; the ≤50 gap is only reachable
+>    for people who are behind).
+> 3. The per-run cap is 200 leads; the pool is larger, so it drains over
+>    several runs — OK?
+>
+> **The pool is today's NEW leads.** On prod the schools already exist;
+> the leads for them have not been made yet. Those newly-created,
+> unassigned, no-activity leads are exactly what the engine distributes
+> (matches the `getDistributablePool` filter). Import the leads, then run.
+> Engine stays OFF on prod until sign-off.
+
+
 **From the 29 July 2026 meeting.** This is the authority for the AUTO1 /
 AUTO2 / AUTO3 tickets. The engine's server side is already built
 (propose → manager approves → assign; routed by territory then load) on
