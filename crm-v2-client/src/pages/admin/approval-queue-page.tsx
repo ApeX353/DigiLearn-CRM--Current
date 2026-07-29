@@ -46,6 +46,13 @@ import type {
   LeadReversalRequestKind,
   LeadReversalRequestStatus,
 } from "~/api/lead-reversal-requests";
+import {
+  useAssignmentProposals,
+  useApproveAssignmentProposal,
+  useRejectAssignmentProposal,
+  useApproveAssignmentProposalBatch,
+} from "~/api/assignment-proposals";
+import type { AssignmentProposal } from "~/api/assignment-proposals";
 
 /**
  * Phase C.2 — Manager approval queue.
@@ -386,6 +393,169 @@ function QueueTable({
   );
 }
 
+function repName(p: AssignmentProposal): string {
+  const r = p.proposed_rep;
+  if (!r) return p.proposed_rep_id.slice(0, 8);
+  return (
+    `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || r.email || "—"
+  );
+}
+
+/**
+ * AUTO1 — the auto-assign engine's suggestions. Nothing is assigned
+ * until a manager approves here; the reason column says why each rep
+ * was picked (territory match + current load) so this is an informed
+ * decision, not a rubber stamp.
+ */
+function AutoAssignQueue() {
+  const { data: pending = [], isLoading, refetch } =
+    useAssignmentProposals("pending");
+  const approve = useApproveAssignmentProposal();
+  const reject = useRejectAssignmentProposal();
+  const approveBatch = useApproveAssignmentProposalBatch();
+  const busy =
+    approve.isPending || reject.isPending || approveBatch.isPending;
+
+  const decide = (p: AssignmentProposal, action: "approve" | "reject") => {
+    const m = action === "approve" ? approve : reject;
+    m.mutate(p.id, {
+      onSuccess: () =>
+        toast.success(
+          action === "approve"
+            ? `Lead assigned to ${repName(p)}`
+            : "Suggestion rejected — lead stays unassigned",
+        ),
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Something went wrong"),
+    });
+  };
+
+  const approveAll = () => {
+    approveBatch.mutate(
+      pending.map((p) => p.id),
+      {
+        onSuccess: (r) => {
+          toast.success(
+            `${r.approved} assigned${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`,
+          );
+          refetch();
+        },
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message || "Batch approve failed"),
+      },
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2 p-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-12 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (pending.length === 0) {
+    return (
+      <div className="p-12 text-center text-sm text-muted-foreground">
+        No assignment suggestions waiting. The engine only suggests when
+        it is switched on under Settings → Compliance &amp; Controls, and
+        it never assigns anyone without an approval here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          onClick={approveAll}
+          disabled={busy}
+          data-testid="auto-assign-approve-all"
+        >
+          {busy ? (
+            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          ) : (
+            <CheckCircle2 className="mr-1.5 h-3 w-3" />
+          )}
+          Approve all {pending.length}
+        </Button>
+      </div>
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full" data-testid="auto-assign-queue">
+          <thead className="bg-muted/50">
+            <tr className="text-left text-xs font-medium uppercase tracking-wide">
+              <th className="p-3">Lead</th>
+              <th className="p-3 w-44">Suggested rep</th>
+              <th className="p-3">Why this rep</th>
+              <th className="p-3 w-36">Suggested</th>
+              <th className="p-3 w-60">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {pending.map((p) => (
+              <tr key={p.id} className="border-t hover:bg-muted/30">
+                <td className="p-3 align-top">
+                  <Link
+                    to={`/leads/${p.lead_id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {p.lead?.lead_name || p.lead_id.slice(0, 8)}
+                  </Link>
+                  {p.lead?.school?.name && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {p.lead.school.name}
+                      {p.lead.school.province
+                        ? ` — ${p.lead.school.province}`
+                        : ""}
+                    </div>
+                  )}
+                </td>
+                <td className="p-3 align-top text-sm font-medium">
+                  {repName(p)}
+                </td>
+                <td className="p-3 align-top text-sm max-w-[40ch]">
+                  <div className="line-clamp-2 break-words" title={p.reason}>
+                    {p.reason}
+                  </div>
+                </td>
+                <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
+                  {ago(p.created_at)}
+                </td>
+                <td className="p-3 align-top whitespace-nowrap">
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => decide(p, "approve")}
+                      disabled={busy}
+                      data-testid={`auto-assign-approve-${p.id}`}
+                    >
+                      <CheckCircle2 className="mr-1.5 h-3 w-3" />
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => decide(p, "reject")}
+                      disabled={busy}
+                      data-testid={`auto-assign-reject-${p.id}`}
+                    >
+                      <XCircle className="mr-1.5 h-3 w-3" />
+                      Reject
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function ApprovalQueuePage() {
   const [kind, setKind] = useState<LeadReversalRequestKind | "all">("all");
 
@@ -398,6 +568,8 @@ export default function ApprovalQueuePage() {
     () => pendingCountQuery.data?.length ?? 0,
     [pendingCountQuery.data],
   );
+  const autoAssignQuery = useAssignmentProposals("pending");
+  const autoAssignCount = autoAssignQuery.data?.length ?? 0;
 
   return (
     <Container>
@@ -466,6 +638,17 @@ export default function ApprovalQueuePage() {
                 <TabsTrigger value="rejected" data-testid="approval-tab-rejected">
                   Rejected
                 </TabsTrigger>
+                <TabsTrigger
+                  value="auto-assign"
+                  data-testid="approval-tab-auto-assign"
+                >
+                  Auto-assign
+                  {autoAssignCount > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {autoAssignCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="pending">
                 <QueueTable status="pending" kind={kind} />
@@ -475,6 +658,9 @@ export default function ApprovalQueuePage() {
               </TabsContent>
               <TabsContent value="rejected">
                 <QueueTable status="rejected" kind={kind} />
+              </TabsContent>
+              <TabsContent value="auto-assign">
+                <AutoAssignQueue />
               </TabsContent>
             </Tabs>
           </CardContent>

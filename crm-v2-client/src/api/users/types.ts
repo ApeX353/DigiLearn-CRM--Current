@@ -9,6 +9,8 @@ export interface StaffUser {
   roles: { id: string; name: string }[];
   created_at: string;
   updated_at: string;
+  /** JSON array in text, e.g. '["Bulawayo","Matabeleland South"]' (AUTO2). */
+  territory_provinces?: string | null;
 }
 
 export interface CreateUserDto {
@@ -23,4 +25,5 @@ export interface UpdateUserDto {
   first_name?: string;
   last_name?: string;
   role_ids?: string[];
+  territory_provinces?: string[];
 }

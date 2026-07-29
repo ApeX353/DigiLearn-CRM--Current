@@ -25,6 +25,7 @@ import {
   UserX,
   UserCheck,
   Loader2,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
@@ -32,6 +33,10 @@ import { ShieldAlert } from "lucide-react";
 import { useStaff, useToggleUserActive, type StaffUser } from "~/api/users";
 import { ChangeRoleDialog } from "~/components/admin/change-role-dialog";
 import { AddStaffDialog } from "~/components/admin/add-staff-dialog";
+import {
+  TerritoryDialog,
+  parseTerritories,
+} from "~/components/admin/territory-dialog";
 import { usePermission } from "~/hooks/use-permission";
 
 export default function StaffPage() {
@@ -70,6 +75,7 @@ const StaffManagement = ({ canManage }: { canManage: boolean }) => {
   });
   const toggleActive = useToggleUserActive();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [territoryDialogOpen, setTerritoryDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null);
 
   const users = data?.data || [];
@@ -89,6 +95,11 @@ const StaffManagement = ({ canManage }: { canManage: boolean }) => {
   const handleChangeRole = (user: StaffUser) => {
     setSelectedUser(user);
     setRoleDialogOpen(true);
+  };
+
+  const handleSetTerritories = (user: StaffUser) => {
+    setSelectedUser(user);
+    setTerritoryDialogOpen(true);
   };
 
   if (isLoading) {
@@ -132,6 +143,7 @@ const StaffManagement = ({ canManage }: { canManage: boolean }) => {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Territories</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-12.5" />
                   </TableRow>
@@ -162,6 +174,24 @@ const StaffManagement = ({ canManage }: { canManage: boolean }) => {
                         )}
                       </TableCell>
                       <TableCell>
+                        {parseTerritories(user.territory_provinces).length >
+                        0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {parseTerritories(user.territory_provinces).map(
+                              (p) => (
+                                <Badge key={p} variant="secondary">
+                                  {p}
+                                </Badge>
+                              ),
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <Badge
                           variant={user.is_active ? "default" : "secondary"}
                         >
@@ -182,6 +212,12 @@ const StaffManagement = ({ canManage }: { canManage: boolean }) => {
                             >
                               <Shield className="mr-2 h-4 w-4" />
                               Change Role
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleSetTerritories(user)}
+                            >
+                              <MapPin className="mr-2 h-4 w-4" />
+                              Set Territories
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleToggleActive(user)}
@@ -218,6 +254,11 @@ const StaffManagement = ({ canManage }: { canManage: boolean }) => {
       <ChangeRoleDialog
         open={roleDialogOpen}
         onOpenChange={setRoleDialogOpen}
+        user={selectedUser}
+      />
+      <TerritoryDialog
+        open={territoryDialogOpen}
+        onOpenChange={setTerritoryDialogOpen}
         user={selectedUser}
       />
     </div>

@@ -161,6 +161,17 @@ export class UsersService {
       user.last_name = updateUserDto.last_name;
     }
 
+    // AUTO2: territories for location-first auto-assign routing. An
+    // empty array clears the field (rep then competes on load alone).
+    if (updateUserDto.territory_provinces !== undefined) {
+      const cleaned = updateUserDto.territory_provinces
+        .map((p) => p.trim())
+        .filter(Boolean);
+      user.territory_provinces = cleaned.length
+        ? JSON.stringify(cleaned)
+        : null;
+    }
+
     // Update roles if provided
     if (updateUserDto.role_ids && updateUserDto.role_ids.length > 0) {
       const roles = await this.roleRepository.find({
