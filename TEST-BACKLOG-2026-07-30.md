@@ -8,6 +8,31 @@ the decision-ready spec. Items needing a human decision are flagged
 
 ---
 
+## ✅ BUILD STATUS (2026-07-30) — all items built, on `dube-upgrades`, NOT deployed
+
+| Item | Status |
+|---|---|
+| #1 Import → approval gate | ✅ built (`4cbccd1`/`789c200`) |
+| #2 Sourced Leads / campaign import | ✅ built (`a102fff`) |
+| #3 Duplication check | ✅ built |
+| #4 Queue shows counts | ✅ built |
+| #5 Redirect button | ✅ built (`19bf9c2`) |
+| #6 Rep tiles | ✅ built (`19bf9c2`) |
+| #7 Territory-hard | ✅ built (`49ffa5b`) |
+| #8 Reason-text fix | ✅ resolved by #7 |
+| #9 Daily/Weekly/Monthly | ✅ built (`b620514`) |
+| #10/#11 Sales-only discipline | ✅ built (`b620514`) — live-facing |
+| #12 Enquiry option | ✅ built (`516af36`) |
+| #13 Disqualify by request | ✅ already existed (`tactical_disqualify`) |
+| #14 Reassign disqualified | ➖ partly (existing `reassignment` kind); user said "later" |
+| #15 Compliance metrics | ✅ verified + fixed sales-only (`36d07e0`) |
+| #16 dd/mm/yyyy date fix | ✅ built (`a102fff`) |
+| #17 Campaign edit/delete | ✅ built (`a102fff`) |
+
+**Verification:** `TEST-PATH-2026-07-30.md` — one guided walkthrough covering
+every item. Deploy `dube-upgrades` to staging (migrations run at boot), then
+run the path as Kim + a rep.
+
 ## 0. Headline
 
 The flow works end-to-end, but the test surfaced one data incident and a set
