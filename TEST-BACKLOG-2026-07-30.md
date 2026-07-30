@@ -77,15 +77,15 @@ The central change. Imports must never land straight in the CRM.
 
 ## 3. Auto-assign engine logic
 
-7. **[DECIDED 2026-07-30, Mr Dube] Territory is a HARD filter — "Manake does
-   not get Mashonaland."** Fairness only balances reps who **share** a
-   territory. Manake and Tanya have disjoint territories, so each province
-   goes to its owner; a lead is **never** routed to a rep who doesn't cover
-   its province, even at the cost of balance. This overrides the old
-   "fairness wins over territory" rule.
-8. **Fix the overflow reason text.** On out-of-territory overflow it names the
-   WRONG rep as the territory-holder — literally *"Manake's territory covers
-   Mashonaland East"* (false). Should name the real holder as the capped one.
+7. **✅ BUILT (49ffa5b) — Territory is a HARD filter, "Manake does not get
+   Mashonaland."** Fairness only balances reps who **share** a territory; a
+   lead is never routed to a rep who doesn't cover its province, and a lead
+   with an uncovered/absent province is skipped for manual placement.
+   `lead-auto-router.service.ts` `allocate()`; 8 tests; on `dube-upgrades`,
+   not yet deployed.
+8. **✅ RESOLVED by #7 — the false overflow reason text is gone.** The
+   out-of-territory overflow path (which produced *"Manake's territory covers
+   Mashonaland East"*) no longer exists; reasons now read *"X covers &lt;prov&gt;"*.
 
 *(Note: the cross-territory spill looked far worse than normal because the pool
 was the doubled 736-lead import with Tanya pre-loaded ~225. On clean, balanced
