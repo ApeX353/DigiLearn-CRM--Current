@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateField } from "~/components/ui/date-field";
 import { Link } from "react-router";
 import { format } from "date-fns";
 import { Megaphone, Plus, Loader2 } from "lucide-react";
@@ -177,23 +178,19 @@ export default function CampaignsPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Start date *</label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  data-testid="campaign-start"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">End date</label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
+              <DateField
+                label="Start date"
+                required
+                value={startDate}
+                onChange={setStartDate}
+                data-testid="campaign-start"
+              />
+              <DateField
+                label="End date"
+                value={endDate}
+                onChange={setEndDate}
+                min={startDate || undefined}
+              />
             </div>
           </div>
           <DialogFooter>

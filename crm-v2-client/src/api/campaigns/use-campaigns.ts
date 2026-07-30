@@ -29,6 +29,10 @@ const api = {
     apiClientAuth.get(`/campaigns/${id}/roi`).then((res) => res.data.data),
   create: (dto: CreateCampaignDto): Promise<Campaign> =>
     apiClientAuth.post("/campaigns", dto).then((res) => res.data.data),
+  update: (id: string, dto: Partial<CreateCampaignDto>): Promise<Campaign> =>
+    apiClientAuth.patch(`/campaigns/${id}`, dto).then((res) => res.data.data),
+  remove: (id: string): Promise<void> =>
+    apiClientAuth.delete(`/campaigns/${id}`).then(() => undefined),
 };
 
 export function useCampaigns() {
@@ -73,6 +77,26 @@ export function useCreateCampaign() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: api.create,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  });
+}
+
+export function useUpdateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; dto: Partial<CreateCampaignDto> }) =>
+      api.update(vars.id, vars.dto),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.all });
+      qc.invalidateQueries({ queryKey: keys.one(vars.id) });
+    },
+  });
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
 }

@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Campaign } from './entities/campaign.entity';
 import { Lead } from '../leads/entities/lead.entity';
 import { Deal } from '../deals/entities/deal.entity';
 import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
-import { CreateCampaignDto } from './dto/campaign.dto';
+import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
 
 export interface CurrencyBucket {
   currency: string;
@@ -71,6 +75,38 @@ export class CampaignsService {
     });
     if (!campaign) throw new NotFoundException(`Campaign ${id} not found`);
     return campaign;
+  }
+
+  /** Edit a campaign — fixes a wrong date, name, type, etc. (TEST-BACKLOG #17). */
+  async update(id: string, dto: UpdateCampaignDto): Promise<Campaign> {
+    const campaign = await this.findOne(id);
+    if (dto.name !== undefined) campaign.name = dto.name;
+    if (dto.type !== undefined) campaign.type = dto.type;
+    if (dto.start_date !== undefined) campaign.start_date = dto.start_date;
+    if (dto.end_date !== undefined) campaign.end_date = dto.end_date ?? null;
+    if (dto.currency !== undefined) campaign.currency = dto.currency;
+    return this.campaignRepo.save(campaign);
+  }
+
+  /**
+   * Delete a campaign — refused while anything is still attached, so a live
+   * campaign is never yanked out from under its leads/requisitions. Detach
+   * those first (or the campaign was a mistake with nothing attached).
+   */
+  async remove(id: string): Promise<void> {
+    await this.findOne(id); // 404 if missing
+    const leads = await this.leadRepo.count({
+      where: { source_campaign_id: id } as never,
+    });
+    const reqs = await this.requisitionRepo.count({
+      where: { campaign_id: id } as never,
+    });
+    if (leads > 0 || reqs > 0) {
+      throw new BadRequestException(
+        `Cannot delete: ${leads} sourced lead(s) and ${reqs} requisition(s) are attached. Detach them first.`,
+      );
+    }
+    await this.campaignRepo.delete(id);
   }
 
   /** Leads sourced from this campaign (tag survives conversion). */

@@ -2,13 +2,15 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CampaignsService } from './campaigns.service';
-import { CreateCampaignDto } from './dto/campaign.dto';
+import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { RequestingUser } from '../cash-requisitions/cash-requisitions.service';
@@ -53,6 +55,25 @@ export class CampaignsController {
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const data = await this.service.findOne(id);
     return { success: true, data };
+  }
+
+  @Patch(':id')
+  @Roles(...CAMPAIGN_MANAGERS)
+  @ApiOperation({ summary: 'Edit a campaign (name, type, dates, currency)' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCampaignDto,
+  ) {
+    const data = await this.service.update(id, dto);
+    return { success: true, message: 'Campaign updated', data };
+  }
+
+  @Delete(':id')
+  @Roles(...CAMPAIGN_MANAGERS)
+  @ApiOperation({ summary: 'Delete a campaign (only when nothing is attached)' })
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    await this.service.remove(id);
+    return { success: true, message: 'Campaign deleted' };
   }
 
   @Get(':id/leads')

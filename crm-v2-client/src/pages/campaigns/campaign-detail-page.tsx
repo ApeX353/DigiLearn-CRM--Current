@@ -1,6 +1,17 @@
+import { useState } from "react";
+import { toast } from "sonner";
 import { useParams, Link, useNavigate } from "react-router";
 import { format } from "date-fns";
-import { ArrowLeft, Loader2, TrendingUp } from "lucide-react";
+import {
+  ArrowLeft,
+  Loader2,
+  TrendingUp,
+  Upload,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import { ImportLeadsDialog } from "~/components/leads/import-leads-dialog";
+import { CampaignEditDialog } from "~/components/campaigns/campaign-edit-dialog";
 import Container from "~/components/container";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
@@ -15,6 +26,7 @@ import {
   useCampaign,
   useCampaignLeads,
   useCampaignRoi,
+  useDeleteCampaign,
   CAMPAIGN_TYPE_LABELS,
 } from "~/api/campaigns";
 import { DealCostsSection } from "~/components/deals/deal-costs-section";
@@ -32,7 +44,29 @@ export default function CampaignDetailPage() {
   const { data: campaign, isLoading } = useCampaign(id);
   const { data: leads } = useCampaignLeads(id);
   const canSeeRoi = useAnyRole(["admin", "manager", "sales_manager", "finance"]);
+  const canImport = useAnyRole(["admin", "sales_manager"]);
   const { data: roi } = useCampaignRoi(canSeeRoi ? id : "");
+  const deleteCampaign = useDeleteCampaign();
+  const [importOpen, setImportOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const onDelete = () => {
+    if (!campaign) return;
+    if (
+      !window.confirm(
+        `Delete campaign "${campaign.name}"? This cannot be undone. (Blocked if leads or requisitions are still attached.)`,
+      )
+    )
+      return;
+    deleteCampaign.mutate(campaign.id, {
+      onSuccess: () => {
+        toast.success("Campaign deleted");
+        navigate("/campaigns");
+      },
+      onError: (e: any) =>
+        toast.error(e?.response?.data?.message ?? "Could not delete campaign"),
+    });
+  };
 
   if (isLoading || !campaign) {
     return (
@@ -50,6 +84,27 @@ export default function CampaignDetailPage() {
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
         </Button>
+        {canImport && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditOpen(true)}
+              data-testid="campaign-edit"
+            >
+              <Pencil className="mr-1.5 h-4 w-4" /> Edit
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              disabled={deleteCampaign.isPending}
+              data-testid="campaign-delete"
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="mb-4">
@@ -184,20 +239,32 @@ export default function CampaignDetailPage() {
 
         {/* Sourced leads */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Sourced leads ({(leads ?? []).length})
-            </CardTitle>
-            <CardDescription>
-              Leads tagged with this campaign at capture. The tag follows the
-              lead into any deal it converts to.
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+            <div>
+              <CardTitle className="text-base">
+                Sourced leads ({(leads ?? []).length})
+              </CardTitle>
+              <CardDescription>
+                Leads tagged with this campaign at capture. The tag follows the
+                lead into any deal it converts to.
+              </CardDescription>
+            </div>
+            {canImport && (
+              <Button
+                size="sm"
+                onClick={() => setImportOpen(true)}
+                data-testid="campaign-import-leads"
+              >
+                <Upload className="mr-1.5 h-4 w-4" /> Import Leads
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {(leads ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No leads sourced yet. Pick this campaign in the "Source
-                campaign" field when creating leads captured at the event.
+                No leads sourced yet. Use <strong>Import Leads</strong> above to
+                bring in a spreadsheet from this campaign — the rows go to the
+                Approval Queue, and approved leads appear here.
               </p>
             ) : (
               <div className="overflow-x-auto rounded-md border">
@@ -237,6 +304,18 @@ export default function CampaignDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ImportLeadsDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        campaignId={campaign.id}
+        campaignName={campaign.name}
+      />
+      <CampaignEditDialog
+        campaign={campaign}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </Container>
   );
 }

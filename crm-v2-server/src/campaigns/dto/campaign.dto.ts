@@ -7,7 +7,7 @@ import {
   IsOptional,
   IsIn,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { CampaignType } from '../entities/campaign.entity';
 
 export class CreateCampaignDto {
@@ -35,3 +35,6 @@ export class CreateCampaignDto {
   @IsIn(['USD', 'ZWG'])
   currency?: string;
 }
+
+/** All fields optional — edit a campaign's name/type/dates/currency. */
+export class UpdateCampaignDto extends PartialType(CreateCampaignDto) {}
