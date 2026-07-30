@@ -144,4 +144,21 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     expect(leadRepo.update).toHaveBeenCalledWith('l1', expect.objectContaining({ assigned_to: 'manake' }));
     expect(res.status).toBe(AssignmentProposalStatus.APPROVED);
   });
+
+  it('redirect assigns the lead to the manager-chosen rep, not the engine pick', async () => {
+    build([], {});
+    proposalRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'p2', lead_id: 'l2', proposed_rep_id: 'manake',
+      status: AssignmentProposalStatus.PENDING, reason: 'engine picked manake',
+    });
+    proposalRepo.save = jest.fn().mockImplementation((x: any) => Promise.resolve(x));
+    leadRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'l2', lead_name: 'B', status: 'New', assigned_to: null, current_sla_due_date: null,
+    });
+    await service.approveProposal('p2', 'mgr-1', 'tanya'); // redirect to tanya
+    expect(leadRepo.update).toHaveBeenCalledWith(
+      'l2',
+      expect.objectContaining({ assigned_to: 'tanya' }),
+    );
+  });
 });

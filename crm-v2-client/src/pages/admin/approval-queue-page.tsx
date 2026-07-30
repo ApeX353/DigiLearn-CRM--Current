@@ -61,6 +61,7 @@ import type {
 } from "~/api/assignment-proposals";
 import { ImportApprovalsQueue } from "~/components/admin/import-approvals-queue";
 import { useImportBatches } from "~/api/leads/import-batches";
+import { useStaff } from "~/api/users";
 
 /**
  * Phase C.2 — Manager approval queue.
@@ -429,6 +430,17 @@ function AutoAssignQueue() {
   const runAutoAssign = useRunAutoAssign();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const [batchSize, setBatchSize] = useState<number | null>(50);
+  const [repFilter, setRepFilter] = useState<string | null>(null);
+  const staffQuery = useStaff({
+    role: "sales_rep",
+    status: "active",
+    page: 1,
+    limit: 100,
+  });
+  const reps: Array<{ id: string; first_name?: string; last_name?: string }> =
+    (staffQuery.data as any)?.data ??
+    (staffQuery.data as any)?.items ??
+    (Array.isArray(staffQuery.data) ? staffQuery.data : []);
   const busy =
     approve.isPending || reject.isPending || approveBatch.isPending;
 
@@ -477,6 +489,29 @@ function AutoAssignQueue() {
       },
     );
   };
+
+  const redirect = (p: AssignmentProposal, repId: string) => {
+    if (!repId || repId === p.proposed_rep_id) return;
+    approve.mutate(
+      { id: p.id, repId },
+      {
+        onSuccess: () => toast.success("Lead redirected and assigned"),
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message || "Could not redirect"),
+      },
+    );
+  };
+
+  // Rep tiles (#6): how many pending proposals sit with each proposed rep.
+  const perRep = new Map<string, { name: string; count: number }>();
+  for (const p of pending) {
+    const cur = perRep.get(p.proposed_rep_id) ?? { name: repName(p), count: 0 };
+    cur.count += 1;
+    perRep.set(p.proposed_rep_id, cur);
+  }
+  const filteredPending = repFilter
+    ? pending.filter((p) => p.proposed_rep_id === repFilter)
+    : pending;
 
   if (isLoading) {
     return (
@@ -577,6 +612,35 @@ function AutoAssignQueue() {
   return (
     <div className="space-y-3">
       {toolbar}
+      {perRep.size > 0 && (
+        <div className="flex flex-wrap gap-2" data-testid="rep-tiles">
+          <button
+            onClick={() => setRepFilter(null)}
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              !repFilter ? "border-primary bg-primary/10" : "hover:bg-muted/40"
+            }`}
+          >
+            All{" "}
+            <span className="text-muted-foreground">({pending.length})</span>
+          </button>
+          {[...perRep.entries()].map(([repId, info]) => (
+            <button
+              key={repId}
+              onClick={() =>
+                setRepFilter(repFilter === repId ? null : repId)
+              }
+              className={`rounded-lg border px-3 py-2 text-sm ${
+                repFilter === repId
+                  ? "border-primary bg-primary/10"
+                  : "hover:bg-muted/40"
+              }`}
+              data-testid={`rep-tile-${repId}`}
+            >
+              {info.name} <span className="font-semibold">{info.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="rounded-lg border overflow-hidden">
         <table className="w-full" data-testid="auto-assign-queue">
           <thead className="bg-muted/50">
@@ -589,7 +653,7 @@ function AutoAssignQueue() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {pending.map((p) => (
+            {filteredPending.map((p) => (
               <tr key={p.id} className="border-t hover:bg-muted/30">
                 <td className="p-3 align-top">
                   <Link
@@ -639,6 +703,25 @@ function AutoAssignQueue() {
                       <XCircle className="mr-1.5 h-3 w-3" />
                       Reject
                     </Button>
+                    <select
+                      className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                      value=""
+                      disabled={busy || reps.length === 0}
+                      onChange={(e) => redirect(p, e.target.value)}
+                      data-testid={`auto-assign-redirect-${p.id}`}
+                      title="Reassign this lead to a different rep"
+                    >
+                      <option value="">Redirect…</option>
+                      {reps
+                        .filter((r) => r.id !== p.proposed_rep_id)
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {[r.first_name, r.last_name]
+                              .filter(Boolean)
+                              .join(" ") || "rep"}
+                          </option>
+                        ))}
+                    </select>
                   </div>
                 </td>
               </tr>

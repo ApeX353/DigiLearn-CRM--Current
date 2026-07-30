@@ -75,13 +75,21 @@ export class AutomationController {
 
   @Patch('assignment-proposals/:id/approve')
   @Roles('admin', 'sales_manager')
-  @ApiOperation({ summary: 'Approve one proposal — assigns the lead' })
+  @ApiOperation({
+    summary:
+      'Approve one proposal — assigns the lead (optionally redirect to a chosen rep)',
+  })
   async approveAssignmentProposal(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
+    @Body('rep_id') repId?: string,
   ) {
-    const data = await this.autoRouter.approveProposal(id, userId);
-    return { success: true, data, message: 'Lead assigned' };
+    const data = await this.autoRouter.approveProposal(id, userId, repId);
+    return {
+      success: true,
+      data,
+      message: repId ? 'Lead redirected and assigned' : 'Lead assigned',
+    };
   }
 
   @Patch('assignment-proposals/:id/reject')

@@ -62,9 +62,14 @@ export function useAssignmentProposals(status: AssignmentProposalStatus) {
 export function useApproveAssignmentProposal() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
+    // repId set = redirect the lead to a manager-chosen rep instead of the
+    // engine's suggestion (TEST-BACKLOG #5).
+    mutationFn: async (vars: string | { id: string; repId?: string }) => {
+      const { id, repId } =
+        typeof vars === "string" ? { id: vars, repId: undefined } : vars;
       const res = await apiClientAuth.patch(
         `/automation/assignment-proposals/${id}/approve`,
+        repId ? { rep_id: repId } : undefined,
       );
       return res.data;
     },

@@ -224,6 +224,7 @@ export class LeadAutoRouterService {
   async approveProposal(
     id: string,
     deciderId: string,
+    overrideRepId?: string,
   ): Promise<LeadAssignmentProposal> {
     const proposal = await this.proposalRepository.findOne({
       where: { id },
@@ -248,6 +249,12 @@ export class LeadAutoRouterService {
       );
     }
 
+    // Redirect (TEST-BACKLOG #5): a manager may override the engine's pick and
+    // assign the lead to a rep they choose, right from the queue.
+    if (overrideRepId && overrideRepId !== proposal.proposed_rep_id) {
+      proposal.reason = `Redirected by a manager (engine suggested a different rep). Original: ${proposal.reason}`;
+      proposal.proposed_rep_id = overrideRepId;
+    }
     const patch: Partial<Lead> = { assigned_to: proposal.proposed_rep_id };
 
     // First-touch SLA start: only set the clock if one isn't already
