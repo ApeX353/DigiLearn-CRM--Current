@@ -1151,6 +1151,7 @@ export class LeadsService {
   async findReversalRequests(opts: {
     status?: 'pending' | 'approved' | 'rejected';
     kind?: 'status_reversal' | 'reassignment' | 'tactical_disqualify';
+    requestedById?: string;
     limit?: number;
   }): Promise<LeadReversalRequest[]> {
     const qb = this.leadReversalRequestRepository
@@ -1168,6 +1169,8 @@ export class LeadsService {
 
     if (opts.status) qb.andWhere('r.status = :s', { s: opts.status });
     if (opts.kind) qb.andWhere('r.kind = :k', { k: opts.kind });
+    if (opts.requestedById)
+      qb.andWhere('r.requested_by_id = :rb', { rb: opts.requestedById });
     qb.take(opts.limit ?? 100);
 
     // Hand-roll the join so we can attach `lead_summary` to each row
@@ -1243,6 +1246,59 @@ export class LeadsService {
     }
 
     return request;
+  }
+
+  /**
+   * Manager raises an Enquiry on a review request (#12): appends a question
+   * to the thread and marks the request as awaiting the rep's reply. Stays
+   * pending — nothing is decided yet, and the manager may ask again later.
+   */
+  async raiseEnquiry(
+    id: string,
+    message: string,
+    managerId: string,
+  ): Promise<LeadReversalRequest> {
+    const request = await this.findReversalRequestById(id);
+    if (request.status !== 'pending') {
+      throw new BadRequestException('This request has already been decided');
+    }
+    request.enquiry_thread = [
+      ...(request.enquiry_thread ?? []),
+      {
+        by: 'manager',
+        by_id: managerId,
+        message,
+        at: new Date().toISOString(),
+      },
+    ];
+    request.awaiting_rep_response = true;
+    return this.leadReversalRequestRepository.save(request);
+  }
+
+  /**
+   * The rep answers a manager's Enquiry (#12): appends their reply and hands
+   * the request back to the manager. Only the rep who raised it may answer.
+   */
+  async respondToEnquiry(
+    id: string,
+    message: string,
+    userId: string,
+  ): Promise<LeadReversalRequest> {
+    const request = await this.findReversalRequestById(id);
+    if (request.status !== 'pending') {
+      throw new BadRequestException('This request has already been decided');
+    }
+    if (request.requested_by_id && request.requested_by_id !== userId) {
+      throw new ForbiddenException(
+        'Only the rep who raised this request can answer the enquiry',
+      );
+    }
+    request.enquiry_thread = [
+      ...(request.enquiry_thread ?? []),
+      { by: 'rep', by_id: userId, message, at: new Date().toISOString() },
+    ];
+    request.awaiting_rep_response = false;
+    return this.leadReversalRequestRepository.save(request);
   }
 
   async reviewReversalRequest(

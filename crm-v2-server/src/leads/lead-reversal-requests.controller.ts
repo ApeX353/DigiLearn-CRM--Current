@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -103,5 +104,54 @@ export class LeadReversalRequestsController {
       message,
       data: reviewedRequest,
     };
+  }
+
+  // ---- Enquiry (TEST-BACKLOG #12): manager asks, rep answers, repeat ----
+
+  @Get('mine')
+  @Roles('sales_rep', 'sales_manager', 'admin')
+  @ApiOperation({ summary: "The caller's own requests (to answer enquiries)" })
+  async listMine(@CurrentUser('id') userId: string) {
+    const data = await this.leadsService.findReversalRequests({
+      requestedById: userId,
+      limit: 100,
+    });
+    return { success: true, data };
+  }
+
+  @Post(':id/enquiry')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Ask the rep for more info before deciding (#12)' })
+  async raiseEnquiry(
+    @Param('id') id: string,
+    @Body('message') message: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    if (!message?.trim())
+      throw new BadRequestException('A question is required');
+    const data = await this.leadsService.raiseEnquiry(
+      id,
+      message.trim(),
+      userId,
+    );
+    return { success: true, message: 'Enquiry sent to the rep', data };
+  }
+
+  @Post(':id/respond')
+  @Roles('sales_rep', 'sales_manager', 'admin')
+  @ApiOperation({ summary: "Rep answers a manager's enquiry (#12)" })
+  async respondToEnquiry(
+    @Param('id') id: string,
+    @Body('message') message: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    if (!message?.trim())
+      throw new BadRequestException('A response is required');
+    const data = await this.leadsService.respondToEnquiry(
+      id,
+      message.trim(),
+      userId,
+    );
+    return { success: true, message: 'Response sent to the manager', data };
   }
 }

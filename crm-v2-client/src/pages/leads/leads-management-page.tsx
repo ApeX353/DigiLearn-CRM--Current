@@ -19,6 +19,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRunAutoAssign } from "~/api/assignment-proposals";
+import { MyEnquiriesBanner } from "~/components/leads/my-enquiries-banner";
 import {
   LEAD_SOURCES,
   useLeads,
@@ -460,6 +461,7 @@ export default function LeadsManagementPage() {
 
   return (
     <div>
+      <MyEnquiriesBanner />
       <PageHeader
         title="Leads"
         // Subtitle "Manage and track your sales leads" removed — the

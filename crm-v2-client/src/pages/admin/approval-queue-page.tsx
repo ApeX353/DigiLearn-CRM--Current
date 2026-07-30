@@ -62,6 +62,7 @@ import type {
 import { ImportApprovalsQueue } from "~/components/admin/import-approvals-queue";
 import { useImportBatches } from "~/api/leads/import-batches";
 import { useStaff } from "~/api/users";
+import { RequestEnquiry } from "~/components/admin/request-enquiry";
 
 /**
  * Phase C.2 — Manager approval queue.
@@ -225,6 +226,7 @@ function RequestRow({
       </td>
       <td className="p-3 align-top whitespace-nowrap">
         {request.status === "pending" ? (
+          <div className="space-y-1">
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -249,6 +251,8 @@ function RequestRow({
               <XCircle className="mr-1.5 h-3 w-3" />
               Reject
             </Button>
+          </div>
+            <RequestEnquiry request={request} />
           </div>
         ) : (
           <div className="space-y-1">

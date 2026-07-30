@@ -68,6 +68,14 @@ export interface LeadReversalRequest {
   reviewed_by?: ReversalRequestActor | null;
   reviewed_at?: string | null;
   review_note?: string | null;
+  /** Enquiry thread (#12): manager↔rep back-and-forth before a decision. */
+  enquiry_thread?: Array<{
+    by: "manager" | "rep";
+    by_id: string | null;
+    message: string;
+    at: string;
+  }>;
+  awaiting_rep_response?: boolean;
   /** Phase C.2 manager queue: server-resolved lead and proposed-assignee
    *  summaries so the row can render without N+1. */
   lead_summary?: {

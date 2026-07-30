@@ -140,6 +140,21 @@ const api = {
     apiClientAuth
       .post(`/lead-reversal-requests/${requestId}/approve`, data)
       .then((res) => extractDecisionResult(res.data)),
+
+  raiseEnquiry: (requestId: string, message: string) =>
+    apiClientAuth
+      .post(`/lead-reversal-requests/${requestId}/enquiry`, { message })
+      .then((res) => res.data?.data),
+
+  respondToEnquiry: (requestId: string, message: string) =>
+    apiClientAuth
+      .post(`/lead-reversal-requests/${requestId}/respond`, { message })
+      .then((res) => res.data?.data),
+
+  listMine: (): Promise<LeadReversalRequest[]> =>
+    apiClientAuth
+      .get(`/lead-reversal-requests/mine`)
+      .then((res) => res.data?.data ?? []),
 };
 
 export function useLeadReversalRequests(
@@ -150,6 +165,34 @@ export function useLeadReversalRequests(
     queryKey: leadReversalRequestsKeys.byLeadId(leadId, options?.status),
     queryFn: () => api.list(leadId, options),
     enabled: !!leadId,
+  });
+}
+
+/** Enquiry (#12) — the caller's own requests, to answer manager questions. */
+export function useMyReversalRequests() {
+  return useQuery({
+    queryKey: [...leadReversalRequestsKeys.all, "mine"],
+    queryFn: () => api.listMine(),
+  });
+}
+
+export function useRaiseEnquiry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { requestId: string; message: string }) =>
+      api.raiseEnquiry(v.requestId, v.message),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: leadReversalRequestsKeys.all }),
+  });
+}
+
+export function useRespondToEnquiry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { requestId: string; message: string }) =>
+      api.respondToEnquiry(v.requestId, v.message),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: leadReversalRequestsKeys.all }),
   });
 }
 

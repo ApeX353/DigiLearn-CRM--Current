@@ -107,6 +107,24 @@ export class LeadReversalRequest {
   @Column({ type: 'text', nullable: true })
   review_note: string | null;
 
+  /**
+   * Enquiry thread (TEST-BACKLOG #12). A manager can ask the rep for more
+   * information before deciding; the rep answers; the manager may ask again.
+   * Each turn is appended here. The request stays `pending` throughout —
+   * `awaiting_rep_response` says whose court the ball is in.
+   */
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  enquiry_thread: Array<{
+    by: 'manager' | 'rep';
+    by_id: string | null;
+    message: string;
+    at: string;
+  }>;
+
+  /** True when a manager has asked and is waiting on the rep to answer. */
+  @Column({ type: 'boolean', default: false })
+  awaiting_rep_response: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   created_at: Date;
 
