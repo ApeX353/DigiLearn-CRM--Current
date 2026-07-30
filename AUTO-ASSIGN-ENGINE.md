@@ -67,17 +67,28 @@ So the engine's working set is the ~408 unassigned New leads, not all
 
 ## Priority rules (in order)
 
-1. **Fair distribution first.** Spread leads so the gap between the
-   busiest and least-busy rep is **at most 50 leads**.
-2. **Location second.** Route by province territory (CONFIRMED
-   29 July — the two groups cover all 10 provinces with no overlap):
+> **UPDATED 30 July (Mr Dube): territory is a HARD filter — "Manake does not
+> get Mashonaland."** This supersedes the earlier "fairness first" ordering.
+> Fairness no longer overrides territory. (Implemented in
+> `lead-auto-router.service.ts` `allocate()`; unit-tested.)
+
+1. **Territory first, and it is HARD.** A lead goes ONLY to a rep whose
+   territory covers its school province. It is never routed out of territory
+   to balance load. The two groups cover all 10 provinces with no overlap:
    - **Manake (rep)** → Midlands, Matabeleland South, Bulawayo, Masvingo,
      Matabeleland North. (Kim manages this region but does not receive
      auto-assigned leads.)
    - **Tanya (rep)** → all Mashonaland (East, West, Central), Manicaland,
      Harare. (Busi manages this region.)
-3. **The reassignment button is admin + manager only** — and reassignment
-   is where an existing book gets rebalanced (the engine never does).
+2. **Fairness only within a shared territory.** When more than one rep covers
+   a province, the lightest-loaded of them gets the lead. With the current
+   disjoint groups each province has exactly one rep, so each rep simply gets
+   all of their province's leads.
+3. **No coverage → skip.** A lead whose province no rep covers (or that has no
+   province) is left unassigned for a manager to place by hand — never forced
+   onto the wrong rep.
+4. **The reassignment button is admin + manager only** — reassignment is where
+   an existing book gets rebalanced (the engine never does).
 
 ## What is already on the leads page (build on this, don't duplicate)
 
@@ -112,7 +123,8 @@ pool (today the router only excludes already-assigned leads — see the
 - Territories live on `users.territory_provinces`; set on the Staff page.
   Load territories per the group mapping above.
 - Still gated OFF behind `compliance.policy.auto_assign_enabled`.
+- **Territory is now a hard filter** (30 July) — no cross-territory overflow,
+  no 50-lead gap cap. Fairness applies only among reps who share a province.
 - **To add for full spec:** exclude leads-with-activity from the pool
-  (currently excludes only already-assigned), enforce the 50-lead gap
-  cap explicitly, and show the per-person "will gain X" preview in the
-  Approval Queue tab.
+  (currently excludes only already-assigned), and show the per-person
+  "will gain X" preview in the Approval Queue tab.

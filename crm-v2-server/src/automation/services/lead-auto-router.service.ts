@@ -22,7 +22,6 @@ import {
   ROUTABLE_ROLES,
   DEFAULT_BATCH_LIMIT,
   TERMINAL_LEAD_STATUSES,
-  FAIRNESS_GAP,
 } from '../automation.constants';
 
 /** A person the engine may propose leads to. */
@@ -58,11 +57,12 @@ export interface DistributionResult {
  *   AUTO1 — the engine PROPOSES; a sales manager (or admin) approves
  *   before any lead changes hands. Nothing here writes assigned_to.
  *
- *   AUTO2 — routing is by LOCATION first: reps whose territory covers
- *   the lead's school province are preferred, and within that group the
- *   lead goes to whoever carries the fewest open leads, keeping counts
- *   even. With no territory match (or none configured) every routable
- *   rep competes on load alone.
+ *   AUTO2 — routing is by TERRITORY, a HARD filter (Mr Dube, 30 July:
+ *   "Manake does not get Mashonaland"). A lead only goes to a rep whose
+ *   territory covers its school province; within that group it goes to
+ *   whoever carries the fewest open leads. A lead is NEVER routed out of
+ *   territory to balance load — if no rep covers its province (or it has
+ *   none) it is left unassigned for a manager to place by hand.
  *
  * The engine stays opt-in behind the `auto_assign_enabled` compliance
  * setting. The SLA clock starts at APPROVAL time, when the assignment
@@ -114,13 +114,13 @@ export class LeadAutoRouterService {
    * writes a PENDING proposal for each. Nothing is assigned here; the
    * manager approves from the Approval Queue.
    *
-   * Allocation, per the 29 July spec (Kim):
-   *   1. Fairness first — no rep may go more than FAIRNESS_GAP leads ahead
-   *      of the least-loaded rep. This is a hard cap.
-   *   2. Location second — within that cap, a lead prefers a rep whose
-   *      territory covers its province.
-   *   3. When territory and fairness collide, fairness wins: the lead
-   *      overflows to a lighter-loaded rep even out of territory.
+   * Allocation (Mr Dube, 30 July — territory is a HARD filter):
+   *   1. Territory first and only — a lead goes only to a rep whose
+   *      territory covers its province. Never out of territory.
+   *   2. Fairness within territory — when more than one rep covers the
+   *      province, the lightest-loaded of them gets the lead.
+   *   3. No coverage (or no province) — the lead is skipped and left
+   *      unassigned for a manager to place by hand.
    *
    * @param limit How many leads to distribute this run (the manager's
    *   batch choice); null = all distributable leads.
@@ -346,21 +346,6 @@ export class LeadAutoRouterService {
   ): { recipient: Recipient; reason: string } | null {
     const province = (schoolProvince ?? '').trim().toLowerCase();
 
-    // The least-loaded member of each cohort — the floor the gap is
-    // measured from.
-    const cohortFloor = (cohort: 'rep' | 'manager'): number => {
-      const loads = recipients
-        .filter((r) => r.cohort === cohort)
-        .map((r) => load.get(r.id) ?? 0);
-      return loads.length ? Math.min(...loads) : 0;
-    };
-
-    // A recipient is "capped" when taking one more lead would push them
-    // more than FAIRNESS_GAP ahead of the least-loaded member of their
-    // own cohort.
-    const capped = (r: Recipient): boolean =>
-      (load.get(r.id) ?? 0) + 1 - cohortFloor(r.cohort) > FAIRNESS_GAP;
-
     const leastLoaded = (pool: Recipient[]): Recipient | null => {
       let best: Recipient | null = null;
       let bestCount = Number.POSITIVE_INFINITY;
@@ -374,42 +359,30 @@ export class LeadAutoRouterService {
       return best;
     };
 
+    // Territory is a HARD filter (Mr Dube, 30 July: "Manake does not get
+    // Mashonaland"). A lead only goes to a rep whose territory covers its
+    // province — never out of territory to balance load.
     const territorial = province
       ? recipients.filter((r) =>
           r.territories.some((t) => t.trim().toLowerCase() === province),
         )
       : [];
 
-    // Priority: territory-covering recipients who aren't capped …
-    const territorialOpen = territorial.filter((r) => !capped(r));
-    // … then fairness wins — any recipient who isn't capped …
-    const anyOpen = recipients.filter((r) => !capped(r));
+    // No province, or no rep covers it → not auto-assignable. Skip it; the
+    // lead stays unassigned for a manager to place by hand (it shows in the
+    // run as a skip, and is never forced onto the wrong rep).
+    if (territorial.length === 0) return null;
 
-    let chosen: Recipient | null;
-    let overflow = false;
-    if (territorialOpen.length) {
-      chosen = leastLoaded(territorialOpen);
-    } else if (anyOpen.length) {
-      chosen = leastLoaded(anyOpen);
-      overflow = territorial.length > 0; // had a territory match but it was capped
-    } else {
-      // Everyone capped (all cohorts maxed and equal) — hand to the
-      // globally least-loaded so a lead is never silently dropped.
-      chosen = leastLoaded(recipients);
-    }
+    // Fairness applies ONLY among the reps who share this territory: give the
+    // lead to the lightest-loaded of them.
+    const chosen = leastLoaded(territorial);
     if (!chosen) return null;
 
     const count = load.get(chosen.id) ?? 0;
-    let reason: string;
-    if (territorialOpen.length) {
-      reason = `${chosen.name} covers ${schoolProvince} and is the lightest-loaded there (${count} open)`;
-    } else if (overflow) {
-      reason = `${chosen.name}'s territory covers ${schoolProvince}, but its holders are at the ${FAIRNESS_GAP}-lead cap; routed to ${chosen.name} to keep the cohort fair (${count} open)`;
-    } else if (province) {
-      reason = `No recipient covers ${schoolProvince}; ${chosen.name} is the lightest-loaded overall (${count} open)`;
-    } else {
-      reason = `Lead has no province; ${chosen.name} is the lightest-loaded overall (${count} open)`;
-    }
+    const reason =
+      territorial.length > 1
+        ? `${chosen.name} covers ${schoolProvince} and is the lightest-loaded of the ${territorial.length} reps who cover it (${count} open)`
+        : `${chosen.name} covers ${schoolProvince} (${count} open)`;
     return { recipient: chosen, reason };
   }
 

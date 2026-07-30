@@ -2,14 +2,15 @@ import { LeadAutoRouterService } from './lead-auto-router.service';
 import { AssignmentProposalStatus } from '../entities/lead-assignment-proposal.entity';
 
 /**
- * The confirmed 29 July model (Kim's clarifications):
- *   Auto-distribution goes to SALES REPS only (managers approve/reassign).
+ * The 30 July model (Mr Dube): territory is a HARD filter — "Manake does not
+ * get Mashonaland." A lead goes ONLY to a rep whose territory covers its
+ * province; it is never routed out of territory to balance load. Fairness
+ * chooses only among reps who SHARE a territory. Auto-distribution goes to
+ * SALES REPS only (managers approve/reassign).
  *   Recipients opt in via territory:
  *     Manake — rep — West/South provinces
  *     Tanya  — rep — Mash/East provinces
- *   Fairness (≤50 gap) is measured between the reps. Territory preferred;
- *   fairness wins on collision (overflow out of territory). The engine
- *   only ADDS leads — it never strips an existing book.
+ *   The engine only ADDS leads — it never strips an existing book.
  */
 const WEST = ['Bulawayo', 'Midlands', 'Masvingo'];
 const MASH = ['Harare', 'Mashonaland East'];
@@ -23,7 +24,7 @@ function repRows() {
 
 function makeQb(rows: any[]) {
   const qb: any = {};
-  for (const m of ['select', 'addSelect', 'from', 'innerJoin', 'leftJoinAndSelect', 'where', 'andWhere', 'orWhere', 'groupBy', 'addGroupBy', 'orderBy', 'limit'])
+  for (const m of ['select', 'distinct', 'addSelect', 'from', 'innerJoin', 'leftJoinAndSelect', 'where', 'andWhere', 'orWhere', 'groupBy', 'addGroupBy', 'orderBy', 'limit'])
     qb[m] = jest.fn().mockReturnValue(qb);
   qb.getRawMany = jest.fn().mockResolvedValue(rows);
   qb.getMany = jest.fn().mockResolvedValue(rows);
@@ -82,27 +83,43 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     expect(res.preview.map((p) => p.rep_id).sort()).toEqual(['manake', 'tanya']);
   });
 
-  it('keeps West leads with the West rep while the gap stays ≤50, overflowing at the cap', async () => {
-    // Manake starts 48 ahead of Tanya (already within 50), so West leads
-    // keep going to Manake until he would exceed a 50-lead lead; once
-    // Tanya takes one the floor rises and Manake can edge up again. Net of
-    // 5 West leads: Manake +3 (→51), Tanya +2 — gap stays 49, ≤50.
+  it('never routes a West lead out of territory, even when the West rep is far ahead', async () => {
+    // Manake starts 500 leads ahead of Tanya. Under HARD territory the 5
+    // West leads STILL all go to Manake — fairness never overrides territory.
     build(
       Array.from({ length: 5 }, (_, i) => lead('w' + i, 'Bulawayo')),
-      { manake: 48, tanya: 0 },
+      { manake: 500, tanya: 0 },
     );
     const res = await service.runDistribution();
     const manake = res.preview.find((p) => p.rep_id === 'manake')!;
     const tanya = res.preview.find((p) => p.rep_id === 'tanya')!;
-    expect(manake.will_gain).toBe(3);
-    expect(tanya.will_gain).toBe(2);
-    expect(manake.new_total - tanya.new_total).toBeLessThanOrEqual(50);
+    expect(manake.will_gain).toBe(5);
+    expect(tanya.will_gain).toBe(0);
   });
 
-  it('fairness wins: a West lead goes to the Mash rep when the West rep is 50 ahead', async () => {
-    build([lead('w', 'Bulawayo')], { manake: 50, tanya: 0 });
+  it('a West lead stays with the West rep no matter the load gap', async () => {
+    build([lead('w', 'Bulawayo')], { manake: 999, tanya: 0 });
     await service.runDistribution();
-    expect(saved[0].proposed_rep_id).toBe('tanya'); // overflow out of territory
+    expect(saved[0].proposed_rep_id).toBe('manake'); // territory is hard
+  });
+
+  it('skips a lead whose province no rep covers — never forced onto the wrong rep', async () => {
+    build([lead('x', 'Matabeleland North')], {}); // covered by neither rep
+    const res = await service.runDistribution();
+    expect(res.proposed).toBe(0);
+    expect(res.skipped).toBe(1);
+    expect(proposalRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('within a SHARED territory, the lighter-loaded rep gets the lead', async () => {
+    build([lead('w', 'Bulawayo')], { manake: 10, tanya: 3 });
+    const shared = [
+      { id: 'manake', first_name: 'Manake', last_name: 'D', territory_provinces: JSON.stringify(['Bulawayo']) },
+      { id: 'tanya', first_name: 'Tanya', last_name: 'G', territory_provinces: JSON.stringify(['Bulawayo']) },
+    ];
+    dataSource.createQueryBuilder.mockReturnValue(makeQb(shared));
+    await service.runDistribution();
+    expect(saved[0].proposed_rep_id).toBe('tanya'); // lighter of the two who cover it
   });
 
   it('does nothing when no rep has a territory configured', async () => {
