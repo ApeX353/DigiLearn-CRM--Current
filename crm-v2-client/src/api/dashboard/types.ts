@@ -2,7 +2,13 @@ import type { ActivityType } from "../activities";
 import type { LeadStatus } from "../leads";
 
 // Dashboard filter types
-export type DateRangeType = "today" | "mtd" | "qtd" | "ytd" | "custom";
+export type DateRangeType =
+  | "today"
+  | "wtd"
+  | "mtd"
+  | "qtd"
+  | "ytd"
+  | "custom";
 
 export interface DashboardFilters {
   dateRange: DateRangeType;

@@ -2,8 +2,9 @@ import { IsOptional, IsString, IsIn, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export const DATE_RANGE_TYPES = [
-  'today',
-  'mtd',
+  'today', // daily
+  'wtd', // week-to-date (weekly)
+  'mtd', // month-to-date (monthly)
   'qtd',
   'ytd',
   'custom',

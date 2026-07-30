@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import {
   AlertTriangle,
@@ -267,7 +267,15 @@ const DISPLAY: Record<string, DisplaySpec> = {
 };
 
 export function ActivityDisciplineSection({ filters }: Props) {
-  const { data: response, isLoading, error } = useActivityDiscipline(filters);
+  // Local Daily/Weekly/Monthly override for the discipline scoreboard
+  // (TEST-BACKLOG #9). Null = follow the dashboard's own timeframe.
+  const [localRange, setLocalRange] = useState<DateRangeType | null>(null);
+  const effFilters: DashboardFilters = {
+    ...filters,
+    dateRange: localRange ?? filters.dateRange,
+  };
+  const { data: response, isLoading, error } =
+    useActivityDiscipline(effFilters);
   const data = response?.data;
 
   // Hook must run unconditionally — compute with safe fallbacks so
@@ -306,14 +314,33 @@ export function ActivityDisciplineSection({ filters }: Props) {
           <h3 className="font-semibold text-sm">Manager Control Panel</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Timeframe</span>
+          <div className="flex rounded-md border p-0.5" data-testid="discipline-range">
+            {(
+              [
+                ["today", "Daily"],
+                ["wtd", "Weekly"],
+                ["mtd", "Monthly"],
+              ] as [DateRangeType, string][]
+            ).map(([value, label]) => {
+              const active = (localRange ?? filters.dateRange) === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setLocalRange(value)}
+                  className={`rounded px-2.5 py-1 font-medium ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           <Badge variant="outline" className="font-medium">
             {rangeLabel}
           </Badge>
-          <span className="text-muted-foreground">·</span>
-          <span className="text-muted-foreground italic">
-            cards marked "today" or "now" don't follow the filter
-          </span>
         </div>
       </div>
 
@@ -1223,6 +1250,7 @@ function formatRangeLabel(
 ): string {
   const friendly: Record<DateRangeType, string> = {
     today: "Today",
+    wtd: "This Week",
     mtd: "Month to Date",
     qtd: "Quarter to Date",
     ytd: "Year to Date",

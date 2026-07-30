@@ -55,6 +55,12 @@ const CONTACT_TYPES = [
   ActivityType.MEETING,
 ];
 
+// Rep Discipline is a SALES scoreboard (TEST-BACKLOG #10/#11): only people who
+// carry a sales book belong here — sales reps and the sales managers who sell
+// (Kim, Manake, Tanya, Busi). Admins, admin_support and non-sales managers
+// (SG Sithole, Nkululeko, Prince) must NOT appear.
+const SALES_ROLES = ['sales_rep', 'sales_manager'];
+
 // Threshold constants previously defined here (DEFAULT_DAILY_CONTACTS_TARGET,
 // STALE_LEAD_DAYS, STALE_DEAL_DAYS) have moved to ComplianceSettingsService
 // (Phase A.3). They are now read at compute time so admins can adjust them
@@ -774,7 +780,13 @@ export class ActivityDisciplineService {
     // Limit the table width — team views are naturally capped at ~30
     // reps in this product, take 50 for safety.
     usersQb.take(50);
-    const users = await usersQb.getMany();
+    // Sales scoreboard only: keep people who hold a sales role (roles are
+    // eager-loaded). Excludes admins/admin_support/non-sales managers.
+    const users = (await usersQb.getMany()).filter((u) =>
+      ((u.roles as Array<{ name?: string }>) ?? []).some((r) =>
+        SALES_ROLES.includes(String(r?.name)),
+      ),
+    );
 
     if (users.length === 0) return [];
 
@@ -965,6 +977,14 @@ export class ActivityDisciplineService {
     switch (range) {
       case 'today':
         return { start: this.startOfDay(now), end };
+      case 'wtd': {
+        // Week-to-date, week starts Monday (Zimbabwe convention).
+        const day = now.getDay(); // 0=Sun..6=Sat
+        const backToMonday = (day + 6) % 7;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - backToMonday);
+        return { start: this.startOfDay(monday), end };
+      }
       case 'mtd':
         return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
       case 'qtd': {
