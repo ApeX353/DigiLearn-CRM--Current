@@ -1,36 +1,39 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Upload, Loader2, CheckCircle2, FileSpreadsheet } from "lucide-react";
+import { Upload, Loader2, ShieldCheck, FileSpreadsheet } from "lucide-react";
 import Modal from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import {
-  useImportLeadsXlsx,
-  type LeadImportSummary,
-} from "~/api/leads";
+import { useImportLeadsXlsx } from "~/api/leads";
+import type { ImportBatch } from "~/api/leads/import-batches";
 
 interface ImportLeadsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When launched from inside a campaign, leads get attributed to it. */
+  campaignId?: string;
+  campaignName?: string;
 }
 
 /**
- * Kim's "Import Leads" flow: pick an Excel file, it uploads with a loading
- * screen, the server parses and creates the leads, and the result is shown
- * (and the leads land under New, unassigned, ready for auto-assign).
+ * Import Leads — picks an Excel file and STAGES it for approval. Nothing is
+ * created in the CRM here; the server parses + dedup-checks the file into a
+ * pending batch that a manager reviews and approves in the Approval Queue.
  */
 export function ImportLeadsDialog({
   open,
   onOpenChange,
+  campaignId,
+  campaignName,
 }: ImportLeadsDialogProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [summary, setSummary] = useState<LeadImportSummary | null>(null);
+  const [batch, setBatch] = useState<ImportBatch | null>(null);
   const importXlsx = useImportLeadsXlsx();
 
   const reset = () => {
     setFileName(null);
-    setSummary(null);
+    setBatch(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -40,18 +43,16 @@ export function ImportLeadsDialog({
       return;
     }
     setFileName(file.name);
-    setSummary(null);
+    setBatch(null);
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = String(reader.result || "");
       importXlsx.mutate(
-        { file_base64: dataUrl, filename: file.name },
+        { file_base64: dataUrl, filename: file.name, campaign_id: campaignId },
         {
           onSuccess: (res) => {
-            setSummary(res.data);
-            toast.success(
-              `Imported ${res.data.created} lead${res.data.created === 1 ? "" : "s"}`,
-            );
+            setBatch(res.data);
+            toast.success("Import staged for approval");
           },
           onError: (err: any) =>
             toast.error(
@@ -74,54 +75,45 @@ export function ImportLeadsDialog({
         }
       }}
       title="Import Leads"
-      description="Upload an Excel (.xlsx) file. Each row becomes a new, unassigned lead ready for auto-assign."
+      description={
+        campaignName
+          ? `Upload an Excel (.xlsx). Rows are staged for approval and attributed to "${campaignName}".`
+          : "Upload an Excel (.xlsx). Rows are staged for a manager to approve before they become leads."
+      }
       size="md"
     >
       <div className="space-y-4">
-        {/* Uploading — the loading screen */}
         {importXlsx.isPending ? (
           <div className="flex flex-col items-center justify-center gap-3 py-10">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <div className="text-sm font-medium">Importing {fileName}…</div>
+            <div className="text-sm font-medium">Staging {fileName}…</div>
             <div className="text-xs text-muted-foreground">
-              Reading the file and creating leads — please wait.
+              Reading the file and checking for duplicates — please wait.
             </div>
           </div>
-        ) : summary ? (
-          /* Result */
+        ) : batch ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Import complete</span>
+            <div className="flex items-center gap-2 text-primary">
+              <ShieldCheck className="h-5 w-5" />
+              <span className="font-medium">Staged for approval</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge className="bg-green-100 text-green-800">
-                {summary.created} created
+                {batch.importable_count} ready to import
               </Badge>
-              {summary.skipped > 0 && (
-                <Badge variant="secondary">{summary.skipped} skipped</Badge>
-              )}
-              {summary.failed > 0 && (
-                <Badge className="bg-rose-100 text-rose-800">
-                  {summary.failed} failed
+              {batch.duplicate_count > 0 && (
+                <Badge className="bg-amber-100 text-amber-800">
+                  {batch.duplicate_count} possible duplicate
+                  {batch.duplicate_count === 1 ? "" : "s"}
                 </Badge>
               )}
+              <Badge variant="secondary">{batch.total_rows} rows total</Badge>
             </div>
-            {summary.rows.filter((r) => r.status !== "created").length > 0 && (
-              <div className="max-h-40 overflow-auto rounded border p-2 text-xs">
-                {summary.rows
-                  .filter((r) => r.status !== "created")
-                  .slice(0, 40)
-                  .map((r) => (
-                    <div key={r.row} className="text-muted-foreground">
-                      Row {r.row}: {r.school} — {r.status} ({r.reason})
-                    </div>
-                  ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              The new leads are under <strong>New</strong>, unassigned. Filter
-              to New and run auto-assign to distribute them.
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <strong>Nothing has been added to the CRM yet.</strong> Open the{" "}
+              <strong>Approval Queue → Import approvals</strong> to review the
+              rows (duplicates are flagged) and approve — only then are the
+              leads created.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={reset}>
@@ -138,7 +130,6 @@ export function ImportLeadsDialog({
             </div>
           </div>
         ) : (
-          /* File picker */
           <div className="space-y-4">
             <button
               type="button"

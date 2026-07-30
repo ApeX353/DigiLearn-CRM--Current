@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClientAuth, handleApiError } from "~/api/axios";
+import type { ImportBatch } from "./import-batches";
 import type {
   Lead,
   LeadSource,
@@ -66,11 +67,12 @@ const leadsApi = {
   import: (data: AddLeadValues[]): Promise<Lead> =>
     apiClientAuth.post("/leads/import", data).then((res) => res.data),
 
-  // Bulk import from an Excel workbook (base64). Server parses + creates.
+  // Stage a bulk import from an Excel workbook (base64) for approval.
   importXlsx: (data: {
     file_base64: string;
     filename?: string;
-  }): Promise<{ success: boolean; message: string; data: LeadImportSummary }> =>
+    campaign_id?: string;
+  }): Promise<{ success: boolean; message: string; data: ImportBatch }> =>
     apiClientAuth.post("/leads/import", data).then((res) => res.data),
 
   // Update lead
@@ -141,20 +143,7 @@ export function useCSVImport() {
   });
 }
 
-export interface LeadImportSummary {
-  created: number;
-  skipped: number;
-  failed: number;
-  total: number;
-  rows: Array<{
-    row: number;
-    school: string;
-    status: "created" | "skipped" | "failed";
-    reason?: string;
-  }>;
-}
-
-/** Bulk-import leads from an Excel workbook (server-side parse). */
+/** Stage a bulk import from an Excel workbook for approval (server parses). */
 export function useImportLeadsXlsx() {
   const queryClient = useQueryClient();
   return useMutation({

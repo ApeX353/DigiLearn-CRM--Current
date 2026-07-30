@@ -59,6 +59,8 @@ import type {
   AssignmentProposal,
   DistributionPreviewRow,
 } from "~/api/assignment-proposals";
+import { ImportApprovalsQueue } from "~/components/admin/import-approvals-queue";
+import { useImportBatches } from "~/api/leads/import-batches";
 
 /**
  * Phase C.2 — Manager approval queue.
@@ -662,6 +664,8 @@ export default function ApprovalQueuePage() {
   );
   const autoAssignQuery = useAssignmentProposals("pending");
   const autoAssignCount = autoAssignQuery.data?.length ?? 0;
+  const importBatchesQuery = useImportBatches();
+  const importCount = importBatchesQuery.data?.length ?? 0;
 
   return (
     <Container>
@@ -741,6 +745,17 @@ export default function ApprovalQueuePage() {
                     </Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="imports"
+                  data-testid="approval-tab-imports"
+                >
+                  Import approvals
+                  {importCount > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {importCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="pending">
                 <QueueTable status="pending" kind={kind} />
@@ -753,6 +768,9 @@ export default function ApprovalQueuePage() {
               </TabsContent>
               <TabsContent value="auto-assign">
                 <AutoAssignQueue />
+              </TabsContent>
+              <TabsContent value="imports">
+                <ImportApprovalsQueue />
               </TabsContent>
             </Tabs>
           </CardContent>
