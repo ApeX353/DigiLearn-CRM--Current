@@ -5,10 +5,13 @@ data flows through it, how the pieces relate, the states things move
 through, the rules that govern behaviour, and the traps that have already
 cost time. Written to be read cold — if context is lost, start here.
 
-Facts in this document were extracted from the code, not remembered.
-Verify before contradicting. Companions: `BUGFIXES.md` (every incident,
-newest first), `DEPLOYMENT-RULES.md`, `E2E-FINDINGS.md`,
-`CREDENTIALS.local.md` (git-ignored).
+Code-derived facts in this document were re-verified against the repository
+on **2026-07-29**. Historical measurements and live-environment facts are
+labelled as operational evidence; code alone cannot prove that they are still
+true. Verify live state before acting on those claims. Companions:
+`BUGFIXES.md` (every incident, newest first), `DEPLOYMENT-RULES.md`,
+`CREDENTIALS.local.md` (git-ignored). Frozen build-phase reports and the
+old E2E findings now live under `docs/archive/`.
 
 ---
 
@@ -21,27 +24,30 @@ unless stated.
 |---|---|
 | **This file** | the map: architecture, permissions, deployment, domain rules, quirks |
 | **`BUGFIXES.md`** | every incident: symptom, cause, fix, data impact. Newest first |
-| **`SOLUTIONS.md`** | independent code audit (2026-07-28), 34 findings with file and line |
+| **`SOLUTIONS.local.md`** | independent code audit (2026-07-28), 34 findings with file and line. Draft, git-ignored — local only |
 | **`METRICS-AUDIT.md`** | which dashboard numbers can be trusted, and which cannot |
 | **`WANEZI-CONSOLIDATION.md`** | the duplicate-school tangle behind Njabulo Mathwasa's payment |
 | **`DEPLOYMENT-RULES.md`** | staging first, verify per role, explicit sign-off |
-| **`ops/manifests/`** | reversal records for every bulk data change — see below |
+| **`ops/manifests/`** | retained reversal records for the listed bulk data changes — see below |
 | **`CREDENTIALS.local.md`** | secrets. Git-ignored, never committed |
+| **`docs/archive/`** | frozen one-time reports (original build phases A–E, demo intent, old E2E findings). Historical, not needed day-to-day |
 | **The bug tracker itself** | ~130 tickets on production and staging, written in plain language. The richest source: each carries evidence, measurements and what was ruled out |
 
 **`ops/manifests/` — how to undo things:**
 
-- `nash-manifest-prod.json` — every school, lead and contact the 2026-07-27
-  import created. 368 records; 365 distinct schools; 2 pre-existed.
+- `nash-manifest-prod.json` — 368 created **lead rows**, each with a lead id
+  and school id, referencing 365 unique school ids; it also records 3 skipped
+  inputs and 0 failures. It contains no contact ids and does not encode which
+  schools pre-existed, so those two facts require separate import evidence.
 - `removed-import-leads-prod.json` — the 368 leads later removed from that
   import, schools and contacts kept.
 - `undo-closeoff-prod-2026-07-23.csv` — the 1,287 activities the 23 July
   close-off cancelled, with the status each held before.
 
-**Scripts live in the session scratchpad, not here.** They are written per
-task and are disposable; the manifests they produce are what matter and
-those are committed. If a script is needed again, rewrite it from the
-ticket — the tickets carry the queries and the reasoning.
+**One-off production mutation scripts live in the session scratchpad, not
+here.** Maintained application/ETL scripts do exist under `scripts/`; the
+scratchpad rule applies to disposable data-fix tooling. For a bulk mutation,
+the retained manifest is the recovery artifact.
 
 **The two databases are the arbiter.** When a claim about behaviour is in
 doubt, check the pristine restore of the previous system (see §11) against
@@ -62,15 +68,16 @@ Two apps, one repo, TypeScript throughout:
 
 | | Path | Stack |
 |---|---|---|
-| API | `crm-v2-server/` | NestJS 11, TypeORM, PostgreSQL 16, JWT + CASL |
+| API | `crm-v2-server/` | NestJS 11, TypeORM, PostgreSQL (`pg`), JWT + CASL |
 | Web | `crm-v2-client/` | React 19, Vite, TanStack Query, shadcn/ui, zod |
 
-**35 server modules · 39 route prefixes · 65 entities · 12 scheduled jobs.**
+**35 server modules · 41 controllers (39 literal prefixes + 2 prefixless
+controllers) · 66 entities · 14 scheduled jobs.**
 
-Branches: **`dube-upgrades`** is the working branch and holds everything.
-`main` is the baseline. `prod-ticketing` was a surgical cherry-pick
-branch (July 2026); production has since returned to builds cut from
-`dube-upgrades`.
+Repository snapshot: **`dube-upgrades`** is the checked-out working branch;
+`main` is the baseline and `prod-ticketing` is the July 2026 surgical
+cherry-pick branch. Which branch production currently runs is operational
+state and must be checked against the deployed build.
 
 ---
 
@@ -90,7 +97,7 @@ flowchart LR
   cal[(Google / Microsoft calendar)]:::ext
   vid[(Zoom / Meet / Teams)]:::ext
   blob[(File storage)]:::ext
-  wa[(WhatsApp — logged manually)]:::ext
+  wa[(WhatsApp provider / external connector)]:::ext
 
   rep -->|logs calls, meetings, notes; raises quotes| crm
   crm -->|next steps, SLA and idle alerts| rep
@@ -104,8 +111,10 @@ flowchart LR
   crm <--> cal
   crm <--> vid
   crm --> blob
-  school -.->|messages transcribed by the rep| wa
-  wa -.-> crm
+  school <--> wa
+  crm -->|configured outbound templates| wa
+  wa -.->|normalised ingest; connector is outside this repo| crm
+  rep -.->|manual logging remains available| crm
 
   classDef sys fill:#1d4ed8,stroke:#1e3a8a,color:#fff
   classDef person fill:#f97316,stroke:#c2410c,color:#fff
@@ -158,8 +167,11 @@ flowchart TB
 which writes back onto the lead (status, temperature, SLA). A qualified
 lead becomes a deal, a deal produces documents, documents produce money.
 Supervision reads across all three and emits notifications. Automation is
-driven entirely by settings. Everything of consequence writes to
-`activity_logs`.
+only **partly** settings-driven: cron schedules live in code and some jobs
+are unconditional, while selected policies and thresholds come from
+settings. Many core CRUD paths write to `activity_logs`, but coverage is not
+universal; settings, authentication/RBAC and several support/integration
+paths do not. `audit_logs` currently has no wired writer.
 
 ---
 
@@ -173,31 +185,52 @@ flowchart TB
   f --> v{Open and actionable?}
   v -->|yes| dat{Has a date?}
   v -->|note| save
-  dat -->|no| rej[400 · a date is required<br/>policy require_activity_due_date]
+  dat -->|no, gate enabled| rej[400 · a date is required<br/>require_activity_due_date defaults true]
   dat -->|yes| save[POST /activities]
   save --> sub[(subtype row:<br/>calls / meetings / whatsapp_messages / notes / tasks)]
   save --> act[(activities)]
   save --> mode{created already completed?}
-  mode -->|yes| touch[bump lead.last_contacted_at<br/>+ New → Contacted]
-  mode -->|no| sched[bump lead.last_action_at only]
+  mode -->|yes, contact type| touch[bump lead.last_contacted_at<br/>+ New → Contacted]
+  mode -->|no, contact type| sched[bump lead.last_action_at<br/>+ New → Contacted]
 
   act --> comp[PATCH /activities/:id/status = completed]
   comp --> oc{outcome supplied?}
   oc -->|no| rej2[400 · outcome is mandatory]
-  oc -->|yes| gate{enforce_next_step_on_completion?}
-  gate -->|on, and no future step, and no next_step payload| rej3[400 · NEXT2 trap]
-  gate -->|off or satisfied| done[status = completed<br/>completed_at = NOW]
-  done --> prop[contact types only:<br/>lead.last_contacted_at = completed_at<br/>lead.last_action_at = now]
-  done --> temp[recalculate lead temperature]
+  oc -->|yes| gate{single-status route:<br/>enforce_next_step_on_completion?}
+  gate -->|on, and no other open step, and no next_step payload| rej3[400 · NEXT2 trap]
+  gate -->|off or satisfied| done[status = completed<br/>completionMoment()]
+  done --> prop[contact types only:<br/>last_contacted_at moves forward only<br/>last_action_at = now]
   done --> prompt[client then asks for the next step]
 ```
 
-The **NEXT2 trap** is live knowledge, not history: the client marks done
-*first* and asks for the next step *after*, so it never sends the
-`next_step` payload the server wants *before*. Keep the switch off.
+The **NEXT2 trap** remains in the code path: the client marks done first and
+enqueues the follow-up prompt only after success, so it never sends the
+`next_step` payload the server wants before completion. The policy defaults
+**off**; its current database value is runtime state, not something the
+repository proves.
 
 The **propagation** box is why bulk-completing history is dangerous — it
-rewrites `last_contacted_at` and silently resets idle/SLA detection.
+updates activity and lead timestamps. `completionMoment()` uses the
+activity's due/scheduled date when it is more than 24 hours old, otherwise
+now; `last_contacted_at` only moves forward. Reopening currently changes
+status but does **not** clear `completed_at`, outcome or completion note.
+
+**Enforcement boundaries (verified, not intended-policy prose):**
+
+- `PATCH /activities/:id/status` and bulk completion always require an
+  outcome. `POST /activities` can create a completed row without one, and
+  `PUT /activities/:id` can change status without the status-transition
+  side effects. The `enforce_outcome_on_completion` setting is defined and
+  editable but is not read by server code.
+- The next-step gate runs only on the single-item status route, not bulk or
+  generic update. Its query counts any other open actionable activity; it
+  does not require a future `due_at`/`scheduled_at`.
+- A supplied `next_step` is inserted **after** the completion save and
+  outside a shared transaction. Failure is logged and the completion stays,
+  so the operation is not atomic despite older comments describing it so.
+- Lead temperature is recalculated after activity **creation**, including a
+  create that arrives completed, but not when an existing activity is later
+  completed through the status route.
 
 ### 4.2 Money: quote → invoice → instalments → payment
 
@@ -215,7 +248,7 @@ flowchart LR
   pay([Payment received]) --> pmt[(payments)]
   pmt --> alloc[(payment_allocations)]
   alloc --> ins
-  ins --> st{all paid?}
+  pmt --> st{invoice balance fully paid?}
   st -->|yes| paid[Invoice · Paid]
   st -->|some| part[Partially-Paid]
   st -->|past COALESCE grace_due_date, due_date| od[Overdue KPI]
@@ -253,7 +286,7 @@ erDiagram
   DEAL }o--|| PIPELINE : on
   DEAL }o--|| STAGE : at
   PIPELINE ||--o{ STAGE : ordered
-  QUOTE ||--o| INVOICE : becomes
+  QUOTE ||--o{ INVOICE : source_for
   INVOICE ||--o{ PAYMENT : receives
   INVOICE }o--o| PAYMENT_TERM : uses
   PAYMENT_TERM ||--o{ APPLIED_PAYMENT_TERM : snapshot
@@ -271,9 +304,11 @@ erDiagram
 ### 5.2 Activity and its subtype tables — the one inheritance pattern
 
 `Activity` is the spine. Every activity row carries the common fields
-(type, status, subject, dates, owner, parent record) and links **one-to-one**
-to a detail table for its kind. This is class-table inheritance done by
-hand, not TypeORM STI — there is no discriminator column beyond `type`.
+(type, status, subject, dates, owner, parent record) and the application
+convention links it **zero-or-one** to the detail table for its kind. This is
+class-table inheritance done by hand, not TypeORM STI. The database does not
+enforce “exactly one matching subtype”, so orphaned or mismatched rows remain
+possible.
 
 ```mermaid
 erDiagram
@@ -309,35 +344,48 @@ they are passive logging and must never earn discipline points.
 | Money | `PaymentTerm`, `PaymentTermPeriod`, `AppliedPaymentTerm`, `Installment`, `Payment`, `PaymentAllocation`, `CashRequisition`, `RequisitionLineItem` |
 | Comms | `Notification`, `UserNotification`, `NotificationPreference`, `EmailSequence`, `EmailQueue`, `EmailTemplate`, `UserEmailAccount` |
 | Integrations | `UserCalendarConnection`, `CalendarEventLink`, `SchedulingLink`, `SchedulingHold`, `VideoProviderConnection`, `ManagedFile` |
-| Ops | `Settings`, `ActivityLog`, `AuditLog`, `BugReport`, `Campaign` |
+| Ops / automation | `Settings`, `ActivityLog`, `AuditLog`, `BugReport`, `Campaign`, `LeadAssignmentProposal` |
 
 `AuditLog` exists but **nothing writes to it** (ticket AUD1). The real
-trail is `activity_logs`. **Settings changes are recorded in neither** —
-that gap is why we cannot say who switched the next-step gate on.
+trail for the modules that participate is `activity_logs`; it is not a
+complete application audit trail. **Settings changes are recorded in
+neither** — that gap is why code cannot say who changed a policy value.
 
 ---
 
 ## 6. State machines
+
+The diagram below is the **common business lifecycle**, not an enforced
+transition matrix. `transitionStatus()` accepts any value allowed by the DTO
+and only adds a minimum-data check when entering `Qualified`.
 
 ```mermaid
 stateDiagram-v2
   direction LR
   [*] --> New
   New --> Contacted : first real contact logged
+  Contacted --> Nurture
+  Nurture --> Contacted
   Contacted --> Qualified : BANT satisfied
   Qualified --> Converted : deal created
   Contacted --> Disqualified
+  Nurture --> Disqualified
   Qualified --> Disqualified
-  Disqualified --> Contacted : reversal request approved
+  Converted --> Contacted : approved status reversal example
 ```
 
-**Lead** `New · Contacted · Qualified · Disqualified · Converted`.
+**Lead** `New · Contacted · Nurture · Qualified · Disqualified · Converted`.
 New → Contacted fires when an activity is **created already completed**
-*or* completed later (STAT1 fixed the second path). Disqualification is
-reversible only through `LeadReversalRequest`.
+*or* completed later (and currently also when a contact activity is merely
+scheduled). `LeadReversalRequest` serves three workflows:
+`status_reversal` rolls a **Converted** lead back to any non-Converted
+status; `tactical_disqualify` requests approval for selected disqualification
+reasons; and `reassignment` requests a new owner. It is not a generic
+Disqualified → Contacted mechanism.
 
 **Activity** `scheduled · in_progress · completed · cancelled · overdue`.
-→ `completed` demands an `outcome` from a fixed enum of 28 values.
+The single-status and bulk-status completion routes demand an `outcome` from
+a fixed enum of 28 values; see §4.1 for the create/generic-update bypasses.
 **The old CRM had only `scheduled` and `completed`** — no `cancelled` —
 and used `scheduled` as "logged, never closed" (3,663 of 3,817 undated).
 
@@ -349,10 +397,12 @@ and used `scheduled` as "logged, never closed" (3,663 of 3,817 undated).
 **Bug** `open · in_progress · resolved · closed` (+ `resolved_at`).
 **Duplicate suspicion** `pending · merged · kept_separate · false_positive`.
 
-Reference vocabularies: provinces are the nine Zimbabwean ones; regions
-are **only** `urban | rural` (a file saying "PERI URBAN" cannot import);
-contact roles include Head, Deputy Head, Bursar, ICT Coordinator, SDC
-Chair, Finance Committee.
+Reference vocabularies: the code accepts **10** province/city-province
+values (including Harare and Bulawayo; the two Matabeleland values are
+spelled `Matebeleland` in the enum). Regions are **only**
+`urban | rural` (a file saying "PERI URBAN" cannot import). Contact roles
+are Head, Deputy Head, Bursar, ICT Coordinator, SDC Chair, Finance
+Committee, Teacher, Administrator and Other.
 
 ---
 
@@ -372,7 +422,7 @@ flowchart TB
   g --> h[Lead → Contacted]
   h --> i[Capture BANT + stakeholders]
   i --> j{Qualified?}
-  j -->|no| k[Disqualify · reversible by request]
+  j -->|no| k[Disqualify · tactical reasons may require approval]
   j -->|yes| l[Create deal on a pipeline stage]
   l --> m[Quote · Draft → Sent]
   m --> n{Accepted?}
@@ -391,11 +441,11 @@ flowchart TB
 flowchart LR
   u([Anyone]) --> r[Report a bug]
   r --> a[Auto-assigned to admin_support · TRK2]
-  a --> t{Triager<br/>admin_support or sales manager}
+  a --> t{Triager<br/>admin_support, sales_manager or manager<br/>admin is API-authorised}
   t --> s[Set severity, assignee, status]
   s --> f[Fix, deploy, verify live]
   f --> res[Resolved + resolution note<br/>resolved_at stamped]
-  res --> n[Every active user notified · NOTIF1]
+  res --> n[Reporter gets a personal notice;<br/>other active users get the fix announcement;<br/>the actor is skipped]
   res --> d[Owner clicks the row:<br/>what was wrong · what was done · raised · fixed]
 ```
 
@@ -423,7 +473,8 @@ flowchart TB
 Two layers, and they disagree more often than you would expect:
 
 1. **`@Roles('admin', …)`** on the controller — the coarse gate.
-   ~238 declarations across 39 controllers.
+   244 declarations across 39 controllers (two of the 41 controllers have
+   no `@Roles` declaration).
 2. **CASL abilities** seeded per role in
    `database/seeds/seed-roles-permissions.ts`, whose JSON `conditions`
    (e.g. `{"assigned_to":"${id}"}`) services translate into SQL.
@@ -431,70 +482,77 @@ Two layers, and they disagree more often than you would expect:
 Hard-won facts:
 
 - **`admin_support` satisfies `admin`** via `ROLE_ALIASES` in
-  `auth/guards/roles.guard.ts` — it appeared in zero `@Roles()` and was
-  locked out app-wide (R2).
+  `auth/guards/roles.guard.ts`. Most controllers still rely on that alias;
+  the bug-report controller also enumerates `admin_support` through role
+  arrays.
 - **Condition keys must match what the reader expects.** An unmapped key
   reaches Postgres as a column name: `createdBy` with no such column gave
   500s on Quotes and Invoices (R1); a seeded `assignedTo` where the deals
   board read `assigned_to` scoped **nothing**, silently (SEED1).
-- **Production roles:** `nkululeko` admin (owner, Mr Dube);
-  `prince@me.com` admin_support (maintainer); `mpofunk`/`busid`
-  sales_manager (Kim, busi); `solomon` manager; `tanyag`/`manakedube`
-  sales_rep.
-- **Managers see every lead** (`conditions: null`); reps see their own.
+- **Seeded policy:** managers see every lead (`conditions: null`); reps see
+  their own (`ownerId` maps to `assigned_to`).
   There is **no per-lead ACL** — you cannot restrict a lead to three
   named people. Unassigned hides a lead from reps, not from managers.
+  Actual production user/role assignments are live data, not code facts.
 
 **Policy visibility rules:**
-- **Activities follow the record's current owner** (R15). A rep sees an
-  activity if they created it, are assigned it, or the parent lead/deal
-  is theirs. Reassignment hands over the full history. Misses read
-  **404**, never 403, so ids cannot be probed.
-- **Bug tracker, three audiences:** owner (admin) — status + clickable
-  plain-language detail, no aging; triagers (admin_support **and sales
-  managers**, MGRBUG1) — everything plus controls; everyone else — their
-  own reports.
+- **Activity reads** follow the record's current owner (R14/R15). A rep can
+  read an activity they created, are assigned, or whose parent lead/deal is
+  theirs; misses return **404**. This does **not** currently protect the
+  create, generic update, status-update or bulk-status write paths, which do
+  not pass an owner scope into the service.
+- **Bug tracker, three client audiences:** product owner (`admin`) gets the
+  status/detail view without aging or triage controls; triagers
+  (`admin_support`, `sales_manager`, `manager`) get the full workspace;
+  everyone else gets their own reports. The API's triage allowlist also
+  includes `admin`, so the server is broader than the admin client view.
 
 ---
 
-## 9. Scheduled work (12 jobs)
+## 9. Scheduled work (14 jobs)
 
 | Cadence | Job |
 |---|---|
 | every 5 min | scheduling sweeper (holds expire) |
-| every 15 min | e-mail sequence queue |
-| every 30 min | SLA scheduler ×2, calendar reconciler |
-| hourly | SLA escalation |
-| every 2 h | SLA sweep |
+| every 15 min | e-mail sequence queue; SLA pre-breach nudge; unassigned-lead routing proposals |
+| every 30 min | demo follow-up SLA; general SLA breach; deal-stage SLA breach; calendar reconciler |
+| hourly | SLA escalation check |
+| every 2 h | idle-lead check |
 | 02:00 daily | lead temperature recalculation |
+| 06:00 daily | follow-up discipline digest |
+| 06:30 daily | lead reactivation |
 | 07:00 daily | demo follow-up drafts |
-| daily | follow-up discipline digest, unassigned-lead routing, lead reactivation |
 
 Auto-routing is gated by `compliance.policy.auto_assign_enabled`
-(**off**). The SLA idle check emitted 800 alerts in one run — treat it
-with respect.
+(default **off**, runtime DB-controlled). It creates assignment
+**proposals** for manager approval; it does not directly reassign leads.
+Operational incident history records one SLA idle pass emitting 800 alerts.
 
 ---
 
 ## 10. Domain rules that govern behaviour
 
-- **Completing an activity has side effects**: stamps `completed_at` =
-  now, and for contact types (call/meeting/whatsapp/email) bumps
-  `lead.last_contacted_at` and `last_action_at`. Bulk-completing history
-  therefore rewrites the record and resets idle/SLA detection. **Check
-  what a transition propagates before running it a thousand times.**
+- **Completing an activity has side effects**: `completionMoment()` stamps
+  old work with its own due/scheduled date and recent/undated work with now.
+  For contact types (call/meeting/whatsapp/email), it moves
+  `lead.last_contacted_at` forward only and sets `last_action_at` to now.
+  Bulk-completing history still mutates parent records. **Check what a
+  transition propagates before running it a thousand times.**
 - **`outcome` is a fixed enum, not free text.** Explanation belongs in
   `completion_note`. When the true result is unknown,
   `relationship_touchpoint_complete` asserts contact happened and no more.
-- **Next-step compliance** (`enforce_next_step_on_completion`): the
-  server wants the next step *before*, the client asks *after* and never
-  sends the payload. Keep **off** until NEXT2 is built.
+- **Next-step compliance** (`enforce_next_step_on_completion`): the server
+  wants the next step *before*, while the client asks *after* and never
+  sends the payload. The repository default is **off**; verify the live
+  setting before enabling it and fix the §4.1 enforcement gaps first.
 - **City is mandatory** for user-created schools, exempt for
   admin/admin_support so the bulk import can run. The exemption lives in
   **two** places — `SchoolsService` *and* the lead-creation path in
   `LeadsService`, because the import creates leads, not schools. Blank
   cities render "Click here to enter city"; **any** user may fill a
-  missing one, only managers may change one already set.
+  missing one. The overwrite allowlist is exactly `admin`,
+  `admin_support`, `sales_manager`; the separate `manager` role is not
+  included despite the error text saying “ask a manager”.
 - **New leads from reps are unassigned** (ASGN1); a manager assigns.
 - **Hygiene score is client-side**, never stored
   (`src/lib/lead-hygiene.ts`): completeness 25 + activity discipline 30
@@ -502,12 +560,14 @@ with respect.
   compliance over the last five completions 6, −3 for missing notes) +
   process 20 + BANT 25. Bands 90 / 75 / 60.
 - **Duplicate detection** threshold 50. Schools carry no phone or e-mail,
-  so the name alone must reach it: exact 50, near-exact 45 + one
-  supporting signal (DUP4). Trigram similarity alone is unsafe —
-  "DANDA HIGH" scores 1.00 against "Dandanda Primary".
-- **Phone matching:** normalise to the **last 9 digits** (99.4% coverage;
-  district is only 8% populated). A phone match alone must never
-  auto-merge — 158 numbers are shared.
+  so token-Jaccard name similarity ≥0.95 contributes 50; ≥0.75 contributes
+  45 and needs city/district support (DUP4). The application does not use
+  PostgreSQL trigram similarity for this check.
+- **Phone matching has two different rules:** the running application
+  strips non-digits and compares the **full** normalized string. The “last
+  9 digits” rule and its 99.4% coverage figure came from operational import
+  reconciliation, not application code. A match raises a candidate; this
+  service does not auto-merge records.
 - **Snapshots are deliberate:** `applied_payment_terms` freezes the term;
   `document_items` copy the product name as text, so renaming a product
   rewrites **Draft** lines only.
@@ -518,22 +578,29 @@ with respect.
 
 ## 11. Running it locally
 
-- **PostgreSQL 16** portable at `C:\Users\8Y14\pgsql-local\pgsql`
+- **PostgreSQL 16.9** portable at `C:\Users\8Y14\pgsql-local\pgsql`
   (data `…\pgsql-local\data`) on **127.0.0.1:5433** — 5432 is an
   unrelated system service, leave it alone. `start-local-postgres.ps1`.
 - **API** `start-local-server.ps1` → :3001. **Web** `npm run dev` → :5173.
+  Do not use `start-local-client.ps1` unchanged: it currently points the web
+  app at API port **3000**, which conflicts with the server launcher.
 - **The legacy MySQL restore** — the pristine copy of the old live system
   — `start-local-mysql.ps1`, :3306, db `digilearn_crm_v2_live`.
   **Never mutated.** It is the only authority on "what did the old system
   actually hold" and has settled several arguments. Converted by
   `scripts/mysql-to-pg-etl.mjs`, a straight table copy with no status
   mapping.
-- Local logins `nkululeko@clearhue.co.zw` / `doobsie81@gmail.com`, both
-  `LocalAdmin2026`. Never put `#` in a dotenv value — dotenv truncates.
+- Local bootstrap/login material belongs in `CREDENTIALS.local.md` or the
+  local launcher, not this committed map. In dotenv files, quote values
+  containing `#`; an unquoted `#` starts a comment.
 
 ---
 
 ## 12. Environments and deployment
+
+This section is an **operational snapshot**, not derivable from TypeScript.
+Confirm DNS, CapRover app configuration and the deployed bundle before using
+it as current state.
 
 | | Client | API |
 |---|---|---|
@@ -570,15 +637,23 @@ live per affected role, then **explicit** sign-off for production.
 
 ## 13. Migrations and seeds
 
-`database/migrations/<timestamp>-<Name>.ts`, run at boot when
-`DB_RUN_MIGRATIONS=true`. **Always guard** with `hasTable`/`hasColumn` so
-a rerun is a no-op — `1768…-AddBugReportResolvedAt.ts` and
-`1769…-MakeSchoolCityNullable.ts` are the house style. Write a real
-`down()`. `DB_SYNCHRONIZE` stays **false** everywhere.
+`database/migrations/<timestamp>-<Name>.ts` run automatically whenever
+`NODE_ENV=production`; `DB_RUN_MIGRATIONS=true` opts development into the
+same behavior. Incremental migrations generally guard table/column creation
+(`1768…` and `1769…` are the clearest house style), and all current TypeScript
+migrations define `down()`.
 
-Seeds run when `DB_RUN_SEEDS=true` and only affect fresh environments —
-live rows keep what they have, which is how a seed/reader mismatch hides
-for months (SEED1).
+Production forces TypeORM `synchronize=false`. The checked-in local launcher
+also sets it false, but generic development defaults to **true** when
+`DB_SYNCHRONIZE` is absent (and `.env.example` says true). Do not assume it is
+false everywhere.
+
+Seeds run automatically in production or when `DB_RUN_SEEDS=true`. They are
+idempotent but not “fresh-only”: they add missing roles, permissions and
+role-permission links to existing databases. They deliberately do **not**
+update conditions on existing links, so a stale condition can survive a
+restart (SEED1). Bootstrap-admin creation is fresh-environment guarded. Seed
+failure is logged and does not abort application startup.
 
 ---
 
@@ -604,7 +679,10 @@ for months (SEED1).
 
 ## 15. Environment quirks
 
-- Windows + Git Bash. PowerShell here-strings mangle quotes — use
+These are workstation/tooling notes and may change independently of the
+application.
+
+- Windows + Git Bash. PowerShell here-strings can mangle quotes — use
   `git commit -F <file>`.
 - The permission classifier blocks SSH, production settings writes, bulk
   production mutations and reading credential material; those steps are
@@ -617,3 +695,111 @@ for months (SEED1).
   it fails silently.
 - `tar --force-local` works only in Git Bash; `git archive` sidesteps it.
 - Keep scratch scripts in the session scratchpad, never the repo root.
+
+---
+
+## 16. Verification record — 2026-07-29
+
+This is the trace from the pre-audit wording to the corrected map. It exists
+so later readers can see what changed rather than silently trusting a
+rewritten claim.
+
+### 16.1 Corrections made
+
+| Section | Previous statement | Verified correction | Primary repository evidence |
+|---|---|---|---|
+| §0 manifests | 368 records, 365 schools, 2 pre-existing; manifest covered contacts | 368 lead entries reference 365 unique school ids; 3 skipped, 0 failed; no contact ids or pre-existing flag are present | `ops/manifests/nash-manifest-prod.json` |
+| §1 inventory | 35 modules, 39 prefixes, 65 entities, 12 jobs | 35 modules; 41 controllers (39 literal prefixes + 2 prefixless); 66 entities; 14 `@Cron` jobs | `src/**/*.module.ts`, `src/**/*.controller.ts`, `src/**/*.entity.ts`, `@Cron` scan |
+| §1 database | PostgreSQL 16 stated as a general stack fact | The code selects PostgreSQL through TypeORM/`pg`; local runtime is verified 16.9, while deployed server version is operational state | server `package.json`, `database-config.service.ts`, local `PG_VERSION`/binary |
+| §2 WhatsApp | Messages were only manually transcribed | Manual logging remains, but code also supports configured outbound templates and an authenticated normalized-ingest landing zone; the external inbound connector is not in this repo | `activities/whatsapp-send.service.ts`, `automation/services/whatsapp-ingest.service.ts` |
+| §3 automation | Entirely settings-driven | Cron schedules are code-defined; only selected jobs/policies read settings | scheduler services and `automation.constants.ts` |
+| §3 audit | Everything consequential wrote to `activity_logs` | Logging is partial; `audit_logs` has no wired writer and settings/auth/RBAC/support paths are not universally logged | `activity-logs` usages, `audit/audit.service.ts`, `settings` services |
+| §4 activity time | Completion always stamped now and rewrote last contact | Old dated work uses its due/scheduled date; last contact moves forward only. Reopen still leaves completion metadata | `activities.service.ts` `completionMoment()`, `updateLeadContactStatus()`, `updateStatus()` |
+| §4 outcome | Every completed activity demanded an outcome | Status and bulk-status routes demand one; create and generic update can bypass. The editable outcome-policy setting is not read by server code | `activities.service.ts` `create()`, `update()`, `updateStatus()`, `bulkUpdateStatus()` |
+| §4 next step | Required a future step and created payload atomically | Query counts any other open actionable row without a date predicate; gate is single-status only; supplied next step is saved after completion and failure does not roll back | `activities.service.ts` `assertNextStepCompliance()` and `updateStatus()` |
+| §4 temperature | Later completion recalculated temperature | Creation recalculates; later status completion does not | `activities.service.ts` create/status paths |
+| §5 quote/invoice | One quote became at most one invoice | `Invoice.quote_id` is a nullable many-to-one with no unique constraint, so a quote can source many invoices | `invoices/entities/invoice.entity.ts` |
+| §5 subtype integrity | Every activity had exactly one matching detail row | Relations are optional one-to-one and no cross-table constraint guarantees exactly one correct subtype | activity and subtype entities |
+| §5 entity list | 65 entities; no assignment proposal listed | 66, adding `LeadAssignmentProposal` | `automation/entities/lead-assignment-proposal.entity.ts` |
+| §6 lead statuses | Five statuses, excluding Nurture | Six: New, Contacted, Nurture, Qualified, Disqualified, Converted | `leads/constants/lead-statuses.ts` |
+| §6 state machine | Diagram implied enforced transitions; Disqualified reversed to Contacted | No fixed transition matrix. Status-reversal requests start from Converted; tactical disqualification and reassignment are separate request kinds | `leads.service.ts` transition/reversal methods |
+| §6 vocabularies | Nine provinces; six contact roles mentioned | Ten accepted province/city-province values and nine contact roles | `schools/constants/provinces.ts`, `contacts/constants/contact-roles.ts` |
+| §8 RBAC count | About 238 decorators across 39 controllers | 244 `@Roles` declarations across 39 controllers; 41 controllers total | controller scan |
+| §8 activity ownership | Read policy was stated as covering activity access generally | Read/list paths are scoped; sales-rep write paths are not owner-scoped | `activities.controller.ts`, `activities.service.ts` |
+| §8 bug audiences | Triagers described as admin support and sales managers only | Server allowlist is admin, admin_support, sales_manager, manager; client deliberately gives plain admin a read-only owner view | bug-report controller/service and client page |
+| §9 schedules | 12 jobs; unassigned routing described as daily | 14 jobs; routing proposals run every 15 minutes; daily jobs are separately timed | all `@Cron` sites and `AUTOMATION_CRON` |
+| §9 auto-routing | “Off” and implied direct assignment | Default false but runtime-controlled; engine proposes assignments for manager approval | compliance settings and `lead-auto-router.service.ts` |
+| §10 duplicates | Trigram matching described as the app algorithm | Application uses token-Jaccard thresholds; trigram observations were operational analysis | `duplicate-detection.service.ts` |
+| §10 phone | App matching used last 9 digits | App strips non-digits and compares the full normalized string; last-nine was an import-reconciliation method | duplicate service and `leads.service.ts` |
+| §10 city overwrite | “Only managers” could overwrite | Exact allowlist is admin, admin_support, sales_manager; `manager` is absent | `schools.service.ts` `setCity()` |
+| §11 client launch | Local web/API instructions appeared internally consistent | `start-local-client.ps1` points to 3000 while the API launcher uses 3001 | the two local PowerShell launchers |
+| §11 dotenv | `#` could never appear in a value | It is safe when quoted; unquoted `#` begins a comment | dotenv parsing contract and `.env` conventions |
+| §13 migrations | Only `DB_RUN_MIGRATIONS=true` ran boot migrations | Production always runs them; the flag opts in outside production | `database-config.service.ts` |
+| §13 synchronize | False everywhere | Forced false in production and the local launcher, but generic development defaults true and `.env.example` sets true | `database-config.service.ts`, `.env.example`, local launcher |
+| §13 seeds | Flag-only and fresh-environment-only | Automatic in production or flag-enabled; adds missing RBAC rows to existing DBs but does not refresh existing conditions; admin bootstrap is fresh-guarded | `seed-runner.service.ts`, seed files |
+| §12/branches/users | Current production branch, infrastructure and user-role assignments were presented as code facts | They are labelled operational state and require live verification | deployment docs/runtime, not TypeScript |
+
+### 16.2 Material claims confirmed without correction
+
+- Server/client framework families and Node 22 engine range match both
+  `package.json` files.
+- The activity outcome enum contains 28 values; activity, quote, invoice,
+  installment, requisition, bug and duplicate-suspicion vocabularies match
+  their constants/entities.
+- Reps' new leads are deliberately unassigned; only manager/admin roles may
+  assign during creation.
+- The city requirement exists in both school creation and lead-with-school
+  creation, with the admin/admin_support import exemption.
+- Invoice overdue KPIs use `COALESCE(grace_due_date, due_date)`, unpaid
+  balance and owner scope.
+- Manual invoice creation against a quote marks the quote Accepted.
+- Applied payment terms and document items are snapshots; product renames
+  update matching Draft lines only.
+- Client hygiene scoring is 25/30/20/25 with bands at 90/75/60 and notes
+  excluded from actionable discipline.
+- School duplicate flagging uses a 50-point threshold, with ≥0.95 name
+  similarity worth 50 and ≥0.75 worth 45.
+- Compliance-setting reads use a 30-second in-process cache.
+- `admin_support` inherits the effective `admin` role at the controller
+  guard through `ROLE_ALIASES`.
+- All 13 current TypeScript migration files define `down()`; incremental
+  table/column migrations are mostly guarded.
+- The local PostgreSQL data directory reports major version 16 and the
+  binary reports 16.9; the local server launcher uses port 5433 and API
+  port 3001.
+
+### 16.3 Verified implementation gaps surfaced by this audit
+
+These are code observations, not claims that a deployment has already been
+exploited.
+
+| Risk | Gap | Evidence |
+|---|---|---|
+| High | A sales rep can reach activity create/update/status/bulk write routes, but those paths do not enforce the owner scope used by reads. Foreign UUIDs are therefore not consistently hidden on mutation. | `activities.controller.ts` create/update/status/bulk methods; corresponding service methods |
+| Medium | `enforce_outcome_on_completion` is a dead policy switch. Status routes always enforce outcomes while create/generic update can bypass them. | compliance settings plus activity service |
+| Medium | Next-step enforcement is neither truly “future” nor atomic and is absent from bulk/generic update. | `assertNextStepCompliance()` and `updateStatus()` |
+| Medium | Reopening a completed activity leaves `completed_at`, `completion_outcome` and `completion_note`, creating contradictory records. | `activities.service.ts` `updateStatus()` |
+| Medium | Completing an existing activity does not invoke the temperature recalculation that activity creation invokes. | activity service create vs status paths |
+| Low | The checked-in client launcher targets API port 3000 while the server launcher and documented API use 3001. | `start-local-client.ps1`, `start-local-server.ps1` |
+| Low | City overwrite messaging says “ask a manager”, but the `manager` role is not in the overwrite allowlist. | `schools.service.ts` `setCity()` |
+| Data integrity | Quote-to-invoice cardinality and activity-subtype correctness rely on application convention rather than uniqueness/cross-table constraints. | invoice/activity entity mappings |
+
+### 16.4 Verification commands and results
+
+Run from the 2026-07-29 working tree after this documentation edit:
+
+| Check | Result |
+|---|---|
+| Server Jest unit suite: `npm test -- --runInBand` | **PASS** — 21 suites, 67 tests |
+| Server e2e authorization smoke: `npm run test:e2e -- --runInBand` | **PASS** — 1 suite, 3 tests |
+| Server production compile: `npm run build` | **PASS** |
+| Client TypeScript + Vite production build: `npm run build` | **PASS** — 4,057 modules transformed; Vite warns that the main minified chunk is over 500 kB |
+| Document/code assertion script | **PASS** — 35 modules, 41 controllers, 66 entities, 14 crons, 244 role decorators, all 66 entity classes named, manifest 368/365/3/0, balanced Markdown fences |
+| Vocabulary assertion | **PASS** — 6 lead statuses, 10 province values, 9 contact roles, 28 activity outcomes |
+| `git diff --check -- CODEBASE-SKELETON.md` | **PASS** |
+| Client ESLint: `npm run lint` | **FAIL (pre-existing code debt)** — 133 errors and 53 warnings across 99 files; largest groups are explicit `any`, effect-driven state changes, fast-refresh export structure and hook dependencies |
+| Server ESLint, read-only invocation without `--fix` | **FAIL (pre-existing code debt)** — 56,369 errors and 118 warnings across 424 files; 55,485 are Prettier CRLF/end-of-line findings, with the remainder mainly unsafe TypeScript operations and unused values |
+
+Build/test success does not close the implementation gaps in §16.3: the
+current tests do not exercise sales-rep mutation attempts against foreign
+activity ids or all policy-switch bypass paths.
