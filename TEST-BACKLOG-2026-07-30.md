@@ -1,0 +1,149 @@
+# Auto-assign / Import — Live Test Findings & Spec
+
+**Test:** 2026-07-30, Kim (sales_manager) on **staging** — imported the NASH
+schools xls, ran auto-assign, reviewed the approval queue.
+**Status of this doc:** everything below is **captured, nothing built.** It's
+the decision-ready spec. Items needing a human decision are flagged
+**[DECISION]**; the rest are agreed. Build order is at the bottom.
+
+---
+
+## 0. Headline
+
+The flow works end-to-end, but the test surfaced one data incident and a set
+of design gaps. The single biggest theme: **imports and auto-assign both push
+data into the live CRM too eagerly** — a failed-looking import still saved its
+rows, and the engine assigned across territory lines. The fix is to make the
+**approval queue a true gate**: nothing becomes a live lead until a human
+approves it, with duplication and territory checks in the way.
+
+---
+
+## 1. The incident (resolved)
+
+**Double import.** The NASH import ran twice — the first attempt *looked* like
+it failed on Kim's screen, but the server had already saved every row; her
+retry added a second copy. Result: **736 leads (366 duplicated), 366 schools,
+367 contacts**. Schools and contacts weren't doubled (the import reuses them by
+school); only **leads** doubled.
+
+**Resolution (done today):** full teardown, soft-delete, reversible —
+manifest `ops/manifests/staging-doubleimport-teardown-2026-07-30.json`.
+Staging is back to the clean baseline (~1,696 schools / ~1,723 leads).
+
+**Root cause:** the import is **slow and not idempotent**. A slow run reads as
+a failure client-side, and there's no dedupe, so a retry duplicates. The
+approval-queue design (§2) removes this class of bug entirely.
+
+---
+
+## 2. Import → "Sourced Leads" → Approval Queue  *(the core rework)*
+
+The central change. Imports must never land straight in the CRM.
+
+1. **Imports go to Approval first.** An imported file creates **pending**
+   records only; they become real leads **only on approve**. A
+   failed/retried import can't pollute the CRM — worst case it's a pending
+   batch you discard.
+2. **"Sourced Leads" concept.** The xls leads all came from **NASH** — a lead
+   *source*. Sourced leads (imports + other channels) intake → approval queue
+   → and there is a **"Sourced Leads" view** to see them.
+3. **Duplication test in the queue.** Before approve, flag any lead matching
+   an existing school/lead, or another lead in the same batch. Manager skips
+   or merges. (This is the safety net that catches a double import.)
+4. **Approval queue shows the count** — how many schools in the batch / pending.
+5. **Redirect button** — per lead, manager reassigns to a rep they choose,
+   on the same page. Actions: **Approve / Redirect / Reject**.
+6. **Rep tiles** — clickable per-rep tiles showing count before/after the run;
+   clicking filters the queue to that rep. (Engine already returns the data:
+   current / will_gain / new_total.)
+
+---
+
+## 3. Auto-assign engine logic
+
+7. **[DECISION] Territory should be a HARD filter; fairness only balances reps
+   who SHARE a territory.** Manake and Tanya have **disjoint** territories, so
+   the current "fairness gap between reps" forces cross-territory spill — 109
+   Mashonaland leads went to Manake (who doesn't cover it), and Tanya got
+   Masvingo/Midlands (Manake's). With disjoint territories each province
+   should simply go to its owner.
+   *Old spec said "fairness wins over territory"; this test shows that's wrong
+   for disjoint territories. Confirm the change.*
+8. **Fix the overflow reason text.** On out-of-territory overflow it names the
+   WRONG rep as the territory-holder — literally *"Manake's territory covers
+   Mashonaland East"* (false). Should name the real holder as the capped one.
+
+*(Note: the cross-territory spill looked far worse than normal because the pool
+was the doubled 736-lead import with Tanya pre-loaded ~225. On clean, balanced
+data it's much smaller — but the disjoint-territory logic still needs fixing.)*
+
+---
+
+## 4. Rep Discipline
+
+9. **Time filters: Monthly / Weekly / Daily** across all activities.
+10. **Show only the sales people: Kim, Manake, Tanya, Busi.**
+11. **Exclude non-sales users — LIVE issue.** On production, **SG Sithole,
+    (Nkululeko) Dube, and Prince** appear as assignees / in discipline but
+    aren't sales. Filter to sales roles only. *(Extends the earlier "active
+    staff only" filter to "sales only".)*
+
+---
+
+## 5. Review requests
+
+12. **Third option: "Enquiry".** Beyond Approve/Reject, the manager raises an
+    **Enquiry** — adds a note asking for more info → the sales rep receives it
+    and must respond → the manager can **ask again** as many times as needed
+    (a back-and-forth thread) before finally deciding.
+
+---
+
+## 6. Lead disqualification
+
+13. **Rep must REQUEST disqualification, with a reason** — not disqualify
+    directly. Manager decides.
+14. **Later:** an option to hand disqualified leads to other sales reps.
+
+---
+
+## 7. Compliance
+
+15. **Verify the compliance report metrics are wired up correctly.**
+    *(Investigation task — confirm each number is real, per the metrics-audit
+    discipline.)*
+
+---
+
+## 8. Bug to investigate
+
+16. **Conference date auto-adjusts to the wrong date.** After adding a date on
+    a "conference", the dates shifted to incorrect ones — smells like the known
+    UTC vs Harare (+2) day-roll issue. **Repro needed:** which screen, the date
+    entered, and the date it became.
+
+---
+
+## 9. Recommended build order
+
+| # | Item | Why this order |
+|---|---|---|
+| **P0** | §2.1–2.3 Import → Approval gate + duplication check | Stops the whole class of double-import / unapproved-data bugs |
+| **P0** | §3.7–3.8 Territory-hard + fix reason text | The logic bug Kim reported; small, high-trust |
+| **P1** | §4.9–4.11 Rep discipline: sales-only + time filters | §4.11 is live-facing (wrong people showing) |
+| **P1** | §2.4–2.6 Queue UX: count, redirect, rep tiles | Makes the gate usable; data already exists |
+| **P1** | §5.12 Review-request "Enquiry" thread | Self-contained workflow addition |
+| **P2** | §6.13 Disqualification request + reasons | Workflow; §6.14 reassignment later |
+| **P2** | §2.2 Sourced-leads view · §7.15 compliance-metrics check | Depends on / follows the above |
+| **Bug** | §8.16 Conference date | Needs repro first |
+
+---
+
+## 10. Decisions owed before building
+- **§3.7** — confirm territory becomes a **hard** filter (fairness only within
+  shared territories). This is the one real product call; everything else is
+  agreed.
+- Everything else is specified and ready to build once prioritised.
+
+_Data cleanup from the test: **done** (see §1). Nothing outstanding on staging._
