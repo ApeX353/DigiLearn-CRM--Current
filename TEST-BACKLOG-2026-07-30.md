@@ -60,16 +60,29 @@ The central change. Imports must never land straight in the CRM.
 
 ---
 
+## 2b. Campaigns are the home for imports  *(Mr Dube, 2026-07-30)*
+
+6a. **Import from *within* a campaign, and track the leads to it.** A campaign
+    (e.g. **"NASH 2026"**, type CONFERENCE) is where a batch of leads is
+    brought in — the import button lives inside the campaign, and every lead
+    it creates is stamped with that campaign so it can be tracked/attributed.
+    *Partly built already:* leads carry `source_campaign_id` and there's a
+    `GET /campaigns/:id/leads` ("Leads sourced from this campaign") view. The
+    work is: (a) let the import accept a `campaign_id` and set it on each lead,
+    (b) surface the import inside the campaign screen, (c) feed those leads
+    through the approval gate (§2) before they go live. NASH is the source;
+    "NASH 2026" is the campaign that holds this intake.
+
+---
+
 ## 3. Auto-assign engine logic
 
-7. **[DECISION] Territory should be a HARD filter; fairness only balances reps
-   who SHARE a territory.** Manake and Tanya have **disjoint** territories, so
-   the current "fairness gap between reps" forces cross-territory spill — 109
-   Mashonaland leads went to Manake (who doesn't cover it), and Tanya got
-   Masvingo/Midlands (Manake's). With disjoint territories each province
-   should simply go to its owner.
-   *Old spec said "fairness wins over territory"; this test shows that's wrong
-   for disjoint territories. Confirm the change.*
+7. **[DECIDED 2026-07-30, Mr Dube] Territory is a HARD filter — "Manake does
+   not get Mashonaland."** Fairness only balances reps who **share** a
+   territory. Manake and Tanya have disjoint territories, so each province
+   goes to its owner; a lead is **never** routed to a rep who doesn't cover
+   its province, even at the cost of balance. This overrides the old
+   "fairness wins over territory" rule.
 8. **Fix the overflow reason text.** On out-of-territory overflow it names the
    WRONG rep as the territory-holder — literally *"Manake's territory covers
    Mashonaland East"* (false). Should name the real holder as the capped one.
@@ -118,10 +131,13 @@ data it's much smaller — but the disjoint-territory logic still needs fixing.)
 
 ## 8. Bug to investigate
 
-16. **Conference date auto-adjusts to the wrong date.** After adding a date on
-    a "conference", the dates shifted to incorrect ones — smells like the known
-    UTC vs Harare (+2) day-roll issue. **Repro needed:** which screen, the date
-    entered, and the date it became.
+16. **Conference date auto-adjusts to the wrong date.** "Conference" is a
+    **campaign type**; campaign `start_date`/`end_date` are Postgres **`date`**
+    columns (`@IsDateString`). Grounded cause: a date picked in Harare (+2)
+    serialised to UTC rolls back a day — classic `date`-column timezone
+    off-by-one. **Repro to confirm:** create a CONFERENCE campaign, set a
+    start date, note what it saves/displays as. Fix belongs in the date
+    (de)serialisation, not the DB.
 
 ---
 
@@ -140,10 +156,10 @@ data it's much smaller — but the disjoint-territory logic still needs fixing.)
 
 ---
 
-## 10. Decisions owed before building
-- **§3.7** — confirm territory becomes a **hard** filter (fairness only within
-  shared territories). This is the one real product call; everything else is
-  agreed.
-- Everything else is specified and ready to build once prioritised.
+## 10. Decisions
+- **§3.7 — DECIDED (Mr Dube, 2026-07-30):** territory is a **hard** filter,
+  "Manake does not get Mashonaland." Fairness only balances reps who share a
+  territory. No open decisions remain — the list is ready to build once
+  prioritised.
 
 _Data cleanup from the test: **done** (see §1). Nothing outstanding on staging._
