@@ -147,13 +147,16 @@ export class LeadAutoRouterService {
 
     let proposed = 0;
     let skipped = 0;
+    // Build all proposals first, then bulk-insert. Saving one row at a time
+    // meant hundreds of round-trips and froze the "Run auto-assign" request.
+    const toSave: LeadAssignmentProposal[] = [];
     for (const lead of pool) {
       const pick = this.allocate(recipients, load, lead.school?.province);
       if (!pick) {
         skipped++;
         continue;
       }
-      await this.proposalRepository.save(
+      toSave.push(
         this.proposalRepository.create({
           lead_id: lead.id,
           proposed_rep_id: pick.recipient.id,
@@ -164,6 +167,10 @@ export class LeadAutoRouterService {
       load.set(pick.recipient.id, (load.get(pick.recipient.id) ?? 0) + 1);
       gained.set(pick.recipient.id, (gained.get(pick.recipient.id) ?? 0) + 1);
       proposed++;
+    }
+    // Chunked bulk insert (keeps each statement a sane size).
+    for (let i = 0; i < toSave.length; i += 200) {
+      await this.proposalRepository.save(toSave.slice(i, i + 200));
     }
 
     const preview: DistributionPreviewRow[] = recipients

@@ -435,16 +435,27 @@ function AutoAssignQueue() {
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const [batchSize, setBatchSize] = useState<number | null>(50);
   const [repFilter, setRepFilter] = useState<string | null>(null);
-  const staffQuery = useStaff({
-    role: "sales_rep",
-    status: "active",
-    page: 1,
-    limit: 100,
-  });
-  const reps: Array<{ id: string; first_name?: string; last_name?: string }> =
+  const staffQuery = useStaff({ status: "active", page: 1, limit: 100 });
+  const allStaff: Array<{
+    id: string;
+    first_name?: string;
+    last_name?: string;
+    roles?: { name: string }[];
+    territory_provinces?: string | null;
+  }> =
     (staffQuery.data as any)?.data ??
     (staffQuery.data as any)?.items ??
     (Array.isArray(staffQuery.data) ? staffQuery.data : []);
+  // Valid redirect targets = the sales team: managers (Kim, Busi) + reps who
+  // actually carry a territory (Manake, Tanya). Excludes seed sales_reps with
+  // no territory so the picker isn't cluttered with non-team accounts.
+  const reps = allStaff.filter((u) => {
+    const names = (u.roles ?? []).map((r) => r.name);
+    return (
+      names.includes("sales_manager") ||
+      (names.includes("sales_rep") && !!u.territory_provinces)
+    );
+  });
   const busy =
     approve.isPending || reject.isPending || approveBatch.isPending;
 

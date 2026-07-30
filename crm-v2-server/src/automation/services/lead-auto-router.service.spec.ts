@@ -53,7 +53,7 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     proposalRepo = {
       find: jest.fn().mockResolvedValue([]),
       create: jest.fn().mockImplementation((x: any) => x),
-      save: jest.fn().mockImplementation((x: any) => { saved.push(x); return Promise.resolve(x); }),
+      save: jest.fn().mockImplementation((x: any) => { if (Array.isArray(x)) saved.push(...x); else saved.push(x); return Promise.resolve(x); }),
     };
     const notifications = { sendToUsers: jest.fn().mockResolvedValue(undefined) };
     const compliance = { getBoolean: jest.fn().mockResolvedValue(true) };
