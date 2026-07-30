@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+coverage
+**/*.spec.ts
+test
+.env
+.env.*
+*.md
