@@ -401,7 +401,9 @@ export class LeadsXlsxImportService {
             lead: {
               name: row.schoolName,
               school_name: row.schoolName,
-              source: 'Other' as LeadSource,
+              // When the import is tied to a campaign, the lead's channel is
+              // that event; otherwise it's an untagged bulk import.
+              source: (campaignId ? 'Event' : 'Other') as LeadSource,
               province: row.province as never,
               region: row.region as never,
               city: row.city,

@@ -4,8 +4,17 @@ import { Upload, Loader2, ShieldCheck, FileSpreadsheet } from "lucide-react";
 import Modal from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
+import { Input } from "~/components/ui/input";
+import { DateField } from "~/components/ui/date-field";
 import { useImportLeadsXlsx } from "~/api/leads";
 import type { ImportBatch } from "~/api/leads/import-batches";
+import {
+  useCampaigns,
+  useCreateCampaign,
+  CAMPAIGN_TYPES,
+  CAMPAIGN_TYPE_LABELS,
+} from "~/api/campaigns";
+import type { CampaignType } from "~/api/campaigns";
 
 interface ImportLeadsDialogProps {
   open: boolean;
@@ -31,16 +40,53 @@ export function ImportLeadsDialog({
   const [batch, setBatch] = useState<ImportBatch | null>(null);
   const importXlsx = useImportLeadsXlsx();
 
+  // Campaign link (only when NOT launched from inside a campaign):
+  //   "" = none · "__new__" = create one inline · else an existing id
+  const preset = !!campaignId;
+  const campaignsQuery = useCampaigns();
+  const createCampaign = useCreateCampaign();
+  const [choice, setChoice] = useState<string>("");
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<CampaignType>("CONFERENCE");
+  const [newStart, setNewStart] = useState("");
+
   const reset = () => {
     setFileName(null);
     setBatch(null);
+    setChoice("");
+    setNewName("");
+    setNewStart("");
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const handleFile = (file: File) => {
+  /** Resolve the campaign id to attribute the import to (creating one if new). */
+  const resolveCampaignId = async (): Promise<string | undefined> => {
+    if (preset) return campaignId;
+    if (choice === "__new__") {
+      if (!newName.trim() || !newStart) {
+        toast.error("New campaign needs a name and start date");
+        throw new Error("campaign-missing-fields");
+      }
+      const c = await createCampaign.mutateAsync({
+        name: newName.trim(),
+        type: newType,
+        start_date: newStart,
+      });
+      return c.id;
+    }
+    return choice || undefined;
+  };
+
+  const handleFile = async (file: File) => {
     if (!/\.xlsx$/i.test(file.name)) {
       toast.error("Please choose an Excel (.xlsx) file");
       return;
+    }
+    let resolvedCampaignId: string | undefined;
+    try {
+      resolvedCampaignId = await resolveCampaignId();
+    } catch {
+      return; // a validation error was already surfaced
     }
     setFileName(file.name);
     setBatch(null);
@@ -48,7 +94,11 @@ export function ImportLeadsDialog({
     reader.onload = () => {
       const dataUrl = String(reader.result || "");
       importXlsx.mutate(
-        { file_base64: dataUrl, filename: file.name, campaign_id: campaignId },
+        {
+          file_base64: dataUrl,
+          filename: file.name,
+          campaign_id: resolvedCampaignId,
+        },
         {
           onSuccess: (res) => {
             setBatch(res.data);
@@ -131,6 +181,61 @@ export function ImportLeadsDialog({
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Campaign link (hidden when launched from inside a campaign). */}
+            {!preset && (
+              <div className="space-y-2 rounded-lg border p-3">
+                <label className="text-sm font-medium">
+                  Link to a campaign{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (optional — leads take this as their Source campaign)
+                  </span>
+                </label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                  value={choice}
+                  onChange={(e) => setChoice(e.target.value)}
+                  data-testid="import-campaign-select"
+                >
+                  <option value="">No campaign</option>
+                  {(campaignsQuery.data ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                  <option value="__new__">➕ Create a new campaign…</option>
+                </select>
+                {choice === "__new__" && (
+                  <div className="space-y-2 border-t pt-2">
+                    <Input
+                      placeholder="Campaign name (e.g. NASH 2026)"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      data-testid="import-new-campaign-name"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                        value={newType}
+                        onChange={(e) =>
+                          setNewType(e.target.value as CampaignType)
+                        }
+                      >
+                        {CAMPAIGN_TYPES.map((t) => (
+                          <option key={t} value={t}>
+                            {CAMPAIGN_TYPE_LABELS[t]}
+                          </option>
+                        ))}
+                      </select>
+                      <DateField
+                        value={newStart}
+                        onChange={setNewStart}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
