@@ -1,10 +1,22 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { LeadsService } from '../leads.service';
 import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
 import { PROVINCES } from '../../schools/constants/provinces';
 import type { LeadSource } from '../constants/lead-source';
 import type { ContactRole } from '../../contacts/constants';
+import {
+  LeadImportBatch,
+  LeadImportBatchStatus,
+  PendingImportRow,
+} from '../entities/lead-import-batch.entity';
 
 export interface LeadImportRowResult {
   row: number;
@@ -43,6 +55,9 @@ export class LeadsXlsxImportService {
   constructor(
     private readonly leadsService: LeadsService,
     private readonly activityLogs: ActivityLogsService,
+    @InjectRepository(LeadImportBatch)
+    private readonly batches: Repository<LeadImportBatch>,
+    private readonly dataSource: DataSource,
   ) {}
 
   private normKey(s: string): string {
@@ -97,12 +112,20 @@ export class LeadsXlsxImportService {
     return { first, last };
   }
 
+  /**
+   * Stage an import for approval — DOES NOT create any leads. Parses the
+   * workbook, dedup-checks every row, and saves a PENDING LeadImportBatch. A
+   * manager reviews and approves before anything hits the CRM (TEST-BACKLOG
+   * §2). If `campaignId` is set (import run from inside a campaign), every
+   * lead created on approval is attributed to it.
+   */
   async importFromBase64(
     base64: string,
     userId: string,
-    userRole: string | undefined,
+    _userRole: string | undefined,
     filename?: string,
-  ): Promise<LeadImportSummary> {
+    campaignId?: string | null,
+  ): Promise<LeadImportBatch> {
     const raw = base64.replace(/^data:[^;]*;base64,/, '');
     let buffer: Buffer;
     try {
@@ -137,66 +160,229 @@ export class LeadsXlsxImportService {
       );
     }
 
-    const rows: LeadImportRowResult[] = [];
-    let created = 0;
-    let skipped = 0;
-    let failed = 0;
-
     const cell = (row: ExcelJS.Row, col?: number): string =>
       col ? String(row.getCell(col).value ?? '').trim() : '';
 
+    // 1) Parse every row into a staged row — no DB writes.
+    const parsed: PendingImportRow[] = [];
     for (let r = 2; r <= ws.rowCount; r++) {
       const row = ws.getRow(r);
       const schoolName = cell(row, cols.school);
       if (!schoolName) continue; // blank row
 
-      const provinceRaw = cell(row, cols.provinceWeb) || cell(row, cols.provinceFile);
+      const provinceRaw =
+        cell(row, cols.provinceWeb) || cell(row, cols.provinceFile);
       const province = this.toProvince(provinceRaw);
       const region = this.toRegion(cell(row, cols.area));
       const contact = this.splitContact(cell(row, cols.contact));
 
+      let status: 'importable' | 'invalid' = 'importable';
+      let invalidReason: string | undefined;
       if (!province) {
-        skipped++;
-        rows.push({ row: r, school: schoolName, status: 'skipped', reason: `province "${provinceRaw}" not recognised` });
-        continue;
-      }
-      if (!region) {
-        skipped++;
-        rows.push({ row: r, school: schoolName, status: 'skipped', reason: `area "${cell(row, cols.area)}" is not urban/rural` });
-        continue;
-      }
-      if (!contact) {
-        skipped++;
-        rows.push({ row: r, school: schoolName, status: 'skipped', reason: 'no contact name' });
-        continue;
+        status = 'invalid';
+        invalidReason = `province "${provinceRaw}" not recognised`;
+      } else if (!region) {
+        status = 'invalid';
+        invalidReason = `area "${cell(row, cols.area)}" is not urban/rural`;
+      } else if (!contact) {
+        status = 'invalid';
+        invalidReason = 'no contact name';
       }
 
-      const niceName = this.titleCase(schoolName);
-      const city = cell(row, cols.city) || undefined;
-      const district = cell(row, cols.district) || undefined;
-      const phone = cell(row, cols.phone) || undefined;
+      parsed.push({
+        rowNumber: r,
+        schoolName: this.titleCase(schoolName),
+        contactFirst: contact?.first ?? '',
+        contactLast: contact?.last ?? '',
+        province,
+        region,
+        city: cell(row, cols.city) || undefined,
+        district: cell(row, cols.district) || undefined,
+        phone: cell(row, cols.phone) || undefined,
+        role: this.toRole(cell(row, cols.position)),
+        status,
+        invalidReason,
+        decision: 'approve', // provisional; finalised below
+      });
+    }
 
+    // 2) Dedup-check against existing schools/leads and within the batch.
+    await this.flagDuplicates(parsed);
+
+    // 3) Default decision: skip anything invalid or duplicated, else approve.
+    for (const row of parsed) {
+      row.decision =
+        row.status === 'invalid' || row.duplicate ? 'skip' : 'approve';
+    }
+
+    const importable = parsed.filter((r) => r.decision === 'approve').length;
+    const duplicates = parsed.filter((r) => r.duplicate).length;
+
+    // 4) Save the PENDING batch — still nothing in the live CRM.
+    const batch = await this.batches.save(
+      this.batches.create({
+        filename: filename ?? null,
+        uploaded_by_id: userId,
+        campaign_id: campaignId ?? null,
+        status: LeadImportBatchStatus.PENDING,
+        rows: parsed,
+        total_rows: parsed.length,
+        importable_count: importable,
+        duplicate_count: duplicates,
+      }),
+    );
+
+    try {
+      await this.activityLogs.logCreate(
+        'LeadImportBatch',
+        batch.id,
+        {
+          total: parsed.length,
+          importable,
+          duplicates,
+          filename: filename ?? null,
+        },
+        userId,
+        `Staged ${parsed.length} row(s) for approval (${duplicates} possible duplicate(s)) from ${filename ?? 'an Excel file'}`,
+      );
+    } catch {
+      // A logging failure must not fail the import.
+    }
+
+    this.logger.log(
+      `xlsx import staged: batch ${batch.id}, ${parsed.length} rows, ${importable} to import, ${duplicates} dupes (by ${userId})`,
+    );
+    return batch;
+  }
+
+  /**
+   * Stamp `duplicate` on any row that collides with an existing school, an
+   * existing lead, or an earlier row in the same batch (name match, ignoring
+   * case/punctuation). An existing match wins over a within-batch one.
+   */
+  private async flagDuplicates(rows: PendingImportRow[]): Promise<void> {
+    const norm = (s: string): string =>
+      s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    const schoolRows: { id: string; name: string }[] =
+      await this.dataSource.query(
+        `SELECT id, name FROM schools WHERE deleted_at IS NULL`,
+      );
+    const leadRows: { id: string; lead_name: string }[] =
+      await this.dataSource.query(
+        `SELECT id, lead_name FROM leads WHERE deleted_at IS NULL`,
+      );
+
+    const schoolByName = new Map<string, string>();
+    for (const s of schoolRows) schoolByName.set(norm(s.name), s.id);
+    const leadByName = new Map<string, string>();
+    for (const l of leadRows) leadByName.set(norm(l.lead_name), l.id);
+
+    const seenInBatch = new Set<string>();
+    for (const row of rows) {
+      const key = norm(row.schoolName);
+      if (schoolByName.has(key)) {
+        row.duplicate = {
+          kind: 'existing-school',
+          name: row.schoolName,
+          id: schoolByName.get(key),
+        };
+      } else if (leadByName.has(key)) {
+        row.duplicate = {
+          kind: 'existing-lead',
+          name: row.schoolName,
+          id: leadByName.get(key),
+        };
+      } else if (seenInBatch.has(key)) {
+        row.duplicate = { kind: 'within-batch', name: row.schoolName };
+      } else {
+        seenInBatch.add(key);
+      }
+    }
+  }
+
+  /** Pending batches for the approval queue (newest first), rows omitted. */
+  async listPending(): Promise<Partial<LeadImportBatch>[]> {
+    const batches = await this.batches.find({
+      where: { status: LeadImportBatchStatus.PENDING },
+      order: { created_at: 'DESC' },
+      relations: ['uploaded_by', 'campaign'],
+    });
+    return batches.map(({ rows: _rows, ...rest }) => rest);
+  }
+
+  async getBatch(id: string): Promise<LeadImportBatch> {
+    const batch = await this.batches.findOne({
+      where: { id },
+      relations: ['uploaded_by', 'campaign', 'decided_by'],
+    });
+    if (!batch) throw new NotFoundException('Import batch not found');
+    return batch;
+  }
+
+  /** Override per-row approve/skip before approving (e.g. keep a flagged dup). */
+  async updateDecisions(
+    id: string,
+    decisions: { rowNumber: number; decision: 'approve' | 'skip' }[],
+  ): Promise<LeadImportBatch> {
+    const batch = await this.getBatch(id);
+    if (batch.status !== LeadImportBatchStatus.PENDING) {
+      throw new BadRequestException('This batch has already been decided');
+    }
+    const byRow = new Map(decisions.map((d) => [d.rowNumber, d.decision]));
+    for (const row of batch.rows) {
+      const d = byRow.get(row.rowNumber);
+      if (!d) continue;
+      // An invalid row can never be approved — missing fields to make a lead.
+      row.decision = d === 'approve' && row.status === 'invalid' ? 'skip' : d;
+    }
+    batch.importable_count = batch.rows.filter(
+      (r) => r.decision === 'approve',
+    ).length;
+    return this.batches.save(batch);
+  }
+
+  /**
+   * Approve the batch: create a real school + head contact + New lead for
+   * every row marked 'approve'. Only now does anything hit the CRM. Skipped,
+   * invalid and duplicate rows are left out. Idempotent by status — a decided
+   * batch cannot be approved twice.
+   */
+  async approveBatch(
+    id: string,
+    userId: string,
+    userRole: string | undefined,
+  ): Promise<LeadImportBatch> {
+    const batch = await this.getBatch(id);
+    if (batch.status !== LeadImportBatchStatus.PENDING) {
+      throw new BadRequestException('This batch has already been decided');
+    }
+
+    let created = 0;
+    let failed = 0;
+    for (const row of batch.rows) {
+      if (row.decision !== 'approve' || row.status !== 'importable') continue;
       try {
         await this.leadsService.createWithSchoolAndContacts(
           {
             lead: {
-              // The lead's title. Manager is fine with it matching the
-              // school (LNAME1). Source defaults to Other — the file's
-              // Source column is a provenance URL, not a channel.
-              name: niceName,
-              school_name: niceName,
+              name: row.schoolName,
+              school_name: row.schoolName,
               source: 'Other' as LeadSource,
-              province: province as never,
-              region: region as never,
-              city,
-              district,
+              province: row.province as never,
+              region: row.region as never,
+              city: row.city,
+              district: row.district,
+              ...(batch.campaign_id
+                ? { source_campaign_id: batch.campaign_id }
+                : {}),
             },
             contacts: [
               {
-                first_name: contact.first,
-                last_name: contact.last,
-                phone,
-                role: this.toRole(cell(row, cols.position)) as never,
+                first_name: row.contactFirst,
+                last_name: row.contactLast,
+                phone: row.phone,
+                role: row.role as never,
                 is_primary: true,
               } as never,
             ],
@@ -206,30 +392,59 @@ export class LeadsXlsxImportService {
           { bulkImport: true },
         );
         created++;
-        rows.push({ row: r, school: niceName, status: 'created' });
-      } catch (e: any) {
+      } catch {
         failed++;
-        rows.push({ row: r, school: niceName, status: 'failed', reason: e?.message ?? 'creation failed' });
       }
     }
 
-    // Log the whole import with its count and who ran it.
+    batch.status = LeadImportBatchStatus.APPROVED;
+    batch.decided_at = new Date();
+    batch.decided_by_id = userId;
+    batch.created_count = created;
+    await this.batches.save(batch);
+
     try {
-      await this.activityLogs.logCreate(
-        'LeadImport',
-        `import-${userId}`,
-        { created, skipped, failed, filename: filename ?? null },
+      await this.activityLogs.logUpdate(
+        'LeadImportBatch',
+        batch.id,
+        {},
+        { created, failed },
         userId,
-        `Imported ${created} lead${created === 1 ? '' : 's'} from ${filename ?? 'an Excel file'}`,
+        `Approved import batch — created ${created} lead(s)${failed ? `, ${failed} failed` : ''}`,
       );
     } catch {
-      // A logging failure must not fail the import.
+      /* ignore */
     }
-
     this.logger.log(
-      `xlsx import: created ${created}, skipped ${skipped}, failed ${failed} (by ${userId})`,
+      `import batch ${batch.id} approved: created ${created}, failed ${failed}`,
     );
-    return { created, skipped, failed, total: created + skipped + failed, rows };
+    return batch;
+  }
+
+  /** Discard the batch — nothing is created. */
+  async rejectBatch(id: string, userId: string): Promise<LeadImportBatch> {
+    const batch = await this.getBatch(id);
+    if (batch.status !== LeadImportBatchStatus.PENDING) {
+      throw new BadRequestException('This batch has already been decided');
+    }
+    batch.status = LeadImportBatchStatus.REJECTED;
+    batch.decided_at = new Date();
+    batch.decided_by_id = userId;
+    await this.batches.save(batch);
+    try {
+      await this.activityLogs.logUpdate(
+        'LeadImportBatch',
+        batch.id,
+        {},
+        { rejected: true },
+        userId,
+        `Rejected import batch — ${batch.total_rows} row(s) discarded, nothing created`,
+      );
+    } catch {
+      /* ignore */
+    }
+    this.logger.log(`import batch ${batch.id} rejected by ${userId}`);
+    return batch;
   }
 
   private columnIndex(sheet: ExcelJS.Worksheet): Record<string, number> {

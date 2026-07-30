@@ -30,6 +30,7 @@ import { DuplicateSuspicion } from './entities/duplicate-suspicion.entity';
 import { DuplicateDetectionService } from './services/duplicate-detection.service';
 import { DuplicatesController } from './duplicates.controller';
 import { SettingsModule } from '../settings/settings.module';
+import { LeadImportBatch } from './entities/lead-import-batch.entity';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SettingsModule } from '../settings/settings.module';
       LeadQualificationCriteria,
       LeadEscalation,
       DuplicateSuspicion,
+      LeadImportBatch,
       School,
       Contact,
       User,

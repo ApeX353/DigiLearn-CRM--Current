@@ -16,7 +16,10 @@ import type { Response } from 'express';
 import { LeadsService } from './leads.service';
 import { LeadQualificationService } from './services/lead-qualification.service';
 import { LeadsXlsxImportService } from './services/leads-xlsx-import.service';
-import { ImportLeadsXlsxDto } from './dto/import-leads-xlsx.dto';
+import {
+  ImportLeadsXlsxDto,
+  UpdateImportDecisionsDto,
+} from './dto/import-leads-xlsx.dto';
 import {
   CreateLeadDto,
   UpdateLeadDto,
@@ -102,26 +105,82 @@ export class LeadsController {
   // base64 JSON — no file-upload middleware, no client Excel library);
   // the server parses it and creates a school + head contact + unassigned
   // New lead per row, logging the whole import with its count.
+  // Staged for approval — imports NEVER create live leads directly. The file
+  // is parsed + dedup-checked into a PENDING batch; a manager approves before
+  // anything reaches the CRM (TEST-BACKLOG §2).
   @Post('import')
   @Roles('admin', 'sales_manager')
-  @ApiOperation({ summary: 'Bulk-import leads from an Excel (.xlsx) file' })
-  @ApiResponse({ status: HttpStatus.CREATED, description: 'Import summary' })
+  @ApiOperation({ summary: 'Stage a bulk import (.xlsx) for approval' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'The pending batch' })
   async importXlsx(
     @Body() dto: ImportLeadsXlsxDto,
     @CurrentUser('id') userId: string,
     @CurrentUser('role') userRole: string,
   ) {
-    const data = await this.leadsXlsxImport.importFromBase64(
+    const batch = await this.leadsXlsxImport.importFromBase64(
       dto.file_base64,
       userId,
       userRole,
       dto.filename,
+      dto.campaign_id,
     );
     return {
       success: true,
-      message: `Imported ${data.created} lead(s)`,
-      data,
+      message: `Import staged: ${batch.importable_count} ready, ${batch.duplicate_count} possible duplicate(s) — awaiting approval`,
+      data: batch,
     };
+  }
+
+  @Get('import/batches')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Pending import batches awaiting approval' })
+  async listImportBatches() {
+    return { success: true, data: await this.leadsXlsxImport.listPending() };
+  }
+
+  @Get('import/batches/:id')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'A pending batch with its rows and duplicate flags' })
+  async getImportBatch(@Param('id') id: string) {
+    return { success: true, data: await this.leadsXlsxImport.getBatch(id) };
+  }
+
+  @Patch('import/batches/:id/decisions')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Override per-row approve/skip before approving' })
+  async setImportDecisions(
+    @Param('id') id: string,
+    @Body() dto: UpdateImportDecisionsDto,
+  ) {
+    const data = await this.leadsXlsxImport.updateDecisions(id, dto.decisions);
+    return { success: true, data };
+  }
+
+  @Post('import/batches/:id/approve')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Approve a batch — creates the real leads' })
+  async approveImportBatch(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    const batch = await this.leadsXlsxImport.approveBatch(id, userId, userRole);
+    return {
+      success: true,
+      message: `Approved — created ${batch.created_count} lead(s)`,
+      data: batch,
+    };
+  }
+
+  @Post('import/batches/:id/reject')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Reject a batch — nothing is created' })
+  async rejectImportBatch(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.leadsXlsxImport.rejectBatch(id, userId);
+    return { success: true, message: 'Import rejected', data };
   }
 
   @Get()
