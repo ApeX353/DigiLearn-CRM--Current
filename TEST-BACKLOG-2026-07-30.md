@@ -41,6 +41,16 @@ approval-queue design (§2) removes this class of bug entirely.
 
 The central change. Imports must never land straight in the CRM.
 
+> **✅ BUILT 2026-07-30 (server `4cbccd1`, client `789c200`) — items #1, #3,
+> #4 and the campaign attribution part of #2/#6a.** Imports now stage a
+> PENDING `lead_import_batches` row (nothing in the CRM); each row is
+> dedup-checked (existing school/lead + within-batch) and flagged; a new
+> "Import approvals" tab in the Approval Queue reviews rows (include/skip)
+> then Approve (creates leads, stamped with `campaign_id`) or Reject
+> (discards). On `dube-upgrades`, not yet deployed. **Still to do:** the
+> "Sourced Leads" *view* + mounting the Import button *inside* a campaign
+> page (#2/#6a UI), the **Redirect** button (#5) and **rep tiles** (#6).
+
 1. **Imports go to Approval first.** An imported file creates **pending**
    records only; they become real leads **only on approve**. A
    failed/retried import can't pollute the CRM — worst case it's a pending
