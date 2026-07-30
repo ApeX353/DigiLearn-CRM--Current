@@ -36,6 +36,7 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
   let leadRepo: any;
   let proposalRepo: any;
   let dataSource: any;
+  let compliance: any;
   let saved: any[];
 
   function build(pool: any[], startCounts: Record<string, number>) {
@@ -56,7 +57,15 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
       save: jest.fn().mockImplementation((x: any) => { if (Array.isArray(x)) saved.push(...x); else saved.push(x); return Promise.resolve(x); }),
     };
     const notifications = { sendToUsers: jest.fn().mockResolvedValue(undefined) };
-    const compliance = { getBoolean: jest.fn().mockResolvedValue(true) };
+    // include-managers OFF by default (reps only); manager cap 50.
+    compliance = {
+      getBoolean: jest
+        .fn()
+        .mockImplementation((k: string) =>
+          Promise.resolve(k === 'auto_assign_enabled'),
+        ),
+      getNumber: jest.fn().mockResolvedValue(50),
+    };
     const leadSla = { find: jest.fn().mockResolvedValue([]) };
     const activityLogs = { logUpdate: jest.fn().mockResolvedValue(undefined) };
     service = new LeadAutoRouterService(
@@ -120,6 +129,38 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     dataSource.createQueryBuilder.mockReturnValue(makeQb(shared));
     await service.runDistribution();
     expect(saved[0].proposed_rep_id).toBe('tanya'); // lighter of the two who cover it
+  });
+
+  it('includes managers when opted in, but caps how many they receive (#19)', async () => {
+    build(
+      Array.from({ length: 5 }, (_, i) => lead('w' + i, 'Bulawayo')),
+      { manake: 0, kim: 0 },
+    );
+    // Opt-in ON, manager cap = 2.
+    compliance.getBoolean.mockImplementation((k: string) =>
+      Promise.resolve(
+        k === 'auto_assign_enabled' || k === 'auto_assign_include_managers',
+      ),
+    );
+    compliance.getNumber.mockResolvedValue(2);
+    // reps query → Manake; managers query → Kim (shares Manake's WEST office).
+    dataSource.createQueryBuilder = jest
+      .fn()
+      .mockReturnValueOnce(
+        makeQb([
+          { id: 'manake', first_name: 'Manake', last_name: 'D', territory_provinces: JSON.stringify(WEST) },
+        ]),
+      )
+      .mockReturnValueOnce(
+        makeQb([
+          { id: 'kim', first_name: 'Kim', last_name: 'M', territory_provinces: JSON.stringify(WEST) },
+        ]),
+      );
+    const res = await service.runDistribution();
+    const kim = res.preview.find((p) => p.rep_id === 'kim');
+    const manake = res.preview.find((p) => p.rep_id === 'manake');
+    expect(kim?.will_gain).toBe(2); // capped at 2
+    expect(manake?.will_gain).toBe(3); // rep takes the overflow
   });
 
   it('does nothing when no rep has a territory configured', async () => {

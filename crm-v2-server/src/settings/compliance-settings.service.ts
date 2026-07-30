@@ -118,6 +118,22 @@ export const COMPLIANCE_SETTINGS = {
     description:
       'When on, the auto-assignment engine automatically distributes unassigned leads to the least-loaded active sales rep (checked every 15 minutes). When off, leads stay unassigned until a manager assigns them manually.',
   },
+  auto_assign_include_managers: {
+    key: 'compliance.policy.auto_assign_include_managers',
+    type: 'boolean' as const,
+    default: false,
+    label: 'Include managers in auto-assign',
+    description:
+      'When on, sales managers who have a territory configured also receive auto-assigned leads (sharing their office rep\'s territory), capped by "Manager lead cap". When off, managers only approve and reassign — reps receive.',
+  },
+  manager_lead_cap: {
+    key: 'compliance.policy.manager_lead_cap',
+    type: 'number' as const,
+    default: 50,
+    label: 'Manager lead cap',
+    description:
+      'The most open leads a manager may hold from auto-assign. Once a manager is at the cap, further leads in their territory go to the rep instead. Only applies when "Include managers in auto-assign" is on.',
+  },
   tactical_disqualify_requires_approval: {
     key: 'compliance.policy.tactical_disqualify_requires_approval',
     type: 'boolean' as const,

@@ -129,7 +129,13 @@ export class LeadAutoRouterService {
     triggeredById?: string,
     limit: number | null = null,
   ): Promise<DistributionResult> {
-    const recipients = await this.getRecipients();
+    const includeManagers = await this.complianceSettings.getBoolean(
+      'auto_assign_include_managers',
+    );
+    const managerCap = await this.complianceSettings.getNumber(
+      'manager_lead_cap',
+    );
+    const recipients = await this.getRecipients(includeManagers);
     if (recipients.length === 0) {
       this.logger.warn(
         'Auto-assign: no active reps with a territory configured — nothing to do',
@@ -151,7 +157,12 @@ export class LeadAutoRouterService {
     // meant hundreds of round-trips and froze the "Run auto-assign" request.
     const toSave: LeadAssignmentProposal[] = [];
     for (const lead of pool) {
-      const pick = this.allocate(recipients, load, lead.school?.province);
+      const pick = this.allocate(
+        recipients,
+        load,
+        lead.school?.province,
+        managerCap,
+      );
       if (!pick) {
         skipped++;
         continue;
@@ -356,7 +367,8 @@ export class LeadAutoRouterService {
   private allocate(
     recipients: Recipient[],
     load: Map<string, number>,
-    schoolProvince?: string | null,
+    schoolProvince: string | null | undefined,
+    managerCap: number,
   ): { recipient: Recipient; reason: string } | null {
     const province = (schoolProvince ?? '').trim().toLowerCase();
 
@@ -382,14 +394,21 @@ export class LeadAutoRouterService {
         )
       : [];
 
-    // No province, or no rep covers it → not auto-assignable. Skip it; the
-    // lead stays unassigned for a manager to place by hand (it shows in the
-    // run as a skip, and is never forced onto the wrong rep).
-    if (territorial.length === 0) return null;
+    // Managers are capped (#19): once a manager holds `managerCap` open leads,
+    // they drop out and leads in their territory go to the rep. Reps are never
+    // capped.
+    const eligible = territorial.filter(
+      (r) => r.cohort === 'rep' || (load.get(r.id) ?? 0) + 1 <= managerCap,
+    );
 
-    // Fairness applies ONLY among the reps who share this territory: give the
-    // lead to the lightest-loaded of them.
-    const chosen = leastLoaded(territorial);
+    // No province, no covering recipient, or the only covering recipient is a
+    // capped manager → not auto-assignable. Skip it; the lead stays unassigned
+    // for a manager to place by hand — never forced onto the wrong rep.
+    if (eligible.length === 0) return null;
+
+    // Fairness applies ONLY among the recipients who share this territory:
+    // give the lead to the lightest-loaded of them.
+    const chosen = leastLoaded(eligible);
     if (!chosen) return null;
 
     const count = load.get(chosen.id) ?? 0;
@@ -407,7 +426,21 @@ export class LeadAutoRouterService {
    * auto-distributed leads (Kim, 29 July). All recipients are one 'rep'
    * cohort, balanced against each other by the fairness gap.
    */
-  private async getRecipients(): Promise<Recipient[]> {
+  private async getRecipients(includeManagers: boolean): Promise<Recipient[]> {
+    const reps = await this.queryRecipientsByRole([...ROUTABLE_ROLES], 'rep');
+    if (!includeManagers) return reps;
+    // Managers opt in (compliance switch): they share their office rep's
+    // territory and receive up to the manager cap. A user who is both stays a
+    // rep (uncapped).
+    const managers = await this.queryRecipientsByRole(['sales_manager'], 'manager');
+    const repIds = new Set(reps.map((r) => r.id));
+    return [...reps, ...managers.filter((m) => !repIds.has(m.id))];
+  }
+
+  private async queryRecipientsByRole(
+    roles: string[],
+    cohort: 'rep' | 'manager',
+  ): Promise<Recipient[]> {
     const rows = await this.dataSource
       .createQueryBuilder()
       .select('user.id', 'id')
@@ -418,7 +451,7 @@ export class LeadAutoRouterService {
       .from('users', 'user')
       .innerJoin('user_roles', 'ur', 'ur.user_id = user.id')
       .innerJoin('roles', 'role', 'role.id = ur.role_id')
-      .where('role.name IN (:...roles)', { roles: [...ROUTABLE_ROLES] })
+      .where('role.name IN (:...roles)', { roles })
       .andWhere('user.is_active = :active', { active: true })
       .andWhere('user.territory_provinces IS NOT NULL')
       .getRawMany<{
@@ -431,7 +464,7 @@ export class LeadAutoRouterService {
       .map((r) => ({
         id: r.id,
         name: `${r.first_name} ${r.last_name}`.trim(),
-        cohort: 'rep' as const,
+        cohort,
         territories: this.parseTerritories(r.territory_provinces),
       }))
       .filter((r) => r.territories.length > 0);

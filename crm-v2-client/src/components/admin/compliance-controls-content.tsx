@@ -61,6 +61,8 @@ const COMPLIANCE_KEYS = [
   "compliance.targets.next_step_compliance_pct",
   "compliance.policy.allow_self_reassign",
   "compliance.policy.auto_assign_enabled",
+  "compliance.policy.auto_assign_include_managers",
+  "compliance.policy.manager_lead_cap",
   "compliance.policy.tactical_disqualify_requires_approval",
   "compliance.policy.enforce_outcome_on_completion",
   "compliance.policy.enforce_next_step_on_completion",
@@ -83,6 +85,8 @@ const DEFAULTS: Record<ComplianceKey, number | boolean> = {
   "compliance.targets.next_step_compliance_pct": 80,
   "compliance.policy.allow_self_reassign": false,
   "compliance.policy.auto_assign_enabled": false,
+  "compliance.policy.auto_assign_include_managers": false,
+  "compliance.policy.manager_lead_cap": 50,
   "compliance.policy.tactical_disqualify_requires_approval": true,
   "compliance.policy.enforce_outcome_on_completion": false,
   "compliance.policy.enforce_next_step_on_completion": false,
@@ -151,6 +155,12 @@ const ComplianceControlsContent = () => {
   );
   const [autoAssignEnabled, setAutoAssignEnabled] = useState<boolean>(
     DEFAULTS["compliance.policy.auto_assign_enabled"] as boolean,
+  );
+  const [includeManagers, setIncludeManagers] = useState<boolean>(
+    DEFAULTS["compliance.policy.auto_assign_include_managers"] as boolean,
+  );
+  const [managerCap, setManagerCap] = useState<number>(
+    DEFAULTS["compliance.policy.manager_lead_cap"] as number,
   );
   const [tacticalDisqualifyApproval, setTacticalDisqualifyApproval] =
     useState<boolean>(
@@ -249,6 +259,18 @@ const ComplianceControlsContent = () => {
       toBoolean(
         settings["compliance.policy.auto_assign_enabled"],
         DEFAULTS["compliance.policy.auto_assign_enabled"] as boolean,
+      ),
+    );
+    setIncludeManagers(
+      toBoolean(
+        settings["compliance.policy.auto_assign_include_managers"],
+        DEFAULTS["compliance.policy.auto_assign_include_managers"] as boolean,
+      ),
+    );
+    setManagerCap(
+      toNumber(
+        settings["compliance.policy.manager_lead_cap"],
+        DEFAULTS["compliance.policy.manager_lead_cap"] as number,
       ),
     );
     setTacticalDisqualifyApproval(
@@ -422,6 +444,24 @@ const ComplianceControlsContent = () => {
             is_public: false,
           },
           {
+            key: "compliance.policy.auto_assign_include_managers",
+            value: includeManagers,
+            data_type: "boolean",
+            description:
+              "When on, managers with a territory also receive auto-assigned leads (capped by the manager lead cap)",
+            category: "compliance",
+            is_public: false,
+          },
+          {
+            key: "compliance.policy.manager_lead_cap",
+            value: managerCap,
+            data_type: "number",
+            description:
+              "Most open leads a manager may hold from auto-assign before leads go to the rep instead",
+            category: "compliance",
+            is_public: false,
+          },
+          {
             key: "compliance.policy.tactical_disqualify_requires_approval",
             value: tacticalDisqualifyApproval,
             data_type: "boolean",
@@ -556,6 +596,18 @@ const ComplianceControlsContent = () => {
         toBoolean(
           settings["compliance.policy.auto_assign_enabled"],
           DEFAULTS["compliance.policy.auto_assign_enabled"] as boolean,
+        ),
+      );
+      setIncludeManagers(
+        toBoolean(
+          settings["compliance.policy.auto_assign_include_managers"],
+          DEFAULTS["compliance.policy.auto_assign_include_managers"] as boolean,
+        ),
+      );
+      setManagerCap(
+        toNumber(
+          settings["compliance.policy.manager_lead_cap"],
+          DEFAULTS["compliance.policy.manager_lead_cap"] as number,
         ),
       );
       setTacticalDisqualifyApproval(
@@ -1026,6 +1078,61 @@ const ComplianceControlsContent = () => {
                   handleBoolChange(setAutoAssignEnabled, v)
                 }
               />
+            </div>
+          </FeatureGuard>
+
+          {/* #19 — managers receive auto-assigned leads (opt-in + cap) */}
+          <FeatureGuard allowedRoles={["admin", "sales_manager"]}>
+            <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <div className="space-y-1">
+                <Label
+                  htmlFor="cc-include-managers"
+                  className="flex items-center gap-2 text-base font-medium"
+                >
+                  <UsersRound className="h-4 w-4 text-muted-foreground" />
+                  Include managers in auto-assign
+                </Label>
+                <p className="text-xs text-muted-foreground max-w-xl">
+                  When <strong>on</strong>, sales managers who have a territory
+                  (e.g. Kim, Busi) also receive auto-assigned leads — sharing
+                  their office rep's territory — up to the manager cap below.
+                  When <strong>off</strong>, managers only approve and reassign.
+                </p>
+              </div>
+              <Switch
+                id="cc-include-managers"
+                data-testid="cc-include-managers"
+                checked={includeManagers}
+                onCheckedChange={(v) => handleBoolChange(setIncludeManagers, v)}
+              />
+            </div>
+            <div className="space-y-2 rounded-md border p-4">
+              <Label
+                htmlFor="cc-manager-cap"
+                className="flex items-center gap-2 text-base font-medium"
+              >
+                <UsersRound className="h-4 w-4 text-muted-foreground" />
+                Manager lead cap (max a manager receives)
+              </Label>
+              <Input
+                id="cc-manager-cap"
+                data-testid="cc-manager-cap"
+                type="number"
+                min={0}
+                max={1000}
+                value={managerCap}
+                onChange={(e) =>
+                  handleNumberChange(setManagerCap, e.target.value, {
+                    min: 0,
+                    max: 1000,
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground max-w-xl">
+                Once a manager holds this many open leads from auto-assign,
+                further leads in their territory go to the rep instead. Only
+                applies when the switch above is on.
+              </p>
             </div>
           </FeatureGuard>
 
