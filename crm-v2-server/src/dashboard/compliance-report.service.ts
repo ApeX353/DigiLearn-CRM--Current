@@ -31,6 +31,11 @@ const ACTIONABLE_TYPES: ActivityType[] = [
   ActivityType.WHATSAPP,
 ];
 
+// Compliance scoring is a SALES report (TEST-BACKLOG #15/#11): score only the
+// people who carry a sales book. Admins/admin_support/non-sales managers must
+// not appear or skew the org totals.
+const SALES_ROLES = ['sales_rep', 'sales_manager'];
+
 export interface ComplianceReportRepRow {
   user_id: string;
   name: string;
@@ -105,11 +110,17 @@ export class ComplianceReportService {
       this.compliance.getNumber('stale_deal_days'),
     ]);
 
-    const users = await this.userRepo
-      .createQueryBuilder('u')
-      .where('u.is_active = TRUE')
-      .take(200)
-      .getMany();
+    const users = (
+      await this.userRepo
+        .createQueryBuilder('u')
+        .where('u.is_active = TRUE')
+        .take(200)
+        .getMany()
+    ).filter((u) =>
+      ((u.roles as Array<{ name?: string }>) ?? []).some((r) =>
+        SALES_ROLES.includes(String(r?.name)),
+      ),
+    );
 
     const reps = await Promise.all(
       users.map((u) =>
@@ -320,6 +331,13 @@ export class ComplianceReportService {
     switch (range) {
       case 'today':
         return { start: this.startOfDay(now), end };
+      case 'wtd': {
+        const day = now.getDay();
+        const backToMonday = (day + 6) % 7;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - backToMonday);
+        return { start: this.startOfDay(monday), end };
+      }
       case 'mtd':
         return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
       case 'qtd': {
