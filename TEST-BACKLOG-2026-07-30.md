@@ -33,6 +33,24 @@ the decision-ready spec. Items needing a human decision are flagged
 every item. Deploy `dube-upgrades` to staging (migrations run at boot), then
 run the path as Kim + a rep.
 
+## 🕒 QUEUED — do NOT build yet (Mr Dube: "I'll say when, but today")
+
+**#19 — Managers can receive auto-assigned leads (opt-in + cap).** From
+Kim's 30 Jul testing. Currently managers only approve/reassign. Wanted:
+- **An "include managers" switch** (Kim ticks/unticks) — off = current
+  reps-only behaviour; on = managers join the recipient pool.
+- **Managers share their office's location params** (same territory as their
+  office-mate rep): **Kim + Manake = Bulawayo office** (Midlands/Mat/Bulawayo/
+  Masvingo); **Busi + Tanya = Mashonaland office** (Mashonaland/Manicaland/
+  Harare). So when on, Kim receives from Manake's territory, Busi from Tanya's.
+- **A per-manager cap** — a settable field for the max leads a manager may
+  receive, so they don't get flooded.
+
+Also already fixed from the same test round (committed, not yet deployed):
+redirect picker shows the real team (managers + territory reps), auto-assign
+queue auto-refreshes, run no longer freezes (bulk insert), approve runs in the
+background, nav Approval counter+chime, campaign picker in the import dialog.
+
 ## 0. Headline
 
 The flow works end-to-end, but the test surfaced one data incident and a set
