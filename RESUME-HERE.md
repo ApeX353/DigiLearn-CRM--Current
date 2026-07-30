@@ -98,9 +98,11 @@ is Midlands) and "Solusi Adventist" (is Bulawayo Metro, not Mat South). The
 
 - **`CODEBASE-SKELETON.md`** — the 2026-07-29 verification rewrite is
   UNCOMMITTED. It's good; commit it.
-- **`crm-v2-server/package.json` + lock** — `helmet` and `@nestjs/throttler`
-  were added but **nothing uses them** (the security fix used a manual
-  middleware). Discard them, or keep if you plan to adopt those libs.
+- ~~`helmet` / `@nestjs/throttler` unused~~ — **RESOLVED 2026-07-30**:
+  `helmet` removed (redundant with the manual header middleware); throttler
+  wired up as a global rate limiter with tight caps on the auth routes
+  (see BUGFIXES.md → SEC-RL, and `throttler-behind-proxy.guard.ts`). On
+  `dube-upgrades`, not yet deployed.
 - `lead-auto-router.service.spec.ts` — a 1-line change, minor.
 - Neither is in any deploy (deploys use committed content via `git archive`).
 

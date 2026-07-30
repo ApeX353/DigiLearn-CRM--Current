@@ -6,7 +6,54 @@ the data impact. Newest first.
 
 ---
 
-## 2026-07-27 — ACT3: missing lead history restored (and the self-inflicted follow-on)
+## 2026-07-30 — SEC-RL: API rate limiting added; unused `helmet` dependency removed
+
+**Context.** During the earlier security pass two libraries were added to
+`package.json` — `helmet` and `@nestjs/throttler` — but nothing imported
+either. `helmet`'s job (protective response headers) was already done by a
+hand-written middleware in `main.ts`, so it was pure redundancy. Rate
+limiting, however, was a genuine gap: the only brute-force protection was
+the per-account login lockout (5 fails → 15-min lock), which guards one
+account but does nothing against one IP trying many accounts
+(credential-stuffing), inbox-spamming the password-reset endpoint, or a
+crude request flood.
+
+**Change.**
+- **Removed `helmet`** (`npm uninstall helmet`). Headers unchanged — still
+  set by the existing middleware. Verified nothing in `src/` imported it.
+- **Wired up `@nestjs/throttler`** as a global guard. A generous baseline
+  (`default`: 300 req / 60 s per client IP) sheds floods without touching
+  normal dashboard traffic; the sensitive public auth routes tighten it:
+
+  | Route | Limit |
+  |---|---|
+  | `POST /auth/login` | 10 / 60 s |
+  | `POST /auth/register` | 5 / 60 s |
+  | `POST /auth/password/request-reset` | 5 / 60 s |
+  | `POST /auth/password/reset` | 10 / 60 s |
+
+  `GET /auth/refresh` stays on the baseline — it needs a valid refresh
+  cookie and legitimately fires from multiple tabs, so a tight cap would
+  risk logging real users out. The limiter is registered as the **first**
+  global guard, so floods are rejected before any DB/auth work.
+
+**Why a custom guard.** The API sits behind Cloudflare + CapRover's nginx,
+so `req.ip` is the *proxy's* address — identical for every visitor. Keying
+the limiter on that would drop all users into one shared bucket, so a
+single busy client could 429 everyone at once. `ThrottlerBehindProxyGuard`
+(`src/common/guards/throttler-behind-proxy.guard.ts`) overrides
+`getTracker` to take the real client IP — `CF-Connecting-IP`, then the
+left-most `X-Forwarded-For`, then `req.ip` — matching how the audit
+middleware already derives client IP. App-wide `trust proxy` is
+deliberately left off (it would change secure-cookie detection), which is
+why the headers are read directly in the guard.
+
+**Data impact.** None — no schema or data change; request-handling only.
+
+**Verification.** `tsc --noEmit` clean, `nest build` green, and a unit
+spec (`throttler-behind-proxy.guard.spec.ts`, 5 cases) pins the IP
+precedence and proves two clients behind one proxy get separate buckets.
+**Not yet deployed** — on `dube-upgrades`, pending an explicit push.
 
 **Symptom.** Mr Dube: a demo logged 25 Feb on the Lobengula lead was
 gone, "six missing" in total.

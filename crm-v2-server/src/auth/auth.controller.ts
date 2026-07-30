@@ -31,6 +31,7 @@ import {
 import { RegisterDto } from './dto/register.dto';
 import { Enable2FADto, Disable2FADto } from './dto/two-factor.dto';
 import { TwoFactorService } from './two-factor.service';
+import { Throttle } from '@nestjs/throttler';
 
 const REFRESH_COOKIE_NAME = 'crm_auth.session_token';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -56,6 +57,8 @@ export class AuthController {
 
   @Public()
   @SkipRolesCheck()
+  // Account creation is a heavy, rarely-repeated action — cap it hard.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   @ApiOperation({
     summary: 'Register new user',
@@ -107,6 +110,11 @@ export class AuthController {
 
   @Public()
   @SkipRolesCheck()
+  // Per-IP brute-force / credential-stuffing brake. This complements the
+  // existing per-account lockout (5 fails -> 15-min lock): the lockout
+  // protects one account, this limits how fast one IP can try many
+  // accounts. 10/min is well clear of any human login pace.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -265,6 +273,9 @@ export class AuthController {
   }
 
   @Public()
+  // Cap reset requests so the endpoint can't be used to spam a victim's
+  // inbox with reset emails or to probe which addresses exist.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('password/request-reset')
   @HttpCode(HttpStatus.OK)
   @ApiTags('Password Management')
@@ -295,6 +306,9 @@ export class AuthController {
 
   @Public()
   @SkipRolesCheck()
+  // Reset-token submission is guessable in theory — throttle it so the
+  // token space can't be brute-forced quickly.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('password/reset')
   @HttpCode(HttpStatus.OK)
   @ApiTags('Password Management')

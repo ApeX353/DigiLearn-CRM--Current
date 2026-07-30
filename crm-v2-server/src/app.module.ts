@@ -14,9 +14,11 @@ import { Role } from './auth/entities/role.entity';
 import { RbacController } from './rbac/rbac.controller';
 import { RbacService } from './rbac/rbac.service';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { ApiKeyGuard } from './auth/guards/api-key.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 import { PipelinesModule } from './pipelines/pipelines.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
 import { LeadsModule } from './leads/leads.module';
@@ -58,6 +60,14 @@ import { NotificationsGatewayModule } from './notifications/notifications-gatewa
       cache: true,
     }),
     ScheduleModule.forRoot(),
+    // Global API rate limiting. The `default` throttler is a generous
+    // baseline (300 req / 60s per client IP) that stops crude floods
+    // without disturbing normal dashboard traffic; sensitive auth routes
+    // tighten this with their own @Throttle() overrides. `ttl` is in
+    // milliseconds in throttler v6.
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 300 },
+    ]),
     DatabaseModule,
     CommonModule,
     UsersModule,
@@ -105,6 +115,12 @@ import { NotificationsGatewayModule } from './notifications/notifications-gatewa
   ],
   providers: [
     RbacService,
+    // Rate limiter runs first, before any auth work, so floods are shed
+    // before they cost a DB round-trip.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerBehindProxyGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: ApiKeyGuard,
