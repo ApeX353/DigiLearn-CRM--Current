@@ -131,13 +131,20 @@ data it's much smaller — but the disjoint-territory logic still needs fixing.)
 
 ## 8. Bug to investigate
 
-16. **Conference date auto-adjusts to the wrong date.** "Conference" is a
-    **campaign type**; campaign `start_date`/`end_date` are Postgres **`date`**
-    columns (`@IsDateString`). Grounded cause: a date picked in Harare (+2)
-    serialised to UTC rolls back a day — classic `date`-column timezone
-    off-by-one. **Repro to confirm:** create a CONFERENCE campaign, set a
-    start date, note what it saves/displays as. Fix belongs in the date
-    (de)serialisation, not the DB.
+16. **"Conference date" — RE-DIAGNOSED via live repro (2026-07-30).** It is
+    **NOT a timezone bug.** Verified as Kim: entered Aug 15 → stored
+    `2026-08-15` → displayed "Aug 15"; entered Aug 15–Aug 20 → displayed
+    "Aug 15 – Aug 20". Dates round-trip correctly. The real cause is the
+    **date field is `mm/dd/yyyy` (US format)** — a Zimbabwe manager entering
+    `dd/mm` gets month/day swapped → "incorrect dates." **Fix: locale the
+    date inputs to `dd/mm/yyyy`.**
+17. **Campaigns cannot be edited or deleted — NEW, found 2026-07-30.** The
+    controller is create + read only (`@Post`, `@Get`s; no `@Patch`/`@Delete`,
+    no soft-delete column). So a campaign with a wrong date (see #16) is
+    **uncorrectable**, and mistaken/test campaigns can't be removed. Add
+    **edit + delete** for campaigns. *(Left on staging from this test:
+    "NASH 2026" (wanted) and "NASH 2026 date-test" (throwaway) — the latter
+    needs a DB delete since there's no app delete.)*
 
 ---
 
