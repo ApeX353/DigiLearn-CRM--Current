@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import { NavLink, useLocation } from "react-router";
+import { ApprovalNavBadge } from "~/components/navigation/approval-nav-badge";
 
 import {
   Collapsible,
@@ -102,6 +103,9 @@ const NavItem = ({
                   <SidebarMenuSubButton asChild>
                     <NavLink to={subItem.url ?? "#"}>
                       <span>{subItem.title}</span>
+                      {subItem.url === "/admin/approval-queue" && (
+                        <ApprovalNavBadge />
+                      )}
                     </NavLink>
                   </SidebarMenuSubButton>
                 </SidebarMenuSubItem>

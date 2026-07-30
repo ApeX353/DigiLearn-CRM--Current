@@ -752,7 +752,11 @@ export default function ApprovalQueuePage() {
   const autoAssignQuery = useAssignmentProposals("pending");
   const autoAssignCount = autoAssignQuery.data?.length ?? 0;
   const importBatchesQuery = useImportBatches();
-  const importCount = importBatchesQuery.data?.length ?? 0;
+  // Count the ROWS awaiting approval (360 leads = 360), not the batch count.
+  const importCount = (importBatchesQuery.data ?? []).reduce(
+    (sum, b) => sum + (b.total_rows ?? 0),
+    0,
+  );
 
   return (
     <Container>

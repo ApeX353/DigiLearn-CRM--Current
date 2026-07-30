@@ -167,7 +167,7 @@ export class LeadsController {
     const batch = await this.leadsXlsxImport.approveBatch(id, userId, userRole);
     return {
       success: true,
-      message: `Approved — created ${batch.created_count} lead(s)`,
+      message: `Approved — creating ${batch.importable_count} lead(s) in the background`,
       data: batch,
     };
   }

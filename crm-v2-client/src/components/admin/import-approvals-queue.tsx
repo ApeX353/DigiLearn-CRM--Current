@@ -214,8 +214,18 @@ export function ImportApprovalsQueue() {
     );
   }
 
+  const totalRows = batches.reduce((s, b) => s + (b.total_rows ?? 0), 0);
+  const totalReady = batches.reduce((s, b) => s + (b.importable_count ?? 0), 0);
+  const totalDup = batches.reduce((s, b) => s + (b.duplicate_count ?? 0), 0);
+
   return (
     <div className="space-y-2">
+      <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-2 text-sm">
+        <Badge variant="secondary">{batches.length} batch{batches.length === 1 ? "" : "es"}</Badge>
+        <Badge variant="secondary">{totalRows} rows</Badge>
+        <Badge className="bg-green-100 text-green-800">{totalReady} ready</Badge>
+        <Badge className="bg-amber-100 text-amber-800">{totalDup} duplicate{totalDup === 1 ? "" : "s"}</Badge>
+      </div>
       {batches.map((b) => (
         <button
           key={b.id}

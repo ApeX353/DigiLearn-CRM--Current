@@ -29,6 +29,7 @@ describe('LeadsXlsxImportService — staged import + dedup gate', () => {
       }),
       find: jest.fn(),
       findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue({}),
     };
     // dedup queries: schools first, then leads
     dataSource = {
@@ -106,7 +107,7 @@ describe('LeadsXlsxImportService — staged import + dedup gate', () => {
     expect(r.decision).toBe('skip');
   });
 
-  it('approveBatch creates leads ONLY for approved rows, then marks approved', async () => {
+  it('approveBatch marks approved immediately, creates approved rows in the background', async () => {
     batches.findOne.mockResolvedValue({
       id: 'b1', status: LeadImportBatchStatus.PENDING, campaign_id: null,
       total_rows: 2, rows: [
@@ -115,9 +116,10 @@ describe('LeadsXlsxImportService — staged import + dedup gate', () => {
       ],
     });
     const res = await service.approveBatch('b1', 'kim', 'sales_manager');
+    expect(res.status).toBe(LeadImportBatchStatus.APPROVED); // returns at once
+    // Creation runs in the background — flush microtasks, then assert.
+    await new Promise((r) => setImmediate(r));
     expect(leadsService.createWithSchoolAndContacts).toHaveBeenCalledTimes(1); // only Beta
-    expect(res.status).toBe(LeadImportBatchStatus.APPROVED);
-    expect(res.created_count).toBe(1);
   });
 
   it('rejectBatch creates nothing and marks rejected', async () => {

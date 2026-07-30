@@ -57,7 +57,8 @@ export const importBatchKeys = {
   detail: (id: string) => ["import-batches", id] as const,
 };
 
-/** Pending batches awaiting approval (rows omitted). */
+/** Pending batches awaiting approval (rows omitted). Polls so the nav badge
+ *  updates and beeps soon after a new import comes in. */
 export function useImportBatches() {
   return useQuery({
     queryKey: importBatchKeys.all,
@@ -65,6 +66,7 @@ export function useImportBatches() {
       const res = await apiClientAuth.get("/leads/import/batches");
       return res.data?.data ?? [];
     },
+    refetchInterval: 30_000,
   });
 }
 

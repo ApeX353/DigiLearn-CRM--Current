@@ -343,10 +343,13 @@ export class LeadsXlsxImportService {
   }
 
   /**
-   * Approve the batch: create a real school + head contact + New lead for
-   * every row marked 'approve'. Only now does anything hit the CRM. Skipped,
-   * invalid and duplicate rows are left out. Idempotent by status — a decided
-   * batch cannot be approved twice.
+   * Approve the batch. Marks it approved and returns IMMEDIATELY, then creates
+   * the leads in the BACKGROUND. Creating hundreds of leads one-by-one is slow
+   * — doing it inside the request blew past the client/proxy timeout and made
+   * a successful approval look like a failure (same root cause as the raw
+   * import). `created_count` ticks up as the rows land; the batch leaves the
+   * pending queue at once. Idempotent by status — a decided batch can't be
+   * approved twice.
    */
   async approveBatch(
     id: string,
@@ -358,10 +361,40 @@ export class LeadsXlsxImportService {
       throw new BadRequestException('This batch has already been decided');
     }
 
+    const rows = batch.rows.filter(
+      (r) => r.decision === 'approve' && r.status === 'importable',
+    );
+
+    batch.status = LeadImportBatchStatus.APPROVED;
+    batch.decided_at = new Date();
+    batch.decided_by_id = userId;
+    batch.created_count = 0;
+    await this.batches.save(batch);
+
+    // Fire-and-forget: create the leads out of the request path. Errors are
+    // logged, never surfaced to the (already-returned) caller.
+    void this.createApprovedRows(
+      batch.id,
+      rows,
+      userId,
+      userRole,
+      batch.campaign_id,
+    );
+
+    return batch;
+  }
+
+  /** Background lead creation for an approved batch (see approveBatch). */
+  private async createApprovedRows(
+    batchId: string,
+    rows: PendingImportRow[],
+    userId: string,
+    userRole: string | undefined,
+    campaignId: string | null,
+  ): Promise<void> {
     let created = 0;
     let failed = 0;
-    for (const row of batch.rows) {
-      if (row.decision !== 'approve' || row.status !== 'importable') continue;
+    for (const row of rows) {
       try {
         await this.leadsService.createWithSchoolAndContacts(
           {
@@ -373,9 +406,7 @@ export class LeadsXlsxImportService {
               region: row.region as never,
               city: row.city,
               district: row.district,
-              ...(batch.campaign_id
-                ? { source_campaign_id: batch.campaign_id }
-                : {}),
+              ...(campaignId ? { source_campaign_id: campaignId } : {}),
             },
             contacts: [
               {
@@ -395,18 +426,20 @@ export class LeadsXlsxImportService {
       } catch {
         failed++;
       }
+      // Progress ping so the UI can show "X of N created" without waiting.
+      if ((created + failed) % 25 === 0) {
+        await this.batches
+          .update(batchId, { created_count: created })
+          .catch(() => undefined);
+      }
     }
-
-    batch.status = LeadImportBatchStatus.APPROVED;
-    batch.decided_at = new Date();
-    batch.decided_by_id = userId;
-    batch.created_count = created;
-    await this.batches.save(batch);
-
+    await this.batches
+      .update(batchId, { created_count: created })
+      .catch(() => undefined);
     try {
       await this.activityLogs.logUpdate(
         'LeadImportBatch',
-        batch.id,
+        batchId,
         {},
         { created, failed },
         userId,
@@ -416,9 +449,8 @@ export class LeadsXlsxImportService {
       /* ignore */
     }
     this.logger.log(
-      `import batch ${batch.id} approved: created ${created}, failed ${failed}`,
+      `import batch ${batchId} approved (background): created ${created}, failed ${failed}`,
     );
-    return batch;
   }
 
   /** Discard the batch — nothing is created. */
