@@ -1,0 +1,4271 @@
+{
+  "purpose": "Remove ONLY the xls (NASH) import schools+leads from STAGING; keep all baseline data",
+  "env": "staging",
+  "rule": "normalized name IS IN the xls file (strict). soft-delete, reversible.",
+  "safety": {
+    "baseline_schools_in_delete_set": 0,
+    "baseline_leads_in_delete_set": 0
+  },
+  "counts": {
+    "total_schools": 2153,
+    "delete_schools": 457,
+    "keep_schools": 1696,
+    "total_leads": 2116,
+    "delete_leads": 393,
+    "keep_leads": 1723
+  },
+  "schools": [
+    {
+      "id": "4161c96d-c3a1-4df6-8ad2-be21c99b7932",
+      "name": "Wadzanai High",
+      "created": "2026-07-29T14:33:45.537Z"
+    },
+    {
+      "id": "8aa519ae-81f4-43cb-b5da-4877bb4320ea",
+      "name": "Mvurwi High",
+      "created": "2026-07-29T14:33:45.179Z"
+    },
+    {
+      "id": "bcaf1154-64e2-4da8-8d7e-33c439cdb306",
+      "name": "Mbari Secondary",
+      "created": "2026-07-29T14:33:44.930Z"
+    },
+    {
+      "id": "160f10be-ef49-41c4-b8c1-b90bc4490d83",
+      "name": "Mahuwe High",
+      "created": "2026-07-29T14:33:44.807Z"
+    },
+    {
+      "id": "85783253-409a-4f52-b8ba-37083f55f3e2",
+      "name": "Gee Jay Secondary",
+      "created": "2026-07-29T14:33:44.165Z"
+    },
+    {
+      "id": "79f65f2e-8392-4585-ba8f-e550519528eb",
+      "name": "Caesar Mine Secondary",
+      "created": "2026-07-29T14:33:43.601Z"
+    },
+    {
+      "id": "70e47276-435e-47c5-8e4b-99bd0dae81ca",
+      "name": "Masiyarwa High",
+      "created": "2026-07-29T14:33:43.347Z"
+    },
+    {
+      "id": "5f8fd8c6-5ed3-4031-aed5-22155cc6f31e",
+      "name": "Zowa High",
+      "created": "2026-07-29T14:33:42.088Z"
+    },
+    {
+      "id": "6c967c14-a266-42d4-b681-3ba10d2e6f1f",
+      "name": "Vimbai High",
+      "created": "2026-07-29T14:33:41.595Z"
+    },
+    {
+      "id": "af17dbe5-da34-4eb8-b99d-27cf8b133bea",
+      "name": "Dalny High",
+      "created": "2026-07-29T14:33:40.880Z"
+    },
+    {
+      "id": "a71499e2-0e3e-4075-8945-1e33474803e2",
+      "name": "Rimuka 2 High",
+      "created": "2026-07-29T14:33:40.809Z"
+    },
+    {
+      "id": "42373214-6cfd-442b-bc28-942738eff2ec",
+      "name": "Chiedza Karoi High",
+      "created": "2026-07-29T14:33:39.941Z"
+    },
+    {
+      "id": "0aa5ae77-4461-45c3-9613-01fc1048ea36",
+      "name": "Naglehouse",
+      "created": "2026-07-29T14:33:38.051Z"
+    },
+    {
+      "id": "9f573439-86c5-4c9c-b50a-426e9b6da1a2",
+      "name": "Murehwa District",
+      "created": "2026-07-29T14:33:37.559Z"
+    },
+    {
+      "id": "1df2eff2-afbe-4266-b041-09a9de219977",
+      "name": "Masasa Secodary",
+      "created": "2026-07-29T14:33:36.583Z"
+    },
+    {
+      "id": "14ce1a40-03b2-4fcd-81cc-5e37d2497ee4",
+      "name": "Mahusvu Secondary",
+      "created": "2026-07-29T14:33:36.051Z"
+    },
+    {
+      "id": "1544121b-db72-4a2a-b5b4-0c249b133303",
+      "name": "Liebenberg High",
+      "created": "2026-07-29T14:33:35.707Z"
+    },
+    {
+      "id": "97b5f759-afc6-4a1c-a38c-dcab12b41cd3",
+      "name": "Kotwa High",
+      "created": "2026-07-29T14:33:35.652Z"
+    },
+    {
+      "id": "95bcc999-f51b-4f30-aaad-616ef50c187e",
+      "name": "Anderson Secondary",
+      "created": "2026-07-29T14:33:32.660Z"
+    },
+    {
+      "id": "31943e74-f666-462c-a740-be6bc3c72c4d",
+      "name": "Nyamajura Secondary",
+      "created": "2026-07-29T14:33:32.433Z"
+    },
+    {
+      "id": "3b9f7b59-ca49-4af9-b892-5fd22aa1d34d",
+      "name": "Elisegledhill High",
+      "created": "2026-07-29T14:33:32.244Z"
+    },
+    {
+      "id": "438f00d8-7027-4b99-b1c6-1d296f56427b",
+      "name": "Buhera High School",
+      "created": "2026-07-29T14:33:32.136Z"
+    },
+    {
+      "id": "1b2c10c1-ef58-4e91-9261-0f9b9c111d9c",
+      "name": "Chinyauhwera High School",
+      "created": "2026-07-29T14:33:31.162Z"
+    },
+    {
+      "id": "42ef2f90-37bf-4a7c-b326-6748df38b2f0",
+      "name": "Staugustine",
+      "created": "2026-07-29T14:33:29.473Z"
+    },
+    {
+      "id": "50744fcd-f35b-411a-9b5f-2348bcbc3118",
+      "name": "Nyarwidzi Secondary",
+      "created": "2026-07-29T14:33:29.414Z"
+    },
+    {
+      "id": "2efdf146-f0fa-4020-afc3-f5ce4445aeef",
+      "name": "Tsikada Secondary",
+      "created": "2026-07-29T14:33:29.323Z"
+    },
+    {
+      "id": "ebe73bca-c213-4b47-905a-8571310614fe",
+      "name": "Mudza,Iri Secondary",
+      "created": "2026-07-29T14:33:29.257Z"
+    },
+    {
+      "id": "8bfb1128-3887-47d8-87ea-a3210867bd41",
+      "name": "Gosho Secondary",
+      "created": "2026-07-29T14:33:29.150Z"
+    },
+    {
+      "id": "bad32da2-dbff-4044-9756-a53dcc78fcd8",
+      "name": "Zambara Secondary",
+      "created": "2026-07-29T14:33:29.076Z"
+    },
+    {
+      "id": "1625888c-e87d-4bf1-b2a3-bc0845487501",
+      "name": "Nyashanu High",
+      "created": "2026-07-29T14:33:28.834Z"
+    },
+    {
+      "id": "3c26fd9c-c4ba-4848-b0c5-f3c33587be0b",
+      "name": "Marange High School",
+      "created": "2026-07-29T14:33:28.701Z"
+    },
+    {
+      "id": "4cc5c8e1-ed01-48e6-b7c6-e0ef60a3c255",
+      "name": "Mutsvangwa Secondary",
+      "created": "2026-07-29T14:33:28.586Z"
+    },
+    {
+      "id": "7472f3b7-5baa-4cfa-b291-7397bab8c70b",
+      "name": "Chikwariro High School",
+      "created": "2026-07-29T14:33:28.431Z"
+    },
+    {
+      "id": "f6bd038a-48fe-4e9e-998e-9f7383939c4c",
+      "name": "Shundure High",
+      "created": "2026-07-29T14:33:28.167Z"
+    },
+    {
+      "id": "77d13b41-33d3-42f7-9a35-a8f73a483239",
+      "name": "Nuatate High Schhol",
+      "created": "2026-07-29T14:33:28.087Z"
+    },
+    {
+      "id": "326d6ec0-cb5c-4785-9e77-115d8172aecf",
+      "name": "Nyarwizi Secondary",
+      "created": "2026-07-29T14:33:27.985Z"
+    },
+    {
+      "id": "d718bd00-65c5-4810-9d51-ffa767de4fb3",
+      "name": "Mhakwe High",
+      "created": "2026-07-29T14:33:27.924Z"
+    },
+    {
+      "id": "01fc6c18-d036-4f78-96b2-8301569edbac",
+      "name": "Zurara Secondary",
+      "created": "2026-07-29T14:33:27.856Z"
+    },
+    {
+      "id": "9c9b0ff8-2d20-42ad-9c85-f0969d00d646",
+      "name": "Mt Zonwe Secondary",
+      "created": "2026-07-29T14:33:27.727Z"
+    },
+    {
+      "id": "e7fac994-9776-4c0c-ae1e-c009a769cb4e",
+      "name": "Nyarumvurwe Secondary",
+      "created": "2026-07-29T14:33:27.656Z"
+    },
+    {
+      "id": "f0271dcc-2b0b-4742-92b1-a88c1fdb6b82",
+      "name": "Dope High School",
+      "created": "2026-07-29T14:33:27.589Z"
+    },
+    {
+      "id": "092fa494-a576-4b7e-852a-bbb799d2334a",
+      "name": "Ngundu Halt High School",
+      "created": "2026-07-29T14:33:24.375Z"
+    },
+    {
+      "id": "ad0db394-73c8-4688-9f4d-cd71061eab4a",
+      "name": "Nemauku Secondary School",
+      "created": "2026-07-29T14:33:24.019Z"
+    },
+    {
+      "id": "f3b89e9f-cbce-4c2e-b34d-d3ce096d5e85",
+      "name": "Mushaviri Secondary School",
+      "created": "2026-07-29T14:33:23.528Z"
+    },
+    {
+      "id": "1c970bb7-e86b-4411-93c6-741924e18292",
+      "name": "Mucheke High School",
+      "created": "2026-07-29T14:33:23.131Z"
+    },
+    {
+      "id": "19fb2219-c452-4faf-8388-0a86ac92fa5e",
+      "name": "Gutu High School",
+      "created": "2026-07-29T14:33:21.375Z"
+    },
+    {
+      "id": "25dd30f7-9b8d-41ac-adf3-23045b9c770c",
+      "name": "Danhamombe High School",
+      "created": "2026-07-29T14:33:20.864Z"
+    },
+    {
+      "id": "6c98bd72-7df7-4884-913e-63c56f6ec34b",
+      "name": "Chimbwembwe Secondary School",
+      "created": "2026-07-29T14:33:20.177Z"
+    },
+    {
+      "id": "50e3cb56-e6cd-46a4-ba62-d0262fbad1c2",
+      "name": "Chekai Secondary School",
+      "created": "2026-07-29T14:33:19.868Z"
+    },
+    {
+      "id": "741fcb0e-6e9b-470e-a031-031495d10159",
+      "name": "Vungu Secondary School",
+      "created": "2026-07-29T14:33:18.372Z"
+    },
+    {
+      "id": "6093c6a3-c4ff-4e12-bf9a-eff77c0712c3",
+      "name": "Thornhill High School",
+      "created": "2026-07-29T14:33:17.953Z"
+    },
+    {
+      "id": "712d34d7-5f08-40b9-9826-33e726a3dc2c",
+      "name": "Sikombingo Adventist Higgh School",
+      "created": "2026-07-29T14:33:17.626Z"
+    },
+    {
+      "id": "977e68f5-7943-45d8-bfbb-1058f4a4e7b3",
+      "name": "Sibomvu Secondary School",
+      "created": "2026-07-29T14:33:17.501Z"
+    },
+    {
+      "id": "a944916b-4e62-4f11-92ed-237537cb8490",
+      "name": "Ntabamhlophe Secondary School",
+      "created": "2026-07-29T14:33:17.094Z"
+    },
+    {
+      "id": "7a8b4181-2b9d-4b5b-b903-07d3de77bdfc",
+      "name": "Musume High School",
+      "created": "2026-07-29T14:33:16.192Z"
+    },
+    {
+      "id": "c5151fe0-fbe4-4072-9288-47aeb72e48b5",
+      "name": "Makulambili Secondary School",
+      "created": "2026-07-29T14:33:13.994Z"
+    },
+    {
+      "id": "8af4c514-6620-44d4-b4b3-4e388b9664dd",
+      "name": "Maboleni High School",
+      "created": "2026-07-29T14:33:13.884Z"
+    },
+    {
+      "id": "aad84d3d-c9cf-4ff5-b885-1d3bb5e3c11e",
+      "name": "Gonawapotera High School",
+      "created": "2026-07-29T14:33:13.244Z"
+    },
+    {
+      "id": "e1186fa0-92c0-4fa3-aea6-2950624e47ea",
+      "name": "Sojini High School",
+      "created": "2026-07-29T14:33:10.225Z"
+    },
+    {
+      "id": "d07f5728-0619-43bf-b37c-726c2a9eab2c",
+      "name": "Sawmills Secondary School",
+      "created": "2026-07-29T14:33:09.711Z"
+    },
+    {
+      "id": "d7f50c05-0716-4c61-b7e2-0a001d45ec1f",
+      "name": "Saba Secondary School",
+      "created": "2026-07-29T14:33:09.350Z"
+    },
+    {
+      "id": "b8ade258-fb06-45ba-8385-d82252b733ad",
+      "name": "Nyamandlovu Secondary School",
+      "created": "2026-07-29T14:33:08.389Z"
+    },
+    {
+      "id": "aeb9c84a-b716-4675-a867-7fc3dee65ddc",
+      "name": "Nhlambabaloyi Secondary School",
+      "created": "2026-07-29T14:33:07.990Z"
+    },
+    {
+      "id": "7d80a54b-5fc4-496f-af0d-7fa6723d04a4",
+      "name": "Nakaluba Secondary",
+      "created": "2026-07-29T14:33:07.653Z"
+    },
+    {
+      "id": "a72ae8de-3f31-41f3-bda9-96a9d44c7435",
+      "name": "Mkhosana Adventist Secondary School",
+      "created": "2026-07-29T14:33:07.257Z"
+    },
+    {
+      "id": "784ec31d-bb15-4d0a-a8db-23bdcbb8e8e7",
+      "name": "Mateme Secondary School",
+      "created": "2026-07-29T14:33:06.872Z"
+    },
+    {
+      "id": "6dbdf6bb-3e15-4584-96f3-fbda074c343d",
+      "name": "Madlelenyoni Secondary School",
+      "created": "2026-07-29T14:33:06.494Z"
+    },
+    {
+      "id": "0ce87b7e-e121-4064-b5ce-966311edef69",
+      "name": "Lusulu High School",
+      "created": "2026-07-29T14:33:06.021Z"
+    },
+    {
+      "id": "b619a9d2-5745-4f9a-ab47-a434d747c162",
+      "name": "Lesedi Secondary School",
+      "created": "2026-07-29T14:33:05.630Z"
+    },
+    {
+      "id": "b768579b-e55d-422b-83a4-2927f7795a75",
+      "name": "George Silundika High School",
+      "created": "2026-07-29T14:33:05.085Z"
+    },
+    {
+      "id": "df65ccba-3c30-485c-9c41-c73fabef6b56",
+      "name": "Gebhuza High School",
+      "created": "2026-07-29T14:33:04.951Z"
+    },
+    {
+      "id": "0ff17806-cf82-43c0-9c79-77c9ce71f7f9",
+      "name": "Don Bosco Secondary School",
+      "created": "2026-07-29T14:33:04.763Z"
+    },
+    {
+      "id": "c5761fe4-42cd-4642-8607-971068af6290",
+      "name": "MZINGWANE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:42.414Z"
+    },
+    {
+      "id": "343a130b-4fd7-48cf-a509-795e3d698904",
+      "name": "MQABUKO SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:41.704Z"
+    },
+    {
+      "id": "a66b4265-6a2c-455e-99eb-9a2690271630",
+      "name": "MLOMOTSHA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:41.395Z"
+    },
+    {
+      "id": "1822bd64-30ac-4b2f-a93b-e188bbc24296",
+      "name": "MAWABENI HIGH SCHOOL",
+      "created": "2026-07-27T18:59:41.052Z"
+    },
+    {
+      "id": "8be3773f-7b53-422b-9720-f064f3e4c5dc",
+      "name": "MALUNGUDZI HIGH SCHOOL",
+      "created": "2026-07-27T18:59:40.722Z"
+    },
+    {
+      "id": "6789dcc6-df8b-4355-b48c-468a2d151fba",
+      "name": "LUSHONKWE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:40.043Z"
+    },
+    {
+      "id": "c40a6077-37af-4d7b-83e3-043d9544f816",
+      "name": "LUBUZE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:39.700Z"
+    },
+    {
+      "id": "dab45dc2-6889-4f9a-9ff6-f76d76fcfb4d",
+      "name": "LUBHANGWE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:39.343Z"
+    },
+    {
+      "id": "e7bdb805-8e11-43cb-8c76-c92bc40a4972",
+      "name": "KWALU SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:38.941Z"
+    },
+    {
+      "id": "680f09b3-f9be-4a15-8403-7fc6dedbab66",
+      "name": "J.Z MOYO HIGH SCHOOL",
+      "created": "2026-07-27T18:59:38.620Z"
+    },
+    {
+      "id": "8b9f1adf-fca6-40d7-9ec0-1b5770133c4a",
+      "name": "GARANYEMBA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:38.254Z"
+    },
+    {
+      "id": "d21f1c83-ba65-40d8-909e-d4f3f93ce623",
+      "name": "DULA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:37.877Z"
+    },
+    {
+      "id": "9020837c-4af8-48f8-9c37-33dbcf271101",
+      "name": "BUVUMA HIGH SCHOOL",
+      "created": "2026-07-27T18:59:37.508Z"
+    },
+    {
+      "id": "1a77240a-a0b4-4ed0-ab34-d06f013fac45",
+      "name": "TENNYSON HLABANGANA",
+      "created": "2026-07-27T18:59:37.146Z"
+    },
+    {
+      "id": "ed99e7d8-e3e7-43bd-8b72-a06ad7cbad0a",
+      "name": "LIGHT HOUSE SECONDARY SCHOOOL",
+      "created": "2026-07-27T18:59:36.767Z"
+    },
+    {
+      "id": "9a5c2b40-1f49-4c59-a12f-d06ca8a93c71",
+      "name": "INYANDA HIGH SCHOOL",
+      "created": "2026-07-27T18:59:36.409Z"
+    },
+    {
+      "id": "6c495f7f-397a-4c6f-9db3-4fd05c8e9931",
+      "name": "INDUNA HIGH SCHOOL",
+      "created": "2026-07-27T18:59:36.032Z"
+    },
+    {
+      "id": "b4a40eef-b0eb-4888-b23d-6c4abde92224",
+      "name": "BULAWAYO ADVENTIST HIGH SCHOOL",
+      "created": "2026-07-27T18:59:35.647Z"
+    },
+    {
+      "id": "99a0bfc5-be85-41bc-ade4-2bdbe8116bf2",
+      "name": "AMHLOPHE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:34.686Z"
+    },
+    {
+      "id": "a1f3829f-6295-4f46-8e05-e78d8125be8a",
+      "name": "Whaddon Chase Secondary",
+      "created": "2026-07-24T09:59:49.987Z"
+    },
+    {
+      "id": "b4d95359-3e42-4ce4-b123-7fd44ea5e64f",
+      "name": "Wayerera High",
+      "created": "2026-07-24T09:59:49.579Z"
+    },
+    {
+      "id": "f76dcbde-f6d5-4e87-acfd-915d1b0af20d",
+      "name": "Wadzanai High",
+      "created": "2026-07-24T09:59:49.093Z"
+    },
+    {
+      "id": "24969e27-f579-459c-a54d-2646cc07cd46",
+      "name": "Tabex Secondary",
+      "created": "2026-07-24T09:59:48.714Z"
+    },
+    {
+      "id": "e60e354f-5f89-4c87-a563-4f27f93ee29a",
+      "name": "Soma Secondary",
+      "created": "2026-07-24T09:59:48.331Z"
+    },
+    {
+      "id": "dfe0f310-bd10-4c61-be01-ce77cbfd33c4",
+      "name": "Nyanhunzi Seconadry",
+      "created": "2026-07-24T09:59:47.984Z"
+    },
+    {
+      "id": "ed004b83-dd4d-466e-a4df-1c37d7b55a27",
+      "name": "Nyandoro Secondary",
+      "created": "2026-07-24T09:59:47.610Z"
+    },
+    {
+      "id": "671d1402-15a4-41e8-bac9-fa8e6772e9dc",
+      "name": "Nyamuseve Secodary",
+      "created": "2026-07-24T09:59:47.155Z"
+    },
+    {
+      "id": "daf4dc05-fb8a-4b8b-b8ab-adf620647d9b",
+      "name": "Mvurwi High",
+      "created": "2026-07-24T09:59:46.792Z"
+    },
+    {
+      "id": "4943b192-0223-4463-814d-0ebc65bd923f",
+      "name": "Mutondwe School",
+      "created": "2026-07-24T09:59:46.432Z"
+    },
+    {
+      "id": "577d4b1b-0140-4fc9-9b07-1c59999f7f8a",
+      "name": "Mupfurudzi Secondary",
+      "created": "2026-07-24T09:59:45.986Z"
+    },
+    {
+      "id": "c81de03f-628d-4f19-a1ec-d90d70ff1f3f",
+      "name": "Mhokore Secondary",
+      "created": "2026-07-24T09:59:45.627Z"
+    },
+    {
+      "id": "dd1e3ee6-fac0-4c53-8b0c-a3cdf3a77410",
+      "name": "Mbari Secondary",
+      "created": "2026-07-24T09:59:45.181Z"
+    },
+    {
+      "id": "b8ca7345-d634-4160-8c9e-41e03f08e803",
+      "name": "Marongwe Secondary",
+      "created": "2026-07-24T09:59:44.825Z"
+    },
+    {
+      "id": "852e1a1b-dc17-441e-8d05-b5fce8f027b8",
+      "name": "Mahuwe High",
+      "created": "2026-07-24T09:59:44.278Z"
+    },
+    {
+      "id": "c6672c5a-312a-49da-b119-0b8c12e6b557",
+      "name": "Machanga High",
+      "created": "2026-07-24T09:59:43.770Z"
+    },
+    {
+      "id": "bbc1bd69-418c-4dbe-adca-a9036e648575",
+      "name": "Machadondwa Secondary",
+      "created": "2026-07-24T09:59:43.379Z"
+    },
+    {
+      "id": "ba55fccc-63a0-49a5-b42b-09da669a4a2c",
+      "name": "Kundayi High",
+      "created": "2026-07-24T09:59:43.053Z"
+    },
+    {
+      "id": "723d9e23-23fc-44bb-92b5-b423962fdc25",
+      "name": "Kugotsi Secondary",
+      "created": "2026-07-24T09:59:42.637Z"
+    },
+    {
+      "id": "89ff50b6-d003-43b3-abf6-d60754a18db6",
+      "name": "Kadzi Secondary",
+      "created": "2026-07-24T09:59:42.222Z"
+    },
+    {
+      "id": "bd7be848-545a-4541-a1cc-06727940dc60",
+      "name": "Gwangwava High",
+      "created": "2026-07-24T09:59:41.784Z"
+    },
+    {
+      "id": "c61b2692-4737-44d9-b79e-455e1a493039",
+      "name": "Gee Jay Secondary",
+      "created": "2026-07-24T09:59:41.292Z"
+    },
+    {
+      "id": "fe669723-5f89-4fda-b2a9-ba45edec22f5",
+      "name": "Chirisori Secondary",
+      "created": "2026-07-24T09:59:40.741Z"
+    },
+    {
+      "id": "523dcbd0-1a09-41df-97ce-3e517e1ebb32",
+      "name": "Chimurenga 3 Secondary",
+      "created": "2026-07-24T09:59:40.301Z"
+    },
+    {
+      "id": "f02b2420-4769-40d4-9ea6-fae57d6bd410",
+      "name": "Chihuri",
+      "created": "2026-07-24T09:59:39.941Z"
+    },
+    {
+      "id": "94ce4ee0-aa13-4f1d-a827-56542b0e4203",
+      "name": "Chidikamwadzi Secondary",
+      "created": "2026-07-24T09:59:39.601Z"
+    },
+    {
+      "id": "069acea2-1225-438f-9601-b1430023f62c",
+      "name": "Chawanda High",
+      "created": "2026-07-24T09:59:39.279Z"
+    },
+    {
+      "id": "4329c8a8-f32c-4562-8f7d-7034666f073f",
+      "name": "Chamutukutu Secondary",
+      "created": "2026-07-24T09:59:38.845Z"
+    },
+    {
+      "id": "17216bbc-77a7-4d68-a347-b689219a6362",
+      "name": "Caesar Mine Secondary",
+      "created": "2026-07-24T09:59:38.473Z"
+    },
+    {
+      "id": "b549ac2a-63b6-4002-bc64-8e2545229288",
+      "name": "Bungwe Srcondary",
+      "created": "2026-07-24T09:59:38.153Z"
+    },
+    {
+      "id": "3c4d5c85-f4f5-4f09-96d8-ae301b406d75",
+      "name": "Amevu Secondary",
+      "created": "2026-07-24T09:59:37.823Z"
+    },
+    {
+      "id": "cc854243-16f8-48f9-812b-69f352890a8a",
+      "name": "Chipfuko Secondary",
+      "created": "2026-07-24T09:59:37.395Z"
+    },
+    {
+      "id": "f2fba731-8137-4b93-8915-482e6c080f97",
+      "name": "Kazangarare High",
+      "created": "2026-07-24T09:59:36.977Z"
+    },
+    {
+      "id": "2593bbe9-3efe-4af5-ae77-cd0b3e9426fa",
+      "name": "Masiyarwa High",
+      "created": "2026-07-24T09:59:36.556Z"
+    },
+    {
+      "id": "58f787d2-105f-42fe-ab86-7570089f68df",
+      "name": "Chifundi secindary",
+      "created": "2026-07-24T09:59:36.133Z"
+    },
+    {
+      "id": "077aa644-9641-4aad-b184-b9f933674b2a",
+      "name": "Nyatsanga Secondary",
+      "created": "2026-07-24T09:59:35.780Z"
+    },
+    {
+      "id": "0f9b5b11-862c-48aa-bc0d-fbd3c44afc73",
+      "name": "David Guzuzu high",
+      "created": "2026-07-24T09:59:35.444Z"
+    },
+    {
+      "id": "36fd7a37-948f-46c5-89ff-86432ce3aeb8",
+      "name": "Inyati Secondary",
+      "created": "2026-07-24T09:59:34.993Z"
+    },
+    {
+      "id": "9e66f47f-15b0-4f64-96e7-14fe3fac04e4",
+      "name": "Magogi Secondary",
+      "created": "2026-07-24T09:59:34.600Z"
+    },
+    {
+      "id": "21e0ea65-aaf6-47aa-9ca1-8972d06b2ff9",
+      "name": "Junction Adventist",
+      "created": "2026-07-24T09:59:34.258Z"
+    },
+    {
+      "id": "11d5554b-f6fc-4a4f-b9d2-a56c7e957f8c",
+      "name": "Sanyati Government High",
+      "created": "2026-07-24T09:59:33.888Z"
+    },
+    {
+      "id": "33e12d77-94ac-48ed-b07e-482d1ea6e166",
+      "name": "Tawstock Secondary",
+      "created": "2026-07-24T09:59:33.515Z"
+    },
+    {
+      "id": "0afea668-1542-491b-b223-f8cb5cae35e3",
+      "name": "Denderedzi Secondary",
+      "created": "2026-07-24T09:59:33.193Z"
+    },
+    {
+      "id": "72a8ab32-ff38-466b-86a7-53c1400eddf3",
+      "name": "Ngezi Barracks High",
+      "created": "2026-07-24T09:59:32.780Z"
+    },
+    {
+      "id": "ce9fcdda-7790-418b-859c-c5cc53bfdde1",
+      "name": "Mucheki Secondary",
+      "created": "2026-07-24T09:59:32.457Z"
+    },
+    {
+      "id": "fd181657-9289-4b0f-b1bf-5d07179b4207",
+      "name": "Trelawney Secondary",
+      "created": "2026-07-24T09:59:31.983Z"
+    },
+    {
+      "id": "9ff3a1e2-fbe5-4353-98f9-4fd3574a84f8",
+      "name": "Zowa High",
+      "created": "2026-07-24T09:59:31.577Z"
+    },
+    {
+      "id": "eda74a10-76cd-4d53-98ea-637ff3c7f3b5",
+      "name": "Maysma Secondary",
+      "created": "2026-07-24T09:59:31.244Z"
+    },
+    {
+      "id": "b55253d1-0dcf-4d61-92c1-9b2186ee71c0",
+      "name": "Mopani Park Secondary",
+      "created": "2026-07-24T09:59:30.871Z"
+    },
+    {
+      "id": "6a6fc8e0-b292-4299-8e21-e46f4d460880",
+      "name": "Nyamatani Secondary",
+      "created": "2026-07-24T09:59:30.466Z"
+    },
+    {
+      "id": "5a67dfe5-094d-4338-bdba-d4facf9fa313",
+      "name": "Vimbai High",
+      "created": "2026-07-24T09:59:30.057Z"
+    },
+    {
+      "id": "060f04b0-60f5-462a-8097-a3d61b764364",
+      "name": "Machaga High",
+      "created": "2026-07-24T09:59:29.735Z"
+    },
+    {
+      "id": "fbb533a4-11d4-4d85-afc8-e1dfa2324834",
+      "name": "Masau High",
+      "created": "2026-07-24T09:59:29.430Z"
+    },
+    {
+      "id": "ed541309-0caf-4457-99c4-b84fc781f4cb",
+      "name": "Ponderosa Secondary",
+      "created": "2026-07-24T09:59:29.053Z"
+    },
+    {
+      "id": "9c767a65-2a82-4e8c-a365-faaff44a3054",
+      "name": "Nyavika Secondary",
+      "created": "2026-07-24T09:59:28.631Z"
+    },
+    {
+      "id": "5a040410-9722-47dd-9478-5a4ac94a615c",
+      "name": "Chinove Secondary",
+      "created": "2026-07-24T09:59:28.200Z"
+    },
+    {
+      "id": "672c21bb-427c-4338-9a2e-8db027f6859d",
+      "name": "Dalny High",
+      "created": "2026-07-24T09:59:27.857Z"
+    },
+    {
+      "id": "792a5b9c-c4a0-4780-9dec-c6fbeee30396",
+      "name": "Rimuka 2 High",
+      "created": "2026-07-24T09:59:27.498Z"
+    },
+    {
+      "id": "aaa60313-9256-418f-8923-8b6efb89183c",
+      "name": "Mutsonzowa Secondary",
+      "created": "2026-07-24T09:59:27.165Z"
+    },
+    {
+      "id": "d117b519-32c7-4eaa-8b49-65ce97026132",
+      "name": "Royden Secondary",
+      "created": "2026-07-24T09:59:26.765Z"
+    },
+    {
+      "id": "3dc0c823-4620-4aa5-b5d3-ed55bd6a0304",
+      "name": "Lynx Secondary",
+      "created": "2026-07-24T09:59:26.439Z"
+    },
+    {
+      "id": "238782b3-1c99-4d41-8862-ae497426e67a",
+      "name": "Marere Secondary",
+      "created": "2026-07-24T09:59:26.081Z"
+    },
+    {
+      "id": "18cc4725-0f4d-421b-b96b-d6f1d0a13462",
+      "name": "Zebra Downs Secondary",
+      "created": "2026-07-24T09:59:25.747Z"
+    },
+    {
+      "id": "34598d3c-6881-463c-9695-0666f5279000",
+      "name": "Urume Secondary",
+      "created": "2026-07-24T09:59:25.409Z"
+    },
+    {
+      "id": "fb247630-fbbc-4c45-82bd-6766624c0aa7",
+      "name": "Mungari Secondary",
+      "created": "2026-07-24T09:59:24.995Z"
+    },
+    {
+      "id": "c5593319-87c5-4f89-b988-7ff1ca2795ba",
+      "name": "Mauya High",
+      "created": "2026-07-24T09:59:24.590Z"
+    },
+    {
+      "id": "6bbb0d1d-6f83-4d3d-8b87-f3481ba9a92e",
+      "name": "Chiedza Karoi High",
+      "created": "2026-07-24T09:59:24.185Z"
+    },
+    {
+      "id": "40bac0fc-35a4-46f3-ad64-da38694c1e0e",
+      "name": "Kardi High",
+      "created": "2026-07-24T09:59:23.792Z"
+    },
+    {
+      "id": "7ccaf9df-c3c4-4886-9d38-bfa6bc114d42",
+      "name": "Kudzanai Secondary",
+      "created": "2026-07-24T09:59:23.449Z"
+    },
+    {
+      "id": "1862b080-b254-4fd2-a918-9aea1a8c429e",
+      "name": "St Charles Secondary",
+      "created": "2026-07-24T09:59:22.993Z"
+    },
+    {
+      "id": "6e55c025-bdde-4e19-87dd-f887d5cc773d",
+      "name": "Karigamombe Secondary",
+      "created": "2026-07-24T09:59:22.567Z"
+    },
+    {
+      "id": "37bc6e60-f3b9-4104-a51c-fb5c6811e60b",
+      "name": "St Vincent Secondary",
+      "created": "2026-07-24T09:59:22.210Z"
+    },
+    {
+      "id": "42b63f20-e0a6-4dab-b49e-4dd873e1a3c7",
+      "name": "St Peter Makwarimba Secondary",
+      "created": "2026-07-24T09:59:21.691Z"
+    },
+    {
+      "id": "6525ab34-13d5-4fc6-8087-cb798f367c89",
+      "name": "St Pauls Sango Secondary",
+      "created": "2026-07-24T09:59:21.273Z"
+    },
+    {
+      "id": "cc6b66d7-7972-4e60-9a4f-70f47d0ed8ad",
+      "name": "St Marys Makanda Sec",
+      "created": "2026-07-24T09:59:20.778Z"
+    },
+    {
+      "id": "63b4c0c5-3a4b-4ddd-9ce9-ad2d77983c7c",
+      "name": "St Hughs Ushewekunzi Sec",
+      "created": "2026-07-24T09:59:20.349Z"
+    },
+    {
+      "id": "261984b1-5fce-4a4d-8431-cdbaaed19569",
+      "name": "Shamu Secondary",
+      "created": "2026-07-24T09:59:20.020Z"
+    },
+    {
+      "id": "876135dd-4335-477c-9425-3ccead643dd8",
+      "name": "SEKE DISTRICT",
+      "created": "2026-07-24T09:59:19.566Z"
+    },
+    {
+      "id": "c91e2a99-d782-4d92-85b3-d63eb5bca7fc",
+      "name": "Sadza Secondary",
+      "created": "2026-07-24T09:59:19.166Z"
+    },
+    {
+      "id": "5ead6157-b78a-4e51-8f3c-b87bac01a57a",
+      "name": "Rwamba Secondary",
+      "created": "2026-07-24T09:59:18.749Z"
+    },
+    {
+      "id": "87e0ddbe-693a-4cfe-b26a-ca033e52b1cd",
+      "name": "Runyararo Seconary",
+      "created": "2026-07-24T09:59:18.358Z"
+    },
+    {
+      "id": "ca60225f-c2a2-4481-818e-9f8964117396",
+      "name": "Parirewa High",
+      "created": "2026-07-24T09:59:18.015Z"
+    },
+    {
+      "id": "3c21bc61-f6d5-4002-a66a-59e8709200fa",
+      "name": "Nyanitepo",
+      "created": "2026-07-24T09:59:17.609Z"
+    },
+    {
+      "id": "4b9b0635-b826-4f79-9d0e-712b45cab4c2",
+      "name": "Nyamukoho Secondary",
+      "created": "2026-07-24T09:59:17.246Z"
+    },
+    {
+      "id": "b5bd3ec2-8b5e-427d-b28a-46675aba94a9",
+      "name": "Nyamashato Secondary",
+      "created": "2026-07-24T09:59:16.851Z"
+    },
+    {
+      "id": "98a2aea1-789e-46b8-9530-66ab81f9b5f9",
+      "name": "Nyamapanda Seconary",
+      "created": "2026-07-24T09:59:16.474Z"
+    },
+    {
+      "id": "c423e13d-e3e0-4380-9ef5-01c643477716",
+      "name": "Nyahuni Adventist High",
+      "created": "2026-07-24T09:59:15.972Z"
+    },
+    {
+      "id": "4aeb09b1-6a71-4059-aa2f-708af21e0cee",
+      "name": "Naglehouse",
+      "created": "2026-07-24T09:59:15.638Z"
+    },
+    {
+      "id": "5189bc97-97fd-4d67-bbda-929e7312b3d0",
+      "name": "Muvande Secondary",
+      "created": "2026-07-24T09:59:15.199Z"
+    },
+    {
+      "id": "ac118dc4-a333-43b6-b6aa-a70c8e30dda4",
+      "name": "Mutanhaurwa",
+      "created": "2026-07-24T09:59:14.836Z"
+    },
+    {
+      "id": "2c6ee39b-709b-47f8-9f22-c6e0feac5a6c",
+      "name": "Musanhi High",
+      "created": "2026-07-24T09:59:14.078Z"
+    },
+    {
+      "id": "28a6e348-d568-4653-b234-dcd7b3469d57",
+      "name": "MUREHWA DISTRICT",
+      "created": "2026-07-24T09:59:13.681Z"
+    },
+    {
+      "id": "2f5f63b2-f391-4625-b630-245db2a9665f",
+      "name": "Morris Secondary",
+      "created": "2026-07-24T09:59:13.207Z"
+    },
+    {
+      "id": "91f262c9-8f7f-4c83-8587-81c95372ad98",
+      "name": "Mhari High",
+      "created": "2026-07-24T09:59:12.800Z"
+    },
+    {
+      "id": "26b3e24e-c09b-4522-83c3-317620cb3a8f",
+      "name": "Masasa Secodary",
+      "created": "2026-07-24T09:59:12.348Z"
+    },
+    {
+      "id": "d8beb33a-b9bb-48eb-95ff-3b4f78e05c58",
+      "name": "Marikopo Secondary",
+      "created": "2026-07-24T09:59:11.961Z"
+    },
+    {
+      "id": "01d6ec5c-1d05-4d0f-8a47-af0ea3ea4b4e",
+      "name": "Mapombo High",
+      "created": "2026-07-24T09:59:11.587Z"
+    },
+    {
+      "id": "660594e7-079e-4364-ad5f-c58fe9f41694",
+      "name": "Manyene Secondary",
+      "created": "2026-07-24T09:59:11.138Z"
+    },
+    {
+      "id": "7c4c1908-80d0-4eb5-b769-93b73d723072",
+      "name": "Mahusvu Secondary",
+      "created": "2026-07-24T09:59:10.782Z"
+    },
+    {
+      "id": "e5fc0b0d-0876-4663-9306-6618739d7050",
+      "name": "Madzivira Range High",
+      "created": "2026-07-24T09:59:10.468Z"
+    },
+    {
+      "id": "faf483b5-e030-4e96-a0e1-f40f2078f4b3",
+      "name": "Liebenberg High",
+      "created": "2026-07-24T09:59:10.084Z"
+    },
+    {
+      "id": "4ef9ea16-2c15-4d07-80ac-2507b89fddf8",
+      "name": "Kotwa High",
+      "created": "2026-07-24T09:59:09.762Z"
+    },
+    {
+      "id": "163f12fe-7986-4df9-a9c2-8de588e32ff0",
+      "name": "Katsande Secondary",
+      "created": "2026-07-24T09:59:09.309Z"
+    },
+    {
+      "id": "db94ce13-1e6d-4ab6-8a22-156c348e6117",
+      "name": "Holy Spirit Ruzane Secondary",
+      "created": "2026-07-24T09:59:08.968Z"
+    },
+    {
+      "id": "a2c331b7-3b49-4612-96ce-0eff74761b4b",
+      "name": "Hanwa Secondary",
+      "created": "2026-07-24T09:59:08.596Z"
+    },
+    {
+      "id": "81af2810-867d-499a-bdb6-447b4c6b6df3",
+      "name": "Guyu Secondary",
+      "created": "2026-07-24T09:59:08.232Z"
+    },
+    {
+      "id": "424a325b-e996-42f5-885f-8a400aec41b6",
+      "name": "Guruuswa Secondary",
+      "created": "2026-07-24T09:59:07.855Z"
+    },
+    {
+      "id": "8b8fbf85-3393-4185-8059-d0a9afb30649",
+      "name": "Gozi Secondary",
+      "created": "2026-07-24T09:59:07.486Z"
+    },
+    {
+      "id": "1ed7ea2f-d329-4b41-b63c-e777ee501131",
+      "name": "Govere Secondary",
+      "created": "2026-07-24T09:59:07.156Z"
+    },
+    {
+      "id": "f5ac9223-170c-4871-9875-f0244c6d2c17",
+      "name": "Goromonzi Secondary",
+      "created": "2026-07-24T09:59:06.683Z"
+    },
+    {
+      "id": "5b72ce6b-9733-43dc-8f8a-e23a615f7d77",
+      "name": "Glenforest Dev Centre",
+      "created": "2026-07-24T09:59:06.293Z"
+    },
+    {
+      "id": "f830cd01-ae82-4f0b-b680-02af44992e20",
+      "name": "Eagle Secondary",
+      "created": "2026-07-24T09:59:05.942Z"
+    },
+    {
+      "id": "c4335182-ac40-4f99-975e-fd97081f1435",
+      "name": "Domboramavara",
+      "created": "2026-07-24T09:59:05.359Z"
+    },
+    {
+      "id": "e823d58b-b96d-4b00-b6a2-e94f96f500fe",
+      "name": "Dombodzvuku Secondary",
+      "created": "2026-07-24T09:59:04.904Z"
+    },
+    {
+      "id": "fa994c4f-0584-4f42-ba33-30ea5f224139",
+      "name": "Classic Academy",
+      "created": "2026-07-24T09:59:04.445Z"
+    },
+    {
+      "id": "91262e85-09af-4cd7-a853-5af8e4b5b6a7",
+      "name": "Chiwwashira Secondary",
+      "created": "2026-07-24T09:59:04.080Z"
+    },
+    {
+      "id": "992ab2b6-13b7-42bf-b062-ef95f964de46",
+      "name": "Chivenga Secondary",
+      "created": "2026-07-24T09:59:03.490Z"
+    },
+    {
+      "id": "0024f254-97bd-42df-b337-3795f7e9a986",
+      "name": "Chitepo Secondary",
+      "created": "2026-07-24T09:59:02.990Z"
+    },
+    {
+      "id": "41cc21a3-7244-4051-a891-c94d46fb4c90",
+      "name": "chisangano High",
+      "created": "2026-07-24T09:59:02.484Z"
+    },
+    {
+      "id": "07a235f3-9702-4faf-81de-e415e467952a",
+      "name": "Chisambiro Secondary",
+      "created": "2026-07-24T09:59:01.836Z"
+    },
+    {
+      "id": "6a14726e-e644-4dee-908e-6ca9d54e2eaf",
+      "name": "Chipfunde Secondary",
+      "created": "2026-07-24T09:59:01.387Z"
+    },
+    {
+      "id": "6da41240-7e0d-4d0a-a8f9-4124f986720c",
+      "name": "Chimukoko Secondary",
+      "created": "2026-07-24T09:59:00.999Z"
+    },
+    {
+      "id": "8c3abd1e-9cd6-4b99-ac36-6223cd991716",
+      "name": "Chikwizo Secondary",
+      "created": "2026-07-24T09:59:00.561Z"
+    },
+    {
+      "id": "a6259537-5377-4eb8-9245-0732787648f0",
+      "name": "Chikwidibire Secondary",
+      "created": "2026-07-24T09:59:00.243Z"
+    },
+    {
+      "id": "857ef210-8035-404e-91bb-71fdb0feed94",
+      "name": "Chatiza High",
+      "created": "2026-07-24T09:58:59.845Z"
+    },
+    {
+      "id": "66415cbf-945d-4cc7-80aa-57757d567ea2",
+      "name": "Chabwino High",
+      "created": "2026-07-24T09:58:59.512Z"
+    },
+    {
+      "id": "c6be63e9-ce04-4068-88fc-372ec9420a1b",
+      "name": "Bosha Secondary",
+      "created": "2026-07-24T09:58:59.067Z"
+    },
+    {
+      "id": "7f59d4d3-a56e-4cbc-a283-89afd916b7e7",
+      "name": "Beatrice High",
+      "created": "2026-07-24T09:58:58.049Z"
+    },
+    {
+      "id": "ceaec38f-8832-4240-bcc3-d5996efa7840",
+      "name": "Anderson Secondary",
+      "created": "2026-07-24T09:58:57.585Z"
+    },
+    {
+      "id": "366e3bbf-0bd5-46e1-94ca-9eb947aa13ec",
+      "name": "Nyamajura Secondary",
+      "created": "2026-07-24T09:58:57.247Z"
+    },
+    {
+      "id": "3c4a4df0-8dbd-481a-abb3-3f77f7cf2054",
+      "name": "Elisegledhill High",
+      "created": "2026-07-24T09:58:56.953Z"
+    },
+    {
+      "id": "55975d28-c55f-45ed-a8fb-860872fc8353",
+      "name": "Buhera High School",
+      "created": "2026-07-24T09:58:56.583Z"
+    },
+    {
+      "id": "c270b321-8581-4dfe-8fb2-89704d85e1f0",
+      "name": "Bemutiwa Secondary",
+      "created": "2026-07-24T09:58:56.251Z"
+    },
+    {
+      "id": "a153e62b-0ff4-4418-a35e-db57a7ca9c4a",
+      "name": "Karakwi High",
+      "created": "2026-07-24T09:58:55.912Z"
+    },
+    {
+      "id": "dbb128bf-f1b7-45ba-a5a5-9b0253b6c793",
+      "name": "Gideon Mihlanga High",
+      "created": "2026-07-24T09:58:55.524Z"
+    },
+    {
+      "id": "91b52c25-12bb-41f3-8a84-8ff894635c2c",
+      "name": "Mazarura High School",
+      "created": "2026-07-24T09:58:55.202Z"
+    },
+    {
+      "id": "12084a84-afa8-458f-8a3c-31caa070ff7e",
+      "name": "Chikanya high",
+      "created": "2026-07-24T09:58:54.811Z"
+    },
+    {
+      "id": "0425764c-92cc-4a98-9122-9e9174353c83",
+      "name": "Gunura Secondary",
+      "created": "2026-07-24T09:58:53.997Z"
+    },
+    {
+      "id": "0dd4d88c-be63-4edf-976b-5c014f30c52e",
+      "name": "mwazheta high school",
+      "created": "2026-07-24T09:58:53.681Z"
+    },
+    {
+      "id": "c78ae3e4-6f48-40d3-ad9d-49a2550380a5",
+      "name": "Chinyauhwera High School",
+      "created": "2026-07-24T09:58:53.341Z"
+    },
+    {
+      "id": "c349a432-3995-4beb-84a4-68e0cd30f419",
+      "name": "Chirinda High",
+      "created": "2026-07-24T09:58:52.978Z"
+    },
+    {
+      "id": "b616f77d-8e62-4566-9fb1-e18b9e3fbc0e",
+      "name": "Gwebu High",
+      "created": "2026-07-24T09:58:52.557Z"
+    },
+    {
+      "id": "46f5c8ae-c7fe-4286-81e3-cc6b7f82f3df",
+      "name": "chikwakwa secondary",
+      "created": "2026-07-24T09:58:52.139Z"
+    },
+    {
+      "id": "2e405c5f-a316-4939-93d0-6793e942af44",
+      "name": "Tsindi Secondary",
+      "created": "2026-07-24T09:58:51.823Z"
+    },
+    {
+      "id": "63a066a9-1423-463c-bc6a-10fd1c52c5a4",
+      "name": "Nechikowa Secondary",
+      "created": "2026-07-24T09:58:51.469Z"
+    },
+    {
+      "id": "48257ed2-db3e-4401-844d-6a2322a59e71",
+      "name": "Chapandura Secondary",
+      "created": "2026-07-24T09:58:51.179Z"
+    },
+    {
+      "id": "8b346a73-012d-44fb-ac9c-06ace5711413",
+      "name": "Kanyimo Secondaey",
+      "created": "2026-07-24T09:58:50.879Z"
+    },
+    {
+      "id": "091f7946-a72c-4957-9ecb-7ee574277c79",
+      "name": "Shekija secondary",
+      "created": "2026-07-24T09:58:50.557Z"
+    },
+    {
+      "id": "a494baf2-9000-4d3c-8e97-0346bb079cea",
+      "name": "Mweyamunene High",
+      "created": "2026-07-24T09:58:50.188Z"
+    },
+    {
+      "id": "82084d4e-3105-4955-85a2-570d3861418e",
+      "name": "Rongwe High School",
+      "created": "2026-07-24T09:58:49.843Z"
+    },
+    {
+      "id": "607af36b-681f-4c83-a09a-bde475255cfc",
+      "name": "Gwidza Secondary",
+      "created": "2026-07-24T09:58:49.464Z"
+    },
+    {
+      "id": "649cb84d-827e-4dd0-aff5-84441f17506a",
+      "name": "Meadowlands",
+      "created": "2026-07-24T09:58:49.051Z"
+    },
+    {
+      "id": "130243b1-7850-4081-be51-9b1914c36f5d",
+      "name": "Mutepfe Secondary",
+      "created": "2026-07-24T09:58:48.730Z"
+    },
+    {
+      "id": "67611f4b-306f-480a-93ab-177eff1073c9",
+      "name": "Bumhira Sec",
+      "created": "2026-07-24T09:58:48.361Z"
+    },
+    {
+      "id": "2a67b6ab-dc02-44dd-a55b-8dbc789f0d38",
+      "name": "zvembira Secondary",
+      "created": "2026-07-24T09:58:47.988Z"
+    },
+    {
+      "id": "6cf6ef75-25b8-47cb-9980-8ef98bf4050c",
+      "name": "Kandenga Secondary",
+      "created": "2026-07-24T09:58:47.454Z"
+    },
+    {
+      "id": "99c80a69-d218-4089-a8f8-01cb3090e227",
+      "name": "Sherenje Secondary School",
+      "created": "2026-07-24T09:58:47.044Z"
+    },
+    {
+      "id": "87ccc8f1-473a-4433-a69c-b4bd0d0330f8",
+      "name": "Bemitiwa Secondary School",
+      "created": "2026-07-24T09:58:46.738Z"
+    },
+    {
+      "id": "b2cd6437-76e0-4d7e-b061-240f423efe99",
+      "name": "STAugustine",
+      "created": "2026-07-24T09:58:46.383Z"
+    },
+    {
+      "id": "c3a82f70-504e-4008-80f7-d63b893985e1",
+      "name": "Nyarwidzi Secondary",
+      "created": "2026-07-24T09:58:46.056Z"
+    },
+    {
+      "id": "945b37f7-7b40-453b-b0b6-21d174b6b8e2",
+      "name": "Tsikada Secondary",
+      "created": "2026-07-24T09:58:45.736Z"
+    },
+    {
+      "id": "064c9824-c8e6-48f3-9124-992e49b62913",
+      "name": "Mudza,iri Secondary",
+      "created": "2026-07-24T09:58:45.424Z"
+    },
+    {
+      "id": "839fceff-fe71-4c90-9e35-ecd25b45edc3",
+      "name": "Gosho Secondary",
+      "created": "2026-07-24T09:58:45.124Z"
+    },
+    {
+      "id": "99c27d4b-5eab-4925-9518-cc92da76d549",
+      "name": "Zambara Secondary",
+      "created": "2026-07-24T09:58:44.821Z"
+    },
+    {
+      "id": "99742039-e7d6-4dae-a814-24d18b9fe675",
+      "name": "Nyashanu High",
+      "created": "2026-07-24T09:58:44.509Z"
+    },
+    {
+      "id": "fa6f564b-fb40-40b0-8fa1-1eefae86f144",
+      "name": "Marange High School",
+      "created": "2026-07-24T09:58:44.157Z"
+    },
+    {
+      "id": "32012f19-e544-49c1-b235-d45e54c8caae",
+      "name": "Mutsvangwa Secondary",
+      "created": "2026-07-24T09:58:43.847Z"
+    },
+    {
+      "id": "53587d65-6a13-4059-a823-e3ad14ea0538",
+      "name": "Chikwariro High School",
+      "created": "2026-07-24T09:58:43.550Z"
+    },
+    {
+      "id": "6a160327-83b5-4ad2-984d-4e5da1899afe",
+      "name": "Gwirundindi High",
+      "created": "2026-07-24T09:58:43.134Z"
+    },
+    {
+      "id": "500803ae-f658-4431-ae09-b84981f34dc1",
+      "name": "Shundure High",
+      "created": "2026-07-24T09:58:42.707Z"
+    },
+    {
+      "id": "e02ab794-647d-446a-a2ed-ea621eddf09c",
+      "name": "Nuatate High schhol",
+      "created": "2026-07-24T09:58:42.295Z"
+    },
+    {
+      "id": "7b2c9bf4-615c-4d8c-921c-6bee76685a68",
+      "name": "Nyarwizi Secondary",
+      "created": "2026-07-24T09:58:41.877Z"
+    },
+    {
+      "id": "6ce1830b-70ac-4d37-9ee2-41e2c39e897c",
+      "name": "Mhakwe High",
+      "created": "2026-07-24T09:58:41.344Z"
+    },
+    {
+      "id": "ad871b1c-4c7f-4d3b-8da0-8e5f2ac587a4",
+      "name": "Zurara Secondary",
+      "created": "2026-07-24T09:58:40.906Z"
+    },
+    {
+      "id": "99828aea-db26-44fe-9fe2-7e7100810cfb",
+      "name": "Claremonnt Secondary",
+      "created": "2026-07-24T09:58:40.509Z"
+    },
+    {
+      "id": "5d22abae-cee8-4cb1-b885-372cb9f44895",
+      "name": "Mt Zonwe Secondary",
+      "created": "2026-07-24T09:58:39.971Z"
+    },
+    {
+      "id": "14cb2364-db4a-49ca-8943-a4aa656a325c",
+      "name": "Nyarumvurwe Secondary",
+      "created": "2026-07-24T09:58:39.633Z"
+    },
+    {
+      "id": "ab2e050e-d75e-4044-b4b7-d21dd14c9e62",
+      "name": "Dope High School",
+      "created": "2026-07-24T09:58:39.232Z"
+    },
+    {
+      "id": "0fd9a35d-177e-42d8-84d1-e903a97c645e",
+      "name": "Gweru High",
+      "created": "2026-07-24T09:58:38.851Z"
+    },
+    {
+      "id": "f797126e-edf5-4ce6-88e0-37efc0a0a49d",
+      "name": "Warren Park HIgh",
+      "created": "2026-07-24T09:58:38.559Z"
+    },
+    {
+      "id": "23e9d102-b473-43d0-8a0a-7b787a1de208",
+      "name": "Oriel Girls High",
+      "created": "2026-07-24T09:58:38.203Z"
+    },
+    {
+      "id": "a10b7f10-3751-4424-b41d-851eb66a39d0",
+      "name": "Mukai High",
+      "created": "2026-07-24T09:58:37.795Z"
+    },
+    {
+      "id": "0f5b3fdb-2c4d-41be-a8ad-0dc875c5f31d",
+      "name": "Muguta Secondary",
+      "created": "2026-07-24T09:58:37.391Z"
+    },
+    {
+      "id": "97a33653-f6a4-4100-b03c-1754a30e5bed",
+      "name": "Hatcliff High",
+      "created": "2026-07-24T09:58:36.772Z"
+    },
+    {
+      "id": "08aece32-0ead-4e41-9c68-4a0fd28bf477",
+      "name": "Emerald Hill",
+      "created": "2026-07-24T09:58:36.448Z"
+    },
+    {
+      "id": "5b0af74e-dbd7-4d3e-84be-37315eb6e2c7",
+      "name": "Domboramusari High",
+      "created": "2026-07-24T09:58:36.060Z"
+    },
+    {
+      "id": "eacd3672-a39a-40a6-bc4b-3630200d96cc",
+      "name": "Allan Wilson",
+      "created": "2026-07-24T09:58:35.694Z"
+    },
+    {
+      "id": "58e72b26-5414-4511-89e9-b33aed13293e",
+      "name": "ZORORAI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:35.379Z"
+    },
+    {
+      "id": "8e85a05f-8a8c-4ece-b9ea-fe52b1728c2e",
+      "name": "MASUNDA NORTH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:35.026Z"
+    },
+    {
+      "id": "c11364f4-ef06-4d0f-a707-de34363656dd",
+      "name": "MAGUDU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:34.699Z"
+    },
+    {
+      "id": "1b7233b0-b05a-4e4c-a155-8242ac2fe2c1",
+      "name": "DEKEZA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:34.328Z"
+    },
+    {
+      "id": "c940d61e-ea79-4d58-a965-c9260e470249",
+      "name": "MAKURA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:33.951Z"
+    },
+    {
+      "id": "96e6ca23-57f7-4071-8b44-ae3ff23b6f0a",
+      "name": "ZIVEZANO HIGHSCHOOL",
+      "created": "2026-07-24T09:58:33.489Z"
+    },
+    {
+      "id": "c2233a10-6aa4-4c08-a070-d5daa03f44b2",
+      "name": "WONDEDZO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:33.025Z"
+    },
+    {
+      "id": "9b0808fc-5d6a-410b-b68a-fb04e88bf778",
+      "name": "TUNGAMIRAI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:32.685Z"
+    },
+    {
+      "id": "5623b3f8-5063-4f6a-807e-5827a726dc77",
+      "name": "TERERAIRE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:32.188Z"
+    },
+    {
+      "id": "98263501-7abf-4ff9-91a2-4b62ead2928a",
+      "name": "ST STANISLAUS SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:31.745Z"
+    },
+    {
+      "id": "9d61dc91-f725-422a-8eac-f34a9d554ba5",
+      "name": "SHINDI SECONDARYVSCHOOL",
+      "created": "2026-07-24T09:58:31.391Z"
+    },
+    {
+      "id": "1e988315-2e05-4094-b8f2-60001e87cccc",
+      "name": "SAGEWARI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:31.025Z"
+    },
+    {
+      "id": "ff581d89-fcf7-4cb9-83c1-a2ba99d8e79a",
+      "name": "SABERT HIGH SCHOOL",
+      "created": "2026-07-24T09:58:30.683Z"
+    },
+    {
+      "id": "d6c16e70-3c3c-4309-90b9-31f4dd75f2bf",
+      "name": "RUPIRI MUKOSI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:30.269Z"
+    },
+    {
+      "id": "589ec661-c7bb-4273-9730-0237358dd0bc",
+      "name": "RUPARE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:29.884Z"
+    },
+    {
+      "id": "d9e40c84-2ea5-41cf-8be4-ed0f4731648d",
+      "name": "RUMIZHA SECONDARY SCCHOOL",
+      "created": "2026-07-24T09:58:29.480Z"
+    },
+    {
+      "id": "9b594536-3b28-48b0-8ff8-4a362b85f13f",
+      "name": "RAMBAKUTEMWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:29.140Z"
+    },
+    {
+      "id": "3507a86d-7f20-4915-88f3-26e4845b795e",
+      "name": "PFUNGIDZO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:28.832Z"
+    },
+    {
+      "id": "5d713fdf-2b0c-4f25-b366-e7d3a6a25ab5",
+      "name": "NYAHOMBE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:28.479Z"
+    },
+    {
+      "id": "9169b7b7-2fe9-4e12-8ddb-ae03c7b1b6c6",
+      "name": "NGUNDU HALT HIGH SCHOOL",
+      "created": "2026-07-24T09:58:28.131Z"
+    },
+    {
+      "id": "f8e37cad-61f1-41c2-8629-24a0a93dde68",
+      "name": "NESHURO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:27.798Z"
+    },
+    {
+      "id": "8bea3678-cd39-47ea-99f9-057f44cb35da",
+      "name": "NERUPIRI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:27.410Z"
+    },
+    {
+      "id": "0c256bf5-a738-4e00-9619-d5300f183e7c",
+      "name": "NEMAUKU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:26.948Z"
+    },
+    {
+      "id": "167aaf55-1db1-427c-83e3-56d52f6d9f54",
+      "name": "MUTANGI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:26.530Z"
+    },
+    {
+      "id": "cfb82ade-fe49-4403-8a10-1cd26e8b2b32",
+      "name": "MUSHUNGWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:26.176Z"
+    },
+    {
+      "id": "36e8d2ac-79df-4e8d-be2d-938ffd4216c4",
+      "name": "MUSHAVIRI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:25.835Z"
+    },
+    {
+      "id": "1e61629b-408c-4720-9c9c-fdbc77e713ac",
+      "name": "MUSENYEREKU HIGH SCHOOL",
+      "created": "2026-07-24T09:58:25.476Z"
+    },
+    {
+      "id": "0aeddbc2-3567-466c-a09c-c55f4dc1ee46",
+      "name": "MURERE SEC SCHOOL",
+      "created": "2026-07-24T09:58:25.157Z"
+    },
+    {
+      "id": "ddd2ba09-f784-4960-be67-02f22aed9ee0",
+      "name": "MURERE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:24.809Z"
+    },
+    {
+      "id": "3de1f41c-945c-4549-94db-5625b51bd7bb",
+      "name": "MUCHEKE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:24.464Z"
+    },
+    {
+      "id": "3a6b3d1d-6a02-4868-8572-9578d2f82944",
+      "name": "MFULA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:24.153Z"
+    },
+    {
+      "id": "81eadded-a280-4087-93c6-59d5a7cfdd59",
+      "name": "MATARUSE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:23.817Z"
+    },
+    {
+      "id": "e9840218-7eca-4c34-8080-6624924e1cc9",
+      "name": "MASOGWE BAPTIST HIGH SCHOOL",
+      "created": "2026-07-24T09:58:23.507Z"
+    },
+    {
+      "id": "eb9b7755-835a-4be2-a2bb-928ff57601f5",
+      "name": "MAKONI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:23.130Z"
+    },
+    {
+      "id": "2a37f8e4-f291-457d-9cdb-b9ec9a338428",
+      "name": "MAGURA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:22.752Z"
+    },
+    {
+      "id": "397bf42c-eb9e-4e91-989e-9abf7d0d7ea0",
+      "name": "MADANGAMOMBE GVT HIGH SCHOOL",
+      "created": "2026-07-24T09:58:22.458Z"
+    },
+    {
+      "id": "8d054ae4-0c1c-44b4-8a1f-fc10be801536",
+      "name": "MACHINGAMBI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:22.079Z"
+    },
+    {
+      "id": "4732d453-0b27-41b1-b657-11096fdf424e",
+      "name": "M. HUGO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:21.694Z"
+    },
+    {
+      "id": "c339d722-3ace-4e38-b83d-06edbbeca68a",
+      "name": "JUSTIN CHAUKE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:21.385Z"
+    },
+    {
+      "id": "072b9675-3e92-4c5a-b9ca-dcbfea7482a5",
+      "name": "JICHIDZA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:21.020Z"
+    },
+    {
+      "id": "fa1c5f34-65aa-45ea-aa3e-395762bd0892",
+      "name": "JAKA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:20.553Z"
+    },
+    {
+      "id": "ecdfc09c-d825-43ee-b4cf-ba1fcdc5b64e",
+      "name": "HEBRON HIGH SCHOOL",
+      "created": "2026-07-24T09:58:20.121Z"
+    },
+    {
+      "id": "f3de6a22-f640-405b-b2a4-a69e076be17b",
+      "name": "GUTU HIGH SCHOOL",
+      "created": "2026-07-24T09:58:19.766Z"
+    },
+    {
+      "id": "6c2e2963-3b7e-43fe-a3a2-d2a7e241c4b8",
+      "name": "DZORO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:19.443Z"
+    },
+    {
+      "id": "c57ec7e9-cee6-47ec-ba70-421d2b976cf8",
+      "name": "DOMBOSHAVA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:19.067Z"
+    },
+    {
+      "id": "7e00b757-aa5e-47ed-b398-8eb819fb8cf9",
+      "name": "DOMBOREMBAWA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:18.655Z"
+    },
+    {
+      "id": "ce872549-f876-4caa-925c-4ceffc9f3011",
+      "name": "DENGENYA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:18.323Z"
+    },
+    {
+      "id": "abb1baac-dfc1-41bb-93db-141812316897",
+      "name": "DANHAMOMBE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:18.008Z"
+    },
+    {
+      "id": "ca48c3e7-d89d-4dc6-b3cf-412a33ec3e5e",
+      "name": "CHONGOGWE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:17.644Z"
+    },
+    {
+      "id": "303dc7ac-dfdb-452b-bb4d-c08c3ab5f166",
+      "name": "CHIWAWA SDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:17.216Z"
+    },
+    {
+      "id": "74468ac8-fbaa-4067-97fc-0ead19233998",
+      "name": "CHIWANZA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:16.760Z"
+    },
+    {
+      "id": "24954bd7-0e08-41d0-bb7f-dcf32783eb78",
+      "name": "CHIWANUMBA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:16.383Z"
+    },
+    {
+      "id": "77667238-62ff-4035-9a71-ace125b241a4",
+      "name": "CHITOVO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:15.972Z"
+    },
+    {
+      "id": "d70639ca-5954-4d5f-9c70-644e9605ccfb",
+      "name": "CHINGELE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:15.587Z"
+    },
+    {
+      "id": "a1626e49-c512-49b9-bea0-bdd799dd3185",
+      "name": "CHIMBWEMBWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:15.273Z"
+    },
+    {
+      "id": "a9cd770f-a700-4a69-9c54-207f6df910e2",
+      "name": "CHIKWIRIRE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:14.848Z"
+    },
+    {
+      "id": "f97f0cab-7576-4d7f-9299-7b3711b77d10",
+      "name": "CHESVINGO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:14.392Z"
+    },
+    {
+      "id": "9b60e6ba-1cc1-4224-847a-c9b1b9c84bf2",
+      "name": "CHENINGA HIWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:13.907Z"
+    },
+    {
+      "id": "41027030-a380-49dc-b311-3e62e7ab963f",
+      "name": "CHEKAI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:13.539Z"
+    },
+    {
+      "id": "e99c4a00-7b17-4b42-81ec-38073e792f2c",
+      "name": "CHATWORTH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:13.233Z"
+    },
+    {
+      "id": "35e65527-4977-4885-aabd-99a761aa756c",
+      "name": "CHATIKOBO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:12.841Z"
+    },
+    {
+      "id": "b79caaa3-855f-457f-8739-bff6c5846c80",
+      "name": "CHARINGENO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:12.430Z"
+    },
+    {
+      "id": "aac5b514-2518-42ea-83f2-67700d7ae419",
+      "name": "CHAMASVINGA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:11.891Z"
+    },
+    {
+      "id": "be40f5b2-2e9f-4c5f-badf-249485e1a6e8",
+      "name": "BWANYA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:11.466Z"
+    },
+    {
+      "id": "5c60d6a7-4eec-4ebf-8aa6-cbc917ee9f1c",
+      "name": "AVHUNGA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:11.046Z"
+    },
+    {
+      "id": "8906cd84-f3a3-4aac-8bd7-6ffe4e402607",
+      "name": "ZVOMUKONDE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:10.702Z"
+    },
+    {
+      "id": "7528a5e1-3b6e-4360-a536-615a241187da",
+      "name": "ZVAVASHE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:10.343Z"
+    },
+    {
+      "id": "f53c7896-4fe6-454b-b646-6f1397576ea9",
+      "name": "ZVAMANWIRO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:09.991Z"
+    },
+    {
+      "id": "295da6b2-f83b-4b57-9d73-c891ec546160",
+      "name": "ZVAMAGWIRO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:09.426Z"
+    },
+    {
+      "id": "f2204b9c-6a66-48b6-bc71-be59ff0f3318",
+      "name": "VURONGA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:08.971Z"
+    },
+    {
+      "id": "cfa9d64f-a83d-415d-991b-e34f181afeac",
+      "name": "VURASHA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:08.545Z"
+    },
+    {
+      "id": "d25a4991-531e-4623-8224-ed99d4615f7d",
+      "name": "VURASHA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:08.143Z"
+    },
+    {
+      "id": "b1cd7265-8d21-431b-94d8-62d88d35f2e4",
+      "name": "VUNGU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:07.829Z"
+    },
+    {
+      "id": "5ad4059d-5ca6-4d50-a969-93218b3d0c85",
+      "name": "VUBWE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:07.467Z"
+    },
+    {
+      "id": "5ceeeea7-a9d1-4872-a57b-c2677f9c6479",
+      "name": "THORNHILL HIGH SCHOOL",
+      "created": "2026-07-24T09:58:07.060Z"
+    },
+    {
+      "id": "e29854c2-f747-45ad-bb59-340a1c4e9928",
+      "name": "SVIBE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:06.625Z"
+    },
+    {
+      "id": "4ff36c9e-59d7-4c78-9277-5bb94e66a177",
+      "name": "SIKOMBINGO ADVENTIST HIGGH SCHOOL",
+      "created": "2026-07-24T09:58:06.200Z"
+    },
+    {
+      "id": "8cf2f1c7-3ea3-44b8-9fe9-0bfaf350aeed",
+      "name": "SIBOMVU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:05.491Z"
+    },
+    {
+      "id": "786ffbe2-f126-47ab-8a97-2f2c83cfb311",
+      "name": "SAWIRANGWANDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:05.118Z"
+    },
+    {
+      "id": "021d566d-d97d-4ce0-ab9c-ca5d2cc61204",
+      "name": "RUZENGWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:04.669Z"
+    },
+    {
+      "id": "880d6601-c23b-4dfc-aa3e-636995cd0180",
+      "name": "NTABAMHLOPHE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:04.192Z"
+    },
+    {
+      "id": "d5e1882f-c03c-48f9-bdf4-3d117b47eb11",
+      "name": "NORAH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:03.761Z"
+    },
+    {
+      "id": "beaa4bd9-615f-4a84-837b-0292591e9be5",
+      "name": "NDLAMATULU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:03.243Z"
+    },
+    {
+      "id": "8934aa0e-f754-4276-932f-15e822794628",
+      "name": "MUSUME HIGH SCHOOL",
+      "created": "2026-07-24T09:58:02.715Z"
+    },
+    {
+      "id": "38d931bd-707d-4131-ba46-9cdf71dfcdb7",
+      "name": "MUSIKAVANHU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:02.164Z"
+    },
+    {
+      "id": "32d5be00-80de-4e0d-b88f-dd3a37967ba8",
+      "name": "MTSHINGWE PLATINUM HIGH SCHOOL",
+      "created": "2026-07-24T09:58:01.662Z"
+    },
+    {
+      "id": "3dab539f-938f-42df-9f83-880f56b8e615",
+      "name": "MPOSI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:01.100Z"
+    },
+    {
+      "id": "e9b22100-70e2-4c1b-9bae-15d9053eae0f",
+      "name": "MPANDASHANGO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:00.702Z"
+    },
+    {
+      "id": "bc65838f-9ced-420a-8127-44ddaed0227c",
+      "name": "MPADASHAYA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:00.213Z"
+    },
+    {
+      "id": "6667ae2e-6885-45a6-b61e-cfdbb28474c3",
+      "name": "MBUYANEHANDA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:59.657Z"
+    },
+    {
+      "id": "d725ae21-e600-421b-9f71-6f388d979e75",
+      "name": "MBUNGU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:59.222Z"
+    },
+    {
+      "id": "a24b9d17-5bf1-4334-a0dc-fd3a417eb016",
+      "name": "MBOVHANA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:58.842Z"
+    },
+    {
+      "id": "0746b4e7-3664-49a8-acec-fa95d872bd63",
+      "name": "MATABO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:58.180Z"
+    },
+    {
+      "id": "1e9c2b45-c2cc-471e-886b-d116735052d0",
+      "name": "MASHAME SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:57.758Z"
+    },
+    {
+      "id": "c92c79d5-97d2-43d5-a9f1-9536bd57c6fc",
+      "name": "MARINGAMBIZI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:57.288Z"
+    },
+    {
+      "id": "da6cb134-b174-40cf-b1ca-3d17c29caf8d",
+      "name": "MANZINYAMA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:56.709Z"
+    },
+    {
+      "id": "da4a903c-7c44-456b-adac-08ed905931f4",
+      "name": "MAKULAMBILI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:56.227Z"
+    },
+    {
+      "id": "8a65852b-5b8c-4ae5-a357-aed8dc8bb4be",
+      "name": "MABOLENI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:55.863Z"
+    },
+    {
+      "id": "12310c5a-898d-41e3-9295-7de723065039",
+      "name": "MABIKA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:55.459Z"
+    },
+    {
+      "id": "b269ee65-144e-4d15-97e0-386bf8951644",
+      "name": "KAGUWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:55.095Z"
+    },
+    {
+      "id": "d5a27f6a-bbc6-4bbc-ad9b-f845699ed3ee",
+      "name": "GWAMURE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:54.652Z"
+    },
+    {
+      "id": "ebaa69ae-ced3-4cbc-bbf0-7838926c6728",
+      "name": "GURUVA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:54.263Z"
+    },
+    {
+      "id": "222cab2a-2b44-44c9-9665-5327246b1a9c",
+      "name": "GUNUNYU HIGH SCHOOL",
+      "created": "2026-07-24T09:57:53.765Z"
+    },
+    {
+      "id": "6acfae5b-abae-4e84-a55a-db7be81b77af",
+      "name": "GONAWAPOTERA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:53.357Z"
+    },
+    {
+      "id": "5890aa70-91d0-4d7c-aedb-1586e85db8b4",
+      "name": "DORSET SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:52.914Z"
+    },
+    {
+      "id": "c23a19f9-b464-4f3b-aa48-32952bebcaae",
+      "name": "DEFE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:52.386Z"
+    },
+    {
+      "id": "fd771a3a-d90c-4516-9d17-d81b5e8a9996",
+      "name": "CHUSHUKU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:51.843Z"
+    },
+    {
+      "id": "f12f9669-1786-4a7a-86c0-b8aa533cc231",
+      "name": "CHOVURACH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:51.267Z"
+    },
+    {
+      "id": "cf127f12-3f5a-4949-b056-8aec7b94ef5f",
+      "name": "CHIVONA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:50.717Z"
+    },
+    {
+      "id": "22b0b41c-fece-45a4-a162-723694652357",
+      "name": "CHIKEYA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:50.234Z"
+    },
+    {
+      "id": "b6576808-6046-449f-8476-39c1a415cbac",
+      "name": "CHIBHUKU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:49.667Z"
+    },
+    {
+      "id": "23e4d9e6-3ed1-41f0-aa6f-30e631c5d93e",
+      "name": "CHEMIMWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:49.351Z"
+    },
+    {
+      "id": "aa6a8200-4ff2-42ce-bc98-c0d741e0099c",
+      "name": "CHEBVUTE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:48.966Z"
+    },
+    {
+      "id": "a6842f88-c724-47a6-b267-f1d4e0fae28d",
+      "name": "BONSTEAD SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:48.597Z"
+    },
+    {
+      "id": "95e57a43-498c-4dd9-abcb-e5c20a6d34f3",
+      "name": "BAYAYI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:48.156Z"
+    },
+    {
+      "id": "164d40a6-1f5c-4b12-be2c-306cf695cebc",
+      "name": "ZAMBEZI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:47.775Z"
+    },
+    {
+      "id": "f0a96333-d58a-4ebd-afdf-ea38a88be96b",
+      "name": "TAME SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:47.352Z"
+    },
+    {
+      "id": "94039ecc-5f66-4562-811a-516ad3807cc7",
+      "name": "SOMVUBU HIGH SCHOOL",
+      "created": "2026-07-24T09:57:46.884Z"
+    },
+    {
+      "id": "b3db94b2-d29b-4eeb-8fe7-91462e1620e1",
+      "name": "SOJINI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:45.976Z"
+    },
+    {
+      "id": "b2c39af3-0a2d-4a16-b5af-689f7bceebf8",
+      "name": "SIZINDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:45.539Z"
+    },
+    {
+      "id": "5205b350-d350-4112-8258-f5f8fd78250d",
+      "name": "SINANGENGWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:45.141Z"
+    },
+    {
+      "id": "4a94a4eb-089f-474d-a3bf-e8017258c041",
+      "name": "SAWMILLS SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:44.823Z"
+    },
+    {
+      "id": "03417960-a4dd-437a-811a-2992dce9e3f4",
+      "name": "SAMENDE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:44.429Z"
+    },
+    {
+      "id": "eb246584-0edd-42d6-9cf1-25cf38501acc",
+      "name": "SABA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:44.104Z"
+    },
+    {
+      "id": "0b2adf6b-b1a0-41f4-8e16-da0f520f7b4e",
+      "name": "RCZ MANYANDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:43.557Z"
+    },
+    {
+      "id": "6700ff72-dbf2-4af6-a16c-98d1059685b1",
+      "name": "NYAMANDLOVU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:43.182Z"
+    },
+    {
+      "id": "83bcc961-45ed-424c-ba6e-e47f358a4f5e",
+      "name": "NHLAMBABALOYI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:42.685Z"
+    },
+    {
+      "id": "5d282851-df90-49d8-80ef-4cf7772ff3b1",
+      "name": "NAKALUBA SECONDARY",
+      "created": "2026-07-24T09:57:42.316Z"
+    },
+    {
+      "id": "2c83a31e-39aa-4fe2-884d-4256acaacbc8",
+      "name": "MUCHESU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:41.845Z"
+    },
+    {
+      "id": "3f4615c8-d1ef-4ef2-b06b-68ff98d060b3",
+      "name": "MNONDO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:41.219Z"
+    },
+    {
+      "id": "c8894592-6a6b-4ec7-9b6a-f4afc7cbc97e",
+      "name": "MKHOSANA ADVENTIST SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:40.733Z"
+    },
+    {
+      "id": "2df03eab-e2d3-4fa0-a996-7ff1fe7d215d",
+      "name": "MATEME SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:40.319Z"
+    },
+    {
+      "id": "eb4829ce-5c90-4ede-970d-69d7380a8d63",
+      "name": "MADLELENYONI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:39.894Z"
+    },
+    {
+      "id": "eeb2d160-e318-4715-99d3-2bc9968fc59f",
+      "name": "LUSULU HIGH SCHOOL",
+      "created": "2026-07-24T09:57:39.459Z"
+    },
+    {
+      "id": "bd54288e-20cf-4438-b40f-907885ec53d0",
+      "name": "LUBU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:39.071Z"
+    },
+    {
+      "id": "2f5b8b5c-966e-49b1-acef-26f12b3f179c",
+      "name": "LESEDI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:38.617Z"
+    },
+    {
+      "id": "f3367246-2e93-4297-9238-7fe0c2a249b7",
+      "name": "KAPANE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:38.212Z"
+    },
+    {
+      "id": "3ab2ff70-f318-49fa-9b42-dc3085d043bd",
+      "name": "JIBAJIBA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:37.792Z"
+    },
+    {
+      "id": "db4f4322-f44e-481f-9e2f-155357ca2950",
+      "name": "GEORGE SILUNDIKA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:37.412Z"
+    },
+    {
+      "id": "9ab3e80d-2419-427f-ae63-3e2075ab2385",
+      "name": "GEBHUZA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:37.061Z"
+    },
+    {
+      "id": "0f4abe26-9305-4477-b791-f8f99d5fcfc7",
+      "name": "DON BOSCO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:36.645Z"
+    },
+    {
+      "id": "30332057-6ba2-4552-8b20-cc1cbeeca894",
+      "name": "DIKILI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:36.171Z"
+    },
+    {
+      "id": "4e37d20d-2456-43fe-97b4-654bdef4a6d4",
+      "name": "CHIPALE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:35.739Z"
+    },
+    {
+      "id": "8fc4f3de-5893-4f1b-94d9-db2eb5899fc8",
+      "name": "CHINONGE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:35.392Z"
+    },
+    {
+      "id": "76e943f1-9f99-4180-b4e3-f5f1a371e370",
+      "name": "CHIBILA ADVENTIST SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:34.955Z"
+    },
+    {
+      "id": "0e60245c-a045-41a6-95b1-777a0fb9c770",
+      "name": "BEMBESI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:34.557Z"
+    },
+    {
+      "id": "32c0ddc8-2043-45ed-bae7-761c3e313d41",
+      "name": "AMR CONVENT HIGH SCHOOL",
+      "created": "2026-07-24T09:57:34.165Z"
+    },
+    {
+      "id": "9a3b2958-9fb8-4b60-ac32-69429c46cd2f",
+      "name": "NTALALE SECONDARY SCHOOLS",
+      "created": "2026-07-24T09:57:33.787Z"
+    },
+    {
+      "id": "1333be2d-f338-4624-947a-170498c71855",
+      "name": "VALUKHALO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:33.252Z"
+    },
+    {
+      "id": "b0b1c47b-5599-4c60-9585-c907f589e975",
+      "name": "TSHANYAUGWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:32.786Z"
+    },
+    {
+      "id": "a23f8d8a-3fc5-4248-98d8-3c01a9e2c0f5",
+      "name": "TONGWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:32.386Z"
+    },
+    {
+      "id": "ecb6a8a1-ee28-4ae1-b3b7-2aff2de2c10b",
+      "name": "TOKWANA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:32.015Z"
+    },
+    {
+      "id": "63cef55c-c467-4251-8f53-13609afb06c6",
+      "name": "TAHANGANA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:31.650Z"
+    },
+    {
+      "id": "0f4cc6ae-c84d-4cc0-aff9-1c15773eaf16",
+      "name": "SOLUSI ADVENTIST HIGH SCHOOL",
+      "created": "2026-07-24T09:57:31.231Z"
+    },
+    {
+      "id": "258e0a43-56dc-443a-9c9b-4312e379be43",
+      "name": "SIWAZI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:30.571Z"
+    },
+    {
+      "id": "c05e39a8-8a5c-4a91-9c6c-c0706b5abaac",
+      "name": "SIBHATA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:30.115Z"
+    },
+    {
+      "id": "a90ceab3-3511-42cb-b421-5809b922d377",
+      "name": "NTALALE HIGH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:29.645Z"
+    },
+    {
+      "id": "4129b064-51b3-4bd0-925f-88d62a7f285f",
+      "name": "NHWALI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:29.302Z"
+    },
+    {
+      "id": "ae0d9d2a-ba19-4c96-b257-c107bbcd6307",
+      "name": "MZINGWANE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:28.738Z"
+    },
+    {
+      "id": "817e1504-a0ba-41b6-9653-d04fd2b3be92",
+      "name": "MSAKOROKORO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:28.195Z"
+    },
+    {
+      "id": "4f53c07e-20db-4f1d-a407-f69b9d611c9b",
+      "name": "MQABUKO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:26.677Z"
+    },
+    {
+      "id": "ccecaaa8-529e-4d8f-bbc7-dfea14c94730",
+      "name": "MLOMOTSHA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:26.261Z"
+    },
+    {
+      "id": "b029306c-b40d-4b2a-818c-9e4e5acf5c49",
+      "name": "MAWABENI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:25.696Z"
+    },
+    {
+      "id": "60d1a763-2ea2-475d-8433-62a553ec9d24",
+      "name": "MALUNGUDZI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:25.231Z"
+    },
+    {
+      "id": "ce2ad871-776c-48da-a11d-e39dd1118dfe",
+      "name": "MAKIKUWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:24.748Z"
+    },
+    {
+      "id": "fdd75934-fecb-4972-bcf4-4adca6e0c59f",
+      "name": "LUSHONKWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:24.293Z"
+    },
+    {
+      "id": "1a2cc06e-5fe3-4250-9764-4f60e6c8f2c7",
+      "name": "LUBUZE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:23.754Z"
+    },
+    {
+      "id": "e9130b49-6943-4d3f-83e3-ad057184ccc3",
+      "name": "LUBHANGWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:23.289Z"
+    },
+    {
+      "id": "96d45359-58af-46d7-946b-d46663dbc506",
+      "name": "KWALU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:22.760Z"
+    },
+    {
+      "id": "3afb7ede-f2d0-4397-8d6e-2b760bd2c850",
+      "name": "J.Z MOYO HIGH SCHOOL",
+      "created": "2026-07-24T09:57:22.306Z"
+    },
+    {
+      "id": "e82e379e-905f-4db8-959d-728f86d451a3",
+      "name": "GARANYEMBA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:21.707Z"
+    },
+    {
+      "id": "dc8ad4d0-21a5-4e47-b44c-27c7257deb88",
+      "name": "DULA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:21.239Z"
+    },
+    {
+      "id": "13870085-1242-4949-b299-be2256f40d2a",
+      "name": "BUVUMA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:20.850Z"
+    },
+    {
+      "id": "31e408c8-0941-4b3e-ab92-9a8ded2d60b4",
+      "name": "TENNYSON HLABANGANA",
+      "created": "2026-07-24T09:57:20.203Z"
+    },
+    {
+      "id": "69dfcb78-264e-40de-ab56-b85313839cf0",
+      "name": "LIGHT HOUSE SECONDARY SCHOOOL",
+      "created": "2026-07-24T09:57:19.705Z"
+    },
+    {
+      "id": "764d28cd-39ef-40ce-97a4-689f9cfbb95b",
+      "name": "INYANDA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:19.165Z"
+    },
+    {
+      "id": "9c159e92-52b3-4f6c-ade0-9d0572eccf05",
+      "name": "INDUNA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:01.041Z"
+    },
+    {
+      "id": "820389b1-0c68-4ce5-a0e8-800c00a79a57",
+      "name": "BULAWAYO ADVENTIST HIGH SCHOOL",
+      "created": "2026-07-24T09:57:00.498Z"
+    },
+    {
+      "id": "e4769160-279c-45eb-b70e-a2c07abeca0e",
+      "name": "AMHLOPHE HIGH SCHOOL",
+      "created": "2026-07-24T09:56:59.876Z"
+    }
+  ],
+  "leads": [
+    {
+      "id": "17711d0f-20f9-4606-83b5-098f2f4a4358",
+      "name": "SIWAZI HIGH SCHOOL",
+      "created": "2026-07-27T18:59:43.776Z"
+    },
+    {
+      "id": "477ea920-559c-4dd5-a610-898a814dbd8a",
+      "name": "SIBHATA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:43.439Z"
+    },
+    {
+      "id": "d6ebe1ee-ddaa-4dfc-9b02-c7644360d4f4",
+      "name": "NTALALE HIGH SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:43.064Z"
+    },
+    {
+      "id": "4f063891-14d5-4dc6-99cc-bd8ebf3f95fe",
+      "name": "NHWALI HIGH SCHOOL",
+      "created": "2026-07-27T18:59:42.742Z"
+    },
+    {
+      "id": "bf1b0196-e2bb-4c18-abf8-059670cc3766",
+      "name": "MZINGWANE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:42.414Z"
+    },
+    {
+      "id": "11b5d709-89e9-46c4-b4be-57df4f357e76",
+      "name": "MSAKOROKORO SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:42.044Z"
+    },
+    {
+      "id": "12c1bafd-f2e7-49d4-ae0d-49602155c9e4",
+      "name": "MQABUKO SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:41.704Z"
+    },
+    {
+      "id": "c1676fa4-b0b1-47d9-87dd-07755cf70f64",
+      "name": "MLOMOTSHA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:41.395Z"
+    },
+    {
+      "id": "b5c42da0-5fc8-4137-b97a-762ae7669bf3",
+      "name": "MAWABENI HIGH SCHOOL",
+      "created": "2026-07-27T18:59:41.052Z"
+    },
+    {
+      "id": "5f1950c4-785a-4787-af71-74b4ed39608c",
+      "name": "MALUNGUDZI HIGH SCHOOL",
+      "created": "2026-07-27T18:59:40.722Z"
+    },
+    {
+      "id": "56d130a5-c16f-46f7-919d-90c30bef6a7f",
+      "name": "MAKIKUWA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:40.364Z"
+    },
+    {
+      "id": "88767cae-2f61-413b-a7ac-8c5997d33807",
+      "name": "LUSHONKWE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:40.043Z"
+    },
+    {
+      "id": "00f71927-fb1f-4f1f-89fc-fd02a9d70b43",
+      "name": "LUBUZE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:39.700Z"
+    },
+    {
+      "id": "22c71b91-c32d-4adb-a657-b3a7a0669c24",
+      "name": "LUBHANGWE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:39.343Z"
+    },
+    {
+      "id": "fc939041-23d6-4da8-b443-02dfde63c3bf",
+      "name": "KWALU SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:38.941Z"
+    },
+    {
+      "id": "252451e5-f822-4d0d-9941-c6ab441c2bd1",
+      "name": "J.Z MOYO HIGH SCHOOL",
+      "created": "2026-07-27T18:59:38.620Z"
+    },
+    {
+      "id": "88b8f24b-9934-49f0-8993-01f56f397265",
+      "name": "GARANYEMBA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:38.254Z"
+    },
+    {
+      "id": "22f1418d-957b-42e1-bc2c-91a53c331b34",
+      "name": "DULA SECONDARY SCHOOL",
+      "created": "2026-07-27T18:59:37.877Z"
+    },
+    {
+      "id": "ea344ff0-49a8-4ac7-b56e-a907dbea8675",
+      "name": "BUVUMA HIGH SCHOOL",
+      "created": "2026-07-27T18:59:37.508Z"
+    },
+    {
+      "id": "498e52c2-03b9-417d-8b61-fca05a048730",
+      "name": "TENNYSON HLABANGANA",
+      "created": "2026-07-27T18:59:37.146Z"
+    },
+    {
+      "id": "c57d43ce-b991-4950-9c23-16e17b31fa7b",
+      "name": "LIGHT HOUSE SECONDARY SCHOOOL",
+      "created": "2026-07-27T18:59:36.767Z"
+    },
+    {
+      "id": "dbc980ea-7501-48b5-a82f-f88661513f72",
+      "name": "INYANDA HIGH SCHOOL",
+      "created": "2026-07-27T18:59:36.409Z"
+    },
+    {
+      "id": "9e5bd6f8-b773-49eb-a385-bf5bf84572f6",
+      "name": "INDUNA HIGH SCHOOL",
+      "created": "2026-07-27T18:59:36.032Z"
+    },
+    {
+      "id": "016b1efb-24c9-4c86-a3df-47c6489bbbcb",
+      "name": "BULAWAYO ADVENTIST HIGH SCHOOL",
+      "created": "2026-07-27T18:59:35.647Z"
+    },
+    {
+      "id": "7f4a8662-eb83-40d6-ad5a-65976257f977",
+      "name": "AMHLOPHE HIGH SCHOOL",
+      "created": "2026-07-27T18:59:34.686Z"
+    },
+    {
+      "id": "9648aa94-7645-4c0d-8394-fde8cdb9c276",
+      "name": "Whaddon Chase Secondary",
+      "created": "2026-07-24T09:59:49.987Z"
+    },
+    {
+      "id": "b5152f84-1cec-4241-ad18-73f59598ce02",
+      "name": "Wayerera High",
+      "created": "2026-07-24T09:59:49.579Z"
+    },
+    {
+      "id": "a6c62c50-8867-4b79-854d-819da8e3f272",
+      "name": "Wadzanai High",
+      "created": "2026-07-24T09:59:49.093Z"
+    },
+    {
+      "id": "66b1a4c1-b5a6-4695-b12d-d9175e92ecd5",
+      "name": "Tabex Secondary",
+      "created": "2026-07-24T09:59:48.714Z"
+    },
+    {
+      "id": "1c48ed55-bd1a-4c15-a26f-b361a1d5a584",
+      "name": "Soma Secondary",
+      "created": "2026-07-24T09:59:48.331Z"
+    },
+    {
+      "id": "30f748f7-c1a7-41b2-8c59-50405cdc9f0b",
+      "name": "Nyanhunzi Seconadry",
+      "created": "2026-07-24T09:59:47.984Z"
+    },
+    {
+      "id": "c14816b0-ecdc-43f9-8179-dcebd0a08668",
+      "name": "Nyandoro Secondary",
+      "created": "2026-07-24T09:59:47.610Z"
+    },
+    {
+      "id": "ef6cf7f4-1104-4015-b518-f173203cc00e",
+      "name": "Nyamuseve Secodary",
+      "created": "2026-07-24T09:59:47.155Z"
+    },
+    {
+      "id": "db95d483-8a95-4d34-b682-1f340f69f525",
+      "name": "Mvurwi High",
+      "created": "2026-07-24T09:59:46.792Z"
+    },
+    {
+      "id": "7c9c8bc4-c31f-47b8-b1de-8e64b380bdbc",
+      "name": "Mutondwe School",
+      "created": "2026-07-24T09:59:46.432Z"
+    },
+    {
+      "id": "371f9a51-f787-4980-aa26-642a81133c6e",
+      "name": "Mupfurudzi Secondary",
+      "created": "2026-07-24T09:59:45.986Z"
+    },
+    {
+      "id": "2252240a-0a29-4e37-bb5d-98cc1a674488",
+      "name": "Mhokore Secondary",
+      "created": "2026-07-24T09:59:45.627Z"
+    },
+    {
+      "id": "52f3bfb3-6045-4431-b2e7-2d587c1e12b0",
+      "name": "Mbari Secondary",
+      "created": "2026-07-24T09:59:45.181Z"
+    },
+    {
+      "id": "f9c3ba44-b4fe-468c-a69b-b2f9123a3b4a",
+      "name": "Marongwe Secondary",
+      "created": "2026-07-24T09:59:44.825Z"
+    },
+    {
+      "id": "35ac921d-cf11-4fca-9a79-4c9e3ff717ee",
+      "name": "Mahuwe High",
+      "created": "2026-07-24T09:59:44.278Z"
+    },
+    {
+      "id": "17d9e068-f11e-4a47-a9e8-eb34ab117dd1",
+      "name": "Machanga High",
+      "created": "2026-07-24T09:59:43.770Z"
+    },
+    {
+      "id": "1130c9fd-7c54-459d-8e41-0b1f266cba81",
+      "name": "Machadondwa Secondary",
+      "created": "2026-07-24T09:59:43.379Z"
+    },
+    {
+      "id": "27f94883-b0aa-4882-857e-2d828f01a900",
+      "name": "Kundayi High",
+      "created": "2026-07-24T09:59:43.053Z"
+    },
+    {
+      "id": "fe9a1498-7b70-43d6-bc3c-3ca918bd4945",
+      "name": "Kugotsi Secondary",
+      "created": "2026-07-24T09:59:42.637Z"
+    },
+    {
+      "id": "b85e98aa-5f38-4dd5-b624-e9170e7bb4f5",
+      "name": "Kadzi Secondary",
+      "created": "2026-07-24T09:59:42.222Z"
+    },
+    {
+      "id": "d82a0003-35ea-40b8-98cf-6becd32d956e",
+      "name": "Gwangwava High",
+      "created": "2026-07-24T09:59:41.784Z"
+    },
+    {
+      "id": "be762827-c7b3-4f8f-a2c2-0de63a9b1001",
+      "name": "Gee Jay Secondary",
+      "created": "2026-07-24T09:59:41.292Z"
+    },
+    {
+      "id": "2ae7b8aa-4451-47c7-9908-d900663f69cd",
+      "name": "Chirisori Secondary",
+      "created": "2026-07-24T09:59:40.741Z"
+    },
+    {
+      "id": "2d0d533f-57e2-4c5b-9ea2-c63eb10dc8e3",
+      "name": "Chimurenga 3 Secondary",
+      "created": "2026-07-24T09:59:40.301Z"
+    },
+    {
+      "id": "01293c38-1a56-48cf-8123-52c65a4ae5f6",
+      "name": "Chihuri",
+      "created": "2026-07-24T09:59:39.941Z"
+    },
+    {
+      "id": "ccf0f37a-575e-4a1e-a910-ce35e50e7243",
+      "name": "Chidikamwadzi Secondary",
+      "created": "2026-07-24T09:59:39.601Z"
+    },
+    {
+      "id": "616d0b79-1f6f-4094-81f6-47ab9a076164",
+      "name": "Chawanda High",
+      "created": "2026-07-24T09:59:39.279Z"
+    },
+    {
+      "id": "0daf1419-bc53-453a-ad02-3f4830172e13",
+      "name": "Chamutukutu Secondary",
+      "created": "2026-07-24T09:59:38.845Z"
+    },
+    {
+      "id": "a9781abb-9672-4e37-ae16-fb2f49ba6a02",
+      "name": "Caesar Mine Secondary",
+      "created": "2026-07-24T09:59:38.473Z"
+    },
+    {
+      "id": "85c0c812-2649-437d-bf87-a514e2e8638c",
+      "name": "Bungwe Srcondary",
+      "created": "2026-07-24T09:59:38.153Z"
+    },
+    {
+      "id": "5007135a-ce03-4667-9879-8aeecf5fda72",
+      "name": "Amevu Secondary",
+      "created": "2026-07-24T09:59:37.823Z"
+    },
+    {
+      "id": "aaa5e13c-aa98-42a0-a7bd-531ada16dc10",
+      "name": "Chipfuko Secondary",
+      "created": "2026-07-24T09:59:37.395Z"
+    },
+    {
+      "id": "3004aa20-cb3a-4e0c-a95c-83ce3405f8b4",
+      "name": "Kazangarare High",
+      "created": "2026-07-24T09:59:36.977Z"
+    },
+    {
+      "id": "76a39f7a-937b-48ab-bf63-487980051990",
+      "name": "Masiyarwa High",
+      "created": "2026-07-24T09:59:36.556Z"
+    },
+    {
+      "id": "f57a03cd-44ed-4a49-8776-ce2ec7b16e35",
+      "name": "Chifundi secindary",
+      "created": "2026-07-24T09:59:36.133Z"
+    },
+    {
+      "id": "0d6a5a18-8073-4bd8-ab84-e760d731f107",
+      "name": "Nyatsanga Secondary",
+      "created": "2026-07-24T09:59:35.780Z"
+    },
+    {
+      "id": "641791e0-ab38-4e87-b6a6-46a43da0b270",
+      "name": "David Guzuzu high",
+      "created": "2026-07-24T09:59:35.444Z"
+    },
+    {
+      "id": "05f957b3-3d3a-4c5c-9a83-0714ea83ab9f",
+      "name": "Inyati Secondary",
+      "created": "2026-07-24T09:59:34.993Z"
+    },
+    {
+      "id": "8183f4c1-1059-43be-b2ac-3f87fe7fed3a",
+      "name": "Magogi Secondary",
+      "created": "2026-07-24T09:59:34.600Z"
+    },
+    {
+      "id": "4792e976-833e-4b0f-8fb4-076554bc7abf",
+      "name": "Junction Adventist",
+      "created": "2026-07-24T09:59:34.258Z"
+    },
+    {
+      "id": "7c40ffb6-3c0b-4a95-9256-eeefd255721c",
+      "name": "Sanyati Government High",
+      "created": "2026-07-24T09:59:33.888Z"
+    },
+    {
+      "id": "d5dcd6ee-37ed-49a5-b555-4f39f80b212e",
+      "name": "Tawstock Secondary",
+      "created": "2026-07-24T09:59:33.515Z"
+    },
+    {
+      "id": "825d8688-4313-4b75-8621-dfb370afa890",
+      "name": "Denderedzi Secondary",
+      "created": "2026-07-24T09:59:33.193Z"
+    },
+    {
+      "id": "7d4b9a19-c71d-45f9-bcb9-2b5833a1447b",
+      "name": "Ngezi Barracks High",
+      "created": "2026-07-24T09:59:32.780Z"
+    },
+    {
+      "id": "5d523f4b-9517-4fa9-bbe4-378e0e979c0b",
+      "name": "Mucheki Secondary",
+      "created": "2026-07-24T09:59:32.457Z"
+    },
+    {
+      "id": "00fd7e13-3dc0-4fa6-aa6a-c8d98e124745",
+      "name": "Trelawney Secondary",
+      "created": "2026-07-24T09:59:31.983Z"
+    },
+    {
+      "id": "7424735c-82aa-4142-b682-674fb55bfe90",
+      "name": "Zowa High",
+      "created": "2026-07-24T09:59:31.577Z"
+    },
+    {
+      "id": "520f916c-0763-4679-89af-3cf3d51adb97",
+      "name": "Maysma Secondary",
+      "created": "2026-07-24T09:59:31.244Z"
+    },
+    {
+      "id": "eff1fa2b-ded1-44f8-87b1-014abddf3ae4",
+      "name": "Mopani Park Secondary",
+      "created": "2026-07-24T09:59:30.871Z"
+    },
+    {
+      "id": "e664c876-4c6f-4b0e-ab75-2c22b02cff15",
+      "name": "Nyamatani Secondary",
+      "created": "2026-07-24T09:59:30.466Z"
+    },
+    {
+      "id": "09a63f51-0782-4555-8ec6-0b39ae626b45",
+      "name": "Vimbai High",
+      "created": "2026-07-24T09:59:30.057Z"
+    },
+    {
+      "id": "b2128b36-a639-407d-a53c-7ea3942d4d69",
+      "name": "Machaga High",
+      "created": "2026-07-24T09:59:29.735Z"
+    },
+    {
+      "id": "42a3befe-f04a-4b03-9c9d-303f67b7fae0",
+      "name": "Masau High",
+      "created": "2026-07-24T09:59:29.430Z"
+    },
+    {
+      "id": "7dd02dbc-54e6-4959-8bfb-a84acf7a3aa0",
+      "name": "Ponderosa Secondary",
+      "created": "2026-07-24T09:59:29.053Z"
+    },
+    {
+      "id": "d47c378f-f1c1-47ce-b3c7-05ed98251779",
+      "name": "Nyavika Secondary",
+      "created": "2026-07-24T09:59:28.631Z"
+    },
+    {
+      "id": "a240a1ef-324e-4343-a55e-738f6cc08814",
+      "name": "Chinove Secondary",
+      "created": "2026-07-24T09:59:28.200Z"
+    },
+    {
+      "id": "157c9fd1-9d3e-44eb-9d43-28e7d8d3d66d",
+      "name": "Dalny High",
+      "created": "2026-07-24T09:59:27.857Z"
+    },
+    {
+      "id": "fbbfffc7-8a74-400e-9e75-4102cab0a1cb",
+      "name": "Rimuka 2 High",
+      "created": "2026-07-24T09:59:27.498Z"
+    },
+    {
+      "id": "aabba881-8b2f-41f3-9498-98704d8d7589",
+      "name": "Mutsonzowa Secondary",
+      "created": "2026-07-24T09:59:27.165Z"
+    },
+    {
+      "id": "63a48088-24c8-4993-bd78-6d1abbc31aa4",
+      "name": "Royden Secondary",
+      "created": "2026-07-24T09:59:26.765Z"
+    },
+    {
+      "id": "d9bbf60a-04b6-4c97-a7a7-6c41410657a9",
+      "name": "Lynx Secondary",
+      "created": "2026-07-24T09:59:26.439Z"
+    },
+    {
+      "id": "5b3df9c8-623f-46e8-8bb5-869fd6073254",
+      "name": "Marere Secondary",
+      "created": "2026-07-24T09:59:26.081Z"
+    },
+    {
+      "id": "b01945f2-d3f7-41f7-8b02-8f503fedd5d0",
+      "name": "Zebra Downs Secondary",
+      "created": "2026-07-24T09:59:25.747Z"
+    },
+    {
+      "id": "9077b187-c9f4-440d-9c46-6fecd4e2b5b2",
+      "name": "Urume Secondary",
+      "created": "2026-07-24T09:59:25.409Z"
+    },
+    {
+      "id": "897d5d69-f51e-4fea-946f-db9bd80e0e38",
+      "name": "Mungari Secondary",
+      "created": "2026-07-24T09:59:24.995Z"
+    },
+    {
+      "id": "310fccf1-f98c-4df0-b237-0a7c92a1cf82",
+      "name": "Mauya High",
+      "created": "2026-07-24T09:59:24.590Z"
+    },
+    {
+      "id": "dfe7bca1-5acd-4789-a89a-1c4c0bf4ffbe",
+      "name": "Chiedza Karoi High",
+      "created": "2026-07-24T09:59:24.185Z"
+    },
+    {
+      "id": "b2f9c826-7e8f-43f0-b9c6-41ded51d3cdb",
+      "name": "Kardi High",
+      "created": "2026-07-24T09:59:23.792Z"
+    },
+    {
+      "id": "daad9024-5fd2-416d-afa2-8dd9ebf3f666",
+      "name": "Kudzanai Secondary",
+      "created": "2026-07-24T09:59:23.449Z"
+    },
+    {
+      "id": "94a5582f-4650-47fe-b3a0-5ecec8999cf9",
+      "name": "St Charles Secondary",
+      "created": "2026-07-24T09:59:22.993Z"
+    },
+    {
+      "id": "a7ab0a46-9543-4d75-898c-ad46a9d4a30a",
+      "name": "Karigamombe Secondary",
+      "created": "2026-07-24T09:59:22.567Z"
+    },
+    {
+      "id": "0212e722-dd67-4f2c-bd35-f775efaf72a6",
+      "name": "St Vincent Secondary",
+      "created": "2026-07-24T09:59:22.210Z"
+    },
+    {
+      "id": "9ec6a01c-af9c-43e7-93bf-30b21247d1df",
+      "name": "St Peter Makwarimba Secondary",
+      "created": "2026-07-24T09:59:21.691Z"
+    },
+    {
+      "id": "b49e1494-1902-4c5f-ae2b-d064c0da020d",
+      "name": "St Pauls Sango Secondary",
+      "created": "2026-07-24T09:59:21.273Z"
+    },
+    {
+      "id": "fe53e425-b7e9-445a-a65d-e41ac1dc320e",
+      "name": "St Marys Makanda Sec",
+      "created": "2026-07-24T09:59:20.778Z"
+    },
+    {
+      "id": "6b58a954-32c9-4be1-9906-738f8de91e93",
+      "name": "St Hughs Ushewekunzi Sec",
+      "created": "2026-07-24T09:59:20.349Z"
+    },
+    {
+      "id": "cb296942-d90b-4197-95f7-a81cd268fcf9",
+      "name": "Shamu Secondary",
+      "created": "2026-07-24T09:59:20.020Z"
+    },
+    {
+      "id": "b8a8615f-d1fd-467c-9fd3-f89d86eb8311",
+      "name": "SEKE DISTRICT",
+      "created": "2026-07-24T09:59:19.566Z"
+    },
+    {
+      "id": "7081c4a2-b440-4f7c-b407-85b04a1da636",
+      "name": "Sadza Secondary",
+      "created": "2026-07-24T09:59:19.166Z"
+    },
+    {
+      "id": "f065e634-6ca2-42e2-a582-37358e830a8b",
+      "name": "Rwamba Secondary",
+      "created": "2026-07-24T09:59:18.749Z"
+    },
+    {
+      "id": "453c5e5e-5888-4ecd-82c8-2dda08a8384e",
+      "name": "Runyararo Seconary",
+      "created": "2026-07-24T09:59:18.358Z"
+    },
+    {
+      "id": "bada1b3c-57c3-4fde-baaf-1447478d4c76",
+      "name": "Parirewa High",
+      "created": "2026-07-24T09:59:18.015Z"
+    },
+    {
+      "id": "80d78861-1976-4fff-95a4-5c7c9ebe66c8",
+      "name": "Nyanitepo",
+      "created": "2026-07-24T09:59:17.609Z"
+    },
+    {
+      "id": "6c0a44a8-2316-4cf7-96f9-209496e8deb1",
+      "name": "Nyamukoho Secondary",
+      "created": "2026-07-24T09:59:17.246Z"
+    },
+    {
+      "id": "7ad1ed07-1b0a-4e8e-a954-8c05faa45930",
+      "name": "Nyamashato Secondary",
+      "created": "2026-07-24T09:59:16.851Z"
+    },
+    {
+      "id": "83232820-0352-42ab-8aa0-b9195ea5b4ca",
+      "name": "Nyamapanda Seconary",
+      "created": "2026-07-24T09:59:16.474Z"
+    },
+    {
+      "id": "e7efafb9-2e60-4e86-807f-eac3c0dc229f",
+      "name": "Nyahuni Adventist High",
+      "created": "2026-07-24T09:59:15.972Z"
+    },
+    {
+      "id": "f3b941eb-a846-4b62-bd76-fadd44a47503",
+      "name": "Naglehouse",
+      "created": "2026-07-24T09:59:15.638Z"
+    },
+    {
+      "id": "ec2a6e25-4af8-408a-af2d-c6d9b9a22973",
+      "name": "Muvande Secondary",
+      "created": "2026-07-24T09:59:15.199Z"
+    },
+    {
+      "id": "08a88154-8a66-45e0-90e6-0b7433bcc11c",
+      "name": "Mutanhaurwa",
+      "created": "2026-07-24T09:59:14.836Z"
+    },
+    {
+      "id": "8aa9a25d-1da7-4358-96da-8baf50f834a5",
+      "name": "Musanhi High",
+      "created": "2026-07-24T09:59:14.483Z"
+    },
+    {
+      "id": "35c56581-1639-4816-a6b2-7bf3267c09b9",
+      "name": "Musanhi High",
+      "created": "2026-07-24T09:59:14.078Z"
+    },
+    {
+      "id": "9a52dad6-5cb3-4a1e-832c-56f77d90c2e7",
+      "name": "MUREHWA DISTRICT",
+      "created": "2026-07-24T09:59:13.681Z"
+    },
+    {
+      "id": "056c7a4a-b317-4635-beb0-4b004676b1b2",
+      "name": "Morris Secondary",
+      "created": "2026-07-24T09:59:13.207Z"
+    },
+    {
+      "id": "67aa5796-63da-4d7f-838b-1847fcd5fa54",
+      "name": "Mhari High",
+      "created": "2026-07-24T09:59:12.800Z"
+    },
+    {
+      "id": "7a97bfab-e5b8-4361-9583-6c06f6cca5a2",
+      "name": "Masasa Secodary",
+      "created": "2026-07-24T09:59:12.348Z"
+    },
+    {
+      "id": "4fa87dbc-9bac-4765-8d48-39e03d3afdc4",
+      "name": "Marikopo Secondary",
+      "created": "2026-07-24T09:59:11.961Z"
+    },
+    {
+      "id": "080b70fb-09cc-4c33-9a09-664522be36b0",
+      "name": "Mapombo High",
+      "created": "2026-07-24T09:59:11.587Z"
+    },
+    {
+      "id": "4f42abdb-65db-4504-8fbe-96fd1bdb9bd7",
+      "name": "Manyene Secondary",
+      "created": "2026-07-24T09:59:11.138Z"
+    },
+    {
+      "id": "1fb66ff2-f96d-428f-91eb-cd5c43ba31ee",
+      "name": "Mahusvu Secondary",
+      "created": "2026-07-24T09:59:10.782Z"
+    },
+    {
+      "id": "cdb35764-fb26-4e97-8a0c-0c34a21c09c9",
+      "name": "Madzivira Range High",
+      "created": "2026-07-24T09:59:10.468Z"
+    },
+    {
+      "id": "990a433e-988e-483b-980e-e5fd1e256b28",
+      "name": "Liebenberg High",
+      "created": "2026-07-24T09:59:10.084Z"
+    },
+    {
+      "id": "59f43595-3c86-4ad9-a11d-892443b45103",
+      "name": "Kotwa High",
+      "created": "2026-07-24T09:59:09.762Z"
+    },
+    {
+      "id": "91142ac4-2f4e-469e-b63d-9eb72e6e8b51",
+      "name": "Katsande Secondary",
+      "created": "2026-07-24T09:59:09.309Z"
+    },
+    {
+      "id": "403735c9-425c-41af-86d4-d31fdac6e230",
+      "name": "Holy Spirit Ruzane Secondary",
+      "created": "2026-07-24T09:59:08.968Z"
+    },
+    {
+      "id": "46e0be48-b6a5-424f-81d1-13d325e7492a",
+      "name": "Hanwa Secondary",
+      "created": "2026-07-24T09:59:08.596Z"
+    },
+    {
+      "id": "c31cbbf3-535a-4581-b6a0-c0ed4344e8f5",
+      "name": "Guyu Secondary",
+      "created": "2026-07-24T09:59:08.232Z"
+    },
+    {
+      "id": "b8d2d134-0b6b-498b-a1cf-1b2866d8c8fd",
+      "name": "Guruuswa Secondary",
+      "created": "2026-07-24T09:59:07.855Z"
+    },
+    {
+      "id": "e7fb28e1-9b73-4605-9d4d-080e812a73b8",
+      "name": "Gozi Secondary",
+      "created": "2026-07-24T09:59:07.486Z"
+    },
+    {
+      "id": "68b9248a-9fc5-4c10-b425-9e0b18684b0c",
+      "name": "Govere Secondary",
+      "created": "2026-07-24T09:59:07.156Z"
+    },
+    {
+      "id": "21c7b0fe-7bac-43d5-9696-455405ba65e5",
+      "name": "Goromonzi Secondary",
+      "created": "2026-07-24T09:59:06.683Z"
+    },
+    {
+      "id": "e4e2466a-331c-40fb-9e22-06073ad70cf8",
+      "name": "Glenforest Dev Centre",
+      "created": "2026-07-24T09:59:06.293Z"
+    },
+    {
+      "id": "51d1129f-d0d8-4851-b333-fab639793b35",
+      "name": "Eagle Secondary",
+      "created": "2026-07-24T09:59:05.942Z"
+    },
+    {
+      "id": "98065597-ed34-4dbe-85b8-09ded0fcb3ea",
+      "name": "Domboramavara",
+      "created": "2026-07-24T09:59:05.359Z"
+    },
+    {
+      "id": "b6d079e3-766e-418f-81cb-dce3466520b8",
+      "name": "Dombodzvuku Secondary",
+      "created": "2026-07-24T09:59:04.904Z"
+    },
+    {
+      "id": "6728c215-00f4-4ace-9f4b-5ad98dbd5126",
+      "name": "Classic Academy",
+      "created": "2026-07-24T09:59:04.445Z"
+    },
+    {
+      "id": "c747a22a-2a30-4edb-a0d4-742b44f0a59a",
+      "name": "Chiwwashira Secondary",
+      "created": "2026-07-24T09:59:04.080Z"
+    },
+    {
+      "id": "0f0e6659-c6a2-4a8f-8bb4-32155d8d28f8",
+      "name": "Chivenga Secondary",
+      "created": "2026-07-24T09:59:03.490Z"
+    },
+    {
+      "id": "5a3932f4-ae48-439f-9329-1a71ff0216f7",
+      "name": "Chitepo Secondary",
+      "created": "2026-07-24T09:59:02.990Z"
+    },
+    {
+      "id": "3239b69a-67a9-451c-a95d-8e807532d6a3",
+      "name": "chisangano High",
+      "created": "2026-07-24T09:59:02.484Z"
+    },
+    {
+      "id": "437aff2c-1bc1-4c66-af55-b861814e5735",
+      "name": "Chisambiro Secondary",
+      "created": "2026-07-24T09:59:01.836Z"
+    },
+    {
+      "id": "a4c4a2b3-eaaf-4d9e-ad55-1363273fbff9",
+      "name": "Chipfunde Secondary",
+      "created": "2026-07-24T09:59:01.387Z"
+    },
+    {
+      "id": "3d80ff42-5273-4a30-bc70-ee4b6932ce0a",
+      "name": "Chimukoko Secondary",
+      "created": "2026-07-24T09:59:00.999Z"
+    },
+    {
+      "id": "61630d09-6465-4be3-9401-6fba3af71384",
+      "name": "Chikwizo Secondary",
+      "created": "2026-07-24T09:59:00.561Z"
+    },
+    {
+      "id": "856485d6-04c9-4179-b961-b5a37d517dc5",
+      "name": "Chikwidibire Secondary",
+      "created": "2026-07-24T09:59:00.243Z"
+    },
+    {
+      "id": "91eea586-a23a-4196-8baf-9818a6dbbcff",
+      "name": "Chatiza High",
+      "created": "2026-07-24T09:58:59.845Z"
+    },
+    {
+      "id": "63cded90-833b-41b5-a97d-ecdbea2fc2c3",
+      "name": "Chabwino High",
+      "created": "2026-07-24T09:58:59.512Z"
+    },
+    {
+      "id": "f2cdb0bb-2b5e-45b8-847f-f6e046418d31",
+      "name": "Bosha Secondary",
+      "created": "2026-07-24T09:58:59.067Z"
+    },
+    {
+      "id": "8d03cddf-6a01-4871-a932-f62a299d40af",
+      "name": "Beatrice High",
+      "created": "2026-07-24T09:58:58.049Z"
+    },
+    {
+      "id": "56f33338-a876-478d-aa24-0fd6d3606a83",
+      "name": "Anderson Secondary",
+      "created": "2026-07-24T09:58:57.585Z"
+    },
+    {
+      "id": "00b7b492-b77e-49fc-9ab5-18205fe70287",
+      "name": "Nyamajura Secondary",
+      "created": "2026-07-24T09:58:57.247Z"
+    },
+    {
+      "id": "1c8799b9-ee60-498b-9921-906f65a573af",
+      "name": "Elisegledhill High",
+      "created": "2026-07-24T09:58:56.953Z"
+    },
+    {
+      "id": "c3fe7009-e523-4efb-8079-469bfe4d890d",
+      "name": "Buhera High School",
+      "created": "2026-07-24T09:58:56.583Z"
+    },
+    {
+      "id": "646046f2-a0d0-43e5-9458-b51f2d78455e",
+      "name": "Bemutiwa Secondary",
+      "created": "2026-07-24T09:58:56.251Z"
+    },
+    {
+      "id": "94fd49df-7e00-477b-85af-c440cd6a7142",
+      "name": "Karakwi High",
+      "created": "2026-07-24T09:58:55.912Z"
+    },
+    {
+      "id": "52fc5306-6a3f-468a-a93a-631c69dacb88",
+      "name": "Gideon Mihlanga High",
+      "created": "2026-07-24T09:58:55.524Z"
+    },
+    {
+      "id": "ad4c31b5-2679-4cbe-8568-1d34c167c73d",
+      "name": "Mazarura High School",
+      "created": "2026-07-24T09:58:55.202Z"
+    },
+    {
+      "id": "15604f4c-c77a-46cd-b0d3-c84127343923",
+      "name": "Chikanya high",
+      "created": "2026-07-24T09:58:54.811Z"
+    },
+    {
+      "id": "37dd369b-0118-4034-951f-20eee3f77c66",
+      "name": "Gunura Secondary",
+      "created": "2026-07-24T09:58:54.369Z"
+    },
+    {
+      "id": "54ced7a8-86b6-4952-a8b7-548d59c9cad3",
+      "name": "Gunura Secondary",
+      "created": "2026-07-24T09:58:53.997Z"
+    },
+    {
+      "id": "2e2fdbca-4697-4313-b421-9666e552f51e",
+      "name": "mwazheta high school",
+      "created": "2026-07-24T09:58:53.681Z"
+    },
+    {
+      "id": "558ff7e8-f748-4827-b7bc-7e4287b3cf3f",
+      "name": "Chinyauhwera High School",
+      "created": "2026-07-24T09:58:53.341Z"
+    },
+    {
+      "id": "70e0df5f-b752-4070-a9d9-b949469b5058",
+      "name": "Chirinda High",
+      "created": "2026-07-24T09:58:52.978Z"
+    },
+    {
+      "id": "d0bc5d7c-05a7-4253-baf9-9965b39f4e85",
+      "name": "Gwebu High",
+      "created": "2026-07-24T09:58:52.557Z"
+    },
+    {
+      "id": "4a381160-4c5b-4591-9631-01836d4ce11f",
+      "name": "chikwakwa secondary",
+      "created": "2026-07-24T09:58:52.139Z"
+    },
+    {
+      "id": "e9db366e-7679-4533-93d8-3c3cab771818",
+      "name": "Tsindi Secondary",
+      "created": "2026-07-24T09:58:51.823Z"
+    },
+    {
+      "id": "1bd2dce0-5d59-4f97-bd06-92d17987be76",
+      "name": "Nechikowa Secondary",
+      "created": "2026-07-24T09:58:51.469Z"
+    },
+    {
+      "id": "b781f773-fa48-4706-8612-449e27937da5",
+      "name": "Chapandura Secondary",
+      "created": "2026-07-24T09:58:51.179Z"
+    },
+    {
+      "id": "927deb77-40cf-4c91-a6c9-a87d42d57c18",
+      "name": "Kanyimo Secondaey",
+      "created": "2026-07-24T09:58:50.879Z"
+    },
+    {
+      "id": "56b46810-a87f-4e05-8cb0-577cbeccb282",
+      "name": "Shekija secondary",
+      "created": "2026-07-24T09:58:50.557Z"
+    },
+    {
+      "id": "ea5edb3f-9569-48a8-b567-d905325a4a2c",
+      "name": "Mweyamunene High",
+      "created": "2026-07-24T09:58:50.188Z"
+    },
+    {
+      "id": "d7712a85-e3dd-420f-9ed5-1472203a1817",
+      "name": "Rongwe High School",
+      "created": "2026-07-24T09:58:49.843Z"
+    },
+    {
+      "id": "8f7f3dd7-1a4a-4d61-89d0-fd25b954aca1",
+      "name": "Gwidza Secondary",
+      "created": "2026-07-24T09:58:49.464Z"
+    },
+    {
+      "id": "12b8da26-8155-4008-8c63-99dcb25c5ac9",
+      "name": "Meadowlands",
+      "created": "2026-07-24T09:58:49.051Z"
+    },
+    {
+      "id": "38c603b9-a169-47bb-8c0a-9248821d4154",
+      "name": "Mutepfe Secondary",
+      "created": "2026-07-24T09:58:48.730Z"
+    },
+    {
+      "id": "e14ee946-f997-4deb-aaf0-b129dc3fc326",
+      "name": "Bumhira Sec",
+      "created": "2026-07-24T09:58:48.361Z"
+    },
+    {
+      "id": "38a843b2-987c-4717-8d2f-2f081a15922e",
+      "name": "zvembira Secondary",
+      "created": "2026-07-24T09:58:47.988Z"
+    },
+    {
+      "id": "db71f711-c148-4a97-92fa-c42ff441f02c",
+      "name": "Kandenga Secondary",
+      "created": "2026-07-24T09:58:47.454Z"
+    },
+    {
+      "id": "18854d9d-8bec-496c-9d29-617b52f4cd4c",
+      "name": "Sherenje Secondary School",
+      "created": "2026-07-24T09:58:47.044Z"
+    },
+    {
+      "id": "2b87508f-6009-44ee-94aa-d8d27a775aae",
+      "name": "Bemitiwa Secondary School",
+      "created": "2026-07-24T09:58:46.738Z"
+    },
+    {
+      "id": "165c3231-3b3c-48d9-bd02-f5d25a2ca029",
+      "name": "STAugustine",
+      "created": "2026-07-24T09:58:46.383Z"
+    },
+    {
+      "id": "15a234f5-474a-46ce-a775-2df67c605a3f",
+      "name": "Nyarwidzi Secondary",
+      "created": "2026-07-24T09:58:46.056Z"
+    },
+    {
+      "id": "da349d86-daab-4679-83ec-fd97c5fcdc59",
+      "name": "Tsikada Secondary",
+      "created": "2026-07-24T09:58:45.736Z"
+    },
+    {
+      "id": "0182ac41-154d-45ce-aab0-d24524276b55",
+      "name": "Mudza,iri Secondary",
+      "created": "2026-07-24T09:58:45.424Z"
+    },
+    {
+      "id": "350a5628-8b12-45b8-bbc9-c8262a46b263",
+      "name": "Gosho Secondary",
+      "created": "2026-07-24T09:58:45.124Z"
+    },
+    {
+      "id": "f9d89004-4fa2-41c9-bf14-5d092d5bef29",
+      "name": "Zambara Secondary",
+      "created": "2026-07-24T09:58:44.821Z"
+    },
+    {
+      "id": "26c2ceb7-5e36-465e-9c4e-c07a2ba2f12e",
+      "name": "Nyashanu High",
+      "created": "2026-07-24T09:58:44.509Z"
+    },
+    {
+      "id": "0c3d24bd-fc17-4932-bceb-0595be63ebab",
+      "name": "Marange High School",
+      "created": "2026-07-24T09:58:44.157Z"
+    },
+    {
+      "id": "f9455e8a-88b8-42aa-92e5-61504dd6379a",
+      "name": "Mutsvangwa Secondary",
+      "created": "2026-07-24T09:58:43.847Z"
+    },
+    {
+      "id": "9fa8b53d-c74c-41de-8dc7-ee0923e475b1",
+      "name": "Chikwariro High School",
+      "created": "2026-07-24T09:58:43.550Z"
+    },
+    {
+      "id": "28011523-4b99-4b65-87fb-1be1117bfa13",
+      "name": "Gwirundindi High",
+      "created": "2026-07-24T09:58:43.134Z"
+    },
+    {
+      "id": "fe0eb786-611d-43d1-93e5-8138531eb3d7",
+      "name": "Shundure High",
+      "created": "2026-07-24T09:58:42.707Z"
+    },
+    {
+      "id": "e64ee019-225a-4950-a298-c831f5c1f1e3",
+      "name": "Nuatate High schhol",
+      "created": "2026-07-24T09:58:42.295Z"
+    },
+    {
+      "id": "28ddbb59-5d25-482a-bda2-0a6a3468b4ed",
+      "name": "Nyarwizi Secondary",
+      "created": "2026-07-24T09:58:41.877Z"
+    },
+    {
+      "id": "58795413-4c51-4dbc-9d4a-41796ba05810",
+      "name": "Mhakwe High",
+      "created": "2026-07-24T09:58:41.344Z"
+    },
+    {
+      "id": "1426f422-8880-4508-844c-3e8ec86ed125",
+      "name": "Zurara Secondary",
+      "created": "2026-07-24T09:58:40.906Z"
+    },
+    {
+      "id": "2e314a37-ef37-4869-b83e-9050570da4d5",
+      "name": "Claremonnt Secondary",
+      "created": "2026-07-24T09:58:40.509Z"
+    },
+    {
+      "id": "a787cb21-6f77-40f2-85ed-97800089c95c",
+      "name": "Mt Zonwe Secondary",
+      "created": "2026-07-24T09:58:39.971Z"
+    },
+    {
+      "id": "b552467f-f441-4378-a41f-c43e3c41cea8",
+      "name": "Nyarumvurwe Secondary",
+      "created": "2026-07-24T09:58:39.633Z"
+    },
+    {
+      "id": "51f88696-4fef-4cd4-8cdb-59b1224b03a7",
+      "name": "Dope High School",
+      "created": "2026-07-24T09:58:39.232Z"
+    },
+    {
+      "id": "d094534c-8fae-498d-9414-f58d39a51c8d",
+      "name": "Gweru High",
+      "created": "2026-07-24T09:58:38.851Z"
+    },
+    {
+      "id": "d5ba340d-9378-44af-9bf0-09b6372cdc94",
+      "name": "Warren Park HIgh",
+      "created": "2026-07-24T09:58:38.559Z"
+    },
+    {
+      "id": "e9faae75-a6c3-4d1c-b16d-2f73bc6c3a3b",
+      "name": "Oriel Girls High",
+      "created": "2026-07-24T09:58:38.203Z"
+    },
+    {
+      "id": "04221074-389f-4203-8a85-36da27a580cd",
+      "name": "Mukai High",
+      "created": "2026-07-24T09:58:37.795Z"
+    },
+    {
+      "id": "62cfa177-4c7f-4211-aa30-36951b540790",
+      "name": "Muguta Secondary",
+      "created": "2026-07-24T09:58:37.391Z"
+    },
+    {
+      "id": "a698e9aa-bf03-43a7-bd6a-9c6aa57fdacc",
+      "name": "Hatcliff High",
+      "created": "2026-07-24T09:58:36.772Z"
+    },
+    {
+      "id": "77a42c66-8fe6-44da-8ed6-fcad05537511",
+      "name": "Emerald Hill",
+      "created": "2026-07-24T09:58:36.448Z"
+    },
+    {
+      "id": "dd10b8ee-425e-4f14-a96c-c6cb0d3080a6",
+      "name": "Domboramusari High",
+      "created": "2026-07-24T09:58:36.060Z"
+    },
+    {
+      "id": "a11144d7-eb61-4584-9779-ccadbc32cae2",
+      "name": "Allan Wilson",
+      "created": "2026-07-24T09:58:35.694Z"
+    },
+    {
+      "id": "b311bbce-5ab3-40f8-8129-6da68b515012",
+      "name": "ZORORAI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:35.379Z"
+    },
+    {
+      "id": "69a6097f-7630-451d-936f-e7dbef555998",
+      "name": "MASUNDA NORTH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:35.026Z"
+    },
+    {
+      "id": "3d58fc5d-253e-480a-9c35-f5dcfab87bf6",
+      "name": "MAGUDU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:34.699Z"
+    },
+    {
+      "id": "99977882-d7c8-429b-a4e0-821c5eb4f21d",
+      "name": "DEKEZA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:34.328Z"
+    },
+    {
+      "id": "d5eed4f0-9492-43e1-8087-87a07352b60a",
+      "name": "MAKURA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:33.951Z"
+    },
+    {
+      "id": "3a922a39-607a-45d1-94c1-4355f468bdab",
+      "name": "ZIVEZANO HIGHSCHOOL",
+      "created": "2026-07-24T09:58:33.489Z"
+    },
+    {
+      "id": "1d618b6e-a670-4822-a2ee-a232c30dd968",
+      "name": "WONDEDZO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:33.025Z"
+    },
+    {
+      "id": "8f266499-b3be-4a6f-8347-ea0654a718b3",
+      "name": "TUNGAMIRAI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:32.685Z"
+    },
+    {
+      "id": "9142d2a7-8a32-4c76-b813-340091c872cb",
+      "name": "TERERAIRE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:32.188Z"
+    },
+    {
+      "id": "fcf14ac9-b380-44f9-a4dd-ce7bdc610287",
+      "name": "ST STANISLAUS SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:31.745Z"
+    },
+    {
+      "id": "3a4b508f-e7f8-462f-9cc9-d92fdb13a744",
+      "name": "SHINDI SECONDARYVSCHOOL",
+      "created": "2026-07-24T09:58:31.391Z"
+    },
+    {
+      "id": "f4d7e5d8-b500-4ab2-b783-a0ddf4977004",
+      "name": "SAGEWARI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:31.025Z"
+    },
+    {
+      "id": "49e5144f-933b-48c7-bf81-3f740bcfe66e",
+      "name": "SABERT HIGH SCHOOL",
+      "created": "2026-07-24T09:58:30.683Z"
+    },
+    {
+      "id": "80ad9541-d911-4443-a5ca-4bade09eef6b",
+      "name": "RUPIRI MUKOSI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:30.269Z"
+    },
+    {
+      "id": "e5ea5d64-9192-4c46-9108-b6ffb8733dd1",
+      "name": "RUPARE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:29.884Z"
+    },
+    {
+      "id": "fb3c0c71-7b62-4c7c-a7c4-10a6cafacb23",
+      "name": "RUMIZHA SECONDARY SCCHOOL",
+      "created": "2026-07-24T09:58:29.480Z"
+    },
+    {
+      "id": "9ab04d1f-8c7f-4526-be8c-344b280d0b21",
+      "name": "RAMBAKUTEMWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:29.140Z"
+    },
+    {
+      "id": "dd85ffcd-b615-4bb4-8d29-3eab19c7038b",
+      "name": "PFUNGIDZO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:28.832Z"
+    },
+    {
+      "id": "cdb38d0b-6fba-4dea-b192-2127e44de0e1",
+      "name": "NYAHOMBE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:28.479Z"
+    },
+    {
+      "id": "a39b5412-0129-44b7-b16c-ffdee3471c5f",
+      "name": "NGUNDU HALT HIGH SCHOOL",
+      "created": "2026-07-24T09:58:28.131Z"
+    },
+    {
+      "id": "c96bef21-ecf6-494c-9055-d9c1f3551c5f",
+      "name": "NESHURO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:27.798Z"
+    },
+    {
+      "id": "81bf1e2a-f53d-4542-acc5-0b1bbbeb7da1",
+      "name": "NERUPIRI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:27.410Z"
+    },
+    {
+      "id": "27bd90dd-ed60-491c-82cc-0dcbf6ebb928",
+      "name": "NEMAUKU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:26.948Z"
+    },
+    {
+      "id": "01a01933-82cb-4497-96f2-a2d89e67690f",
+      "name": "MUTANGI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:26.530Z"
+    },
+    {
+      "id": "b611de9c-e006-443f-97a3-2f1f8f45a02d",
+      "name": "MUSHUNGWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:26.176Z"
+    },
+    {
+      "id": "0217b620-861c-4660-809a-132bcabc8fcf",
+      "name": "MUSHAVIRI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:25.835Z"
+    },
+    {
+      "id": "0b6919a9-dfb0-438a-830d-47960299a0c7",
+      "name": "MUSENYEREKU HIGH SCHOOL",
+      "created": "2026-07-24T09:58:25.476Z"
+    },
+    {
+      "id": "b16b7703-fca3-4297-9637-99505903dfad",
+      "name": "MURERE SEC SCHOOL",
+      "created": "2026-07-24T09:58:25.157Z"
+    },
+    {
+      "id": "57d423c1-79e8-47bf-9c6c-ec64f32b035f",
+      "name": "MURERE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:24.809Z"
+    },
+    {
+      "id": "18982300-1638-452d-aa61-dd8e0eb832f7",
+      "name": "MUCHEKE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:24.464Z"
+    },
+    {
+      "id": "fe3f9b46-3eb8-4f7b-a2ca-f66c85b1d0bd",
+      "name": "MFULA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:24.153Z"
+    },
+    {
+      "id": "09999c65-09fb-41c4-9537-2fad36415694",
+      "name": "MATARUSE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:23.817Z"
+    },
+    {
+      "id": "dca8018c-4983-4881-81a2-c72ffd21b5df",
+      "name": "MASOGWE BAPTIST HIGH SCHOOL",
+      "created": "2026-07-24T09:58:23.507Z"
+    },
+    {
+      "id": "f00c71c6-22d1-4a19-9117-5196f158d2f8",
+      "name": "MAKONI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:23.130Z"
+    },
+    {
+      "id": "afa4b510-507a-4c1e-9634-841055d32f9d",
+      "name": "MAGURA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:22.752Z"
+    },
+    {
+      "id": "fc9f01c9-3a63-44b1-8c76-d97d4c268122",
+      "name": "MADANGAMOMBE GVT HIGH SCHOOL",
+      "created": "2026-07-24T09:58:22.458Z"
+    },
+    {
+      "id": "82c6dd7b-e643-441b-8f5a-349cc3a98793",
+      "name": "MACHINGAMBI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:22.079Z"
+    },
+    {
+      "id": "6ea17b93-0a02-4a65-b5a5-5c35af8ae15c",
+      "name": "M. HUGO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:21.694Z"
+    },
+    {
+      "id": "0c573c69-257b-4857-b3a7-67e9918b5df5",
+      "name": "JUSTIN CHAUKE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:21.385Z"
+    },
+    {
+      "id": "03f2db8b-0c2c-4a34-97f9-0e0f88ef0113",
+      "name": "JICHIDZA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:21.020Z"
+    },
+    {
+      "id": "e82ed0bf-1332-4910-9a4f-f55f09d45a72",
+      "name": "JAKA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:20.553Z"
+    },
+    {
+      "id": "19c4e9f2-8dde-4f0b-8918-6edf587f3ef5",
+      "name": "HEBRON HIGH SCHOOL",
+      "created": "2026-07-24T09:58:20.121Z"
+    },
+    {
+      "id": "d975aef1-2277-4ab7-b85f-0e1fd4b7289d",
+      "name": "GUTU HIGH SCHOOL",
+      "created": "2026-07-24T09:58:19.766Z"
+    },
+    {
+      "id": "aa3e8784-0d9b-4fdf-9dbf-f4e618c6c470",
+      "name": "DZORO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:19.443Z"
+    },
+    {
+      "id": "e9f34d15-45d0-467a-849f-886f3226ea3b",
+      "name": "DOMBOSHAVA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:19.067Z"
+    },
+    {
+      "id": "eda923fd-137c-4016-991f-0fd04b32703c",
+      "name": "DOMBOREMBAWA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:18.655Z"
+    },
+    {
+      "id": "423202aa-3031-474f-b6dc-af402c40413d",
+      "name": "DENGENYA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:18.323Z"
+    },
+    {
+      "id": "553ad87c-3134-44fa-86f1-4872e067a52c",
+      "name": "DANHAMOMBE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:18.008Z"
+    },
+    {
+      "id": "29ae65a7-5948-4e42-9323-07d0b8ea00dc",
+      "name": "CHONGOGWE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:17.644Z"
+    },
+    {
+      "id": "92393924-e2a2-45a8-bea3-1b5aff371183",
+      "name": "CHIWAWA SDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:17.216Z"
+    },
+    {
+      "id": "38594ed9-dd9d-40d9-b632-db0c53006293",
+      "name": "CHIWANZA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:16.760Z"
+    },
+    {
+      "id": "191835ad-032d-4292-9e39-cd1f03d2944f",
+      "name": "CHIWANUMBA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:16.383Z"
+    },
+    {
+      "id": "95bb530c-58d2-43e1-a901-6a872a4d7a44",
+      "name": "CHITOVO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:15.972Z"
+    },
+    {
+      "id": "8e027820-3cfc-496f-97b6-4d05faf6e781",
+      "name": "CHINGELE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:15.587Z"
+    },
+    {
+      "id": "45377be2-3fbe-40b9-8476-5fb46298bb7d",
+      "name": "CHIMBWEMBWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:15.273Z"
+    },
+    {
+      "id": "791e5c22-fe82-4a00-bd79-4488100633af",
+      "name": "CHIKWIRIRE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:14.848Z"
+    },
+    {
+      "id": "74cb7c91-c49d-44e0-9c17-9d662dd0f94c",
+      "name": "CHESVINGO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:14.392Z"
+    },
+    {
+      "id": "233e6340-bf59-44d8-bc50-1c902868dc58",
+      "name": "CHENINGA HIWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:13.907Z"
+    },
+    {
+      "id": "025d20a5-a1aa-48d4-9ec8-2c621cc68c10",
+      "name": "CHEKAI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:13.539Z"
+    },
+    {
+      "id": "ab1d6c33-ed9b-4d46-9c6a-4d0a9764b976",
+      "name": "CHATWORTH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:13.233Z"
+    },
+    {
+      "id": "482bd6e8-fa09-4d1f-be79-183c205cdfa3",
+      "name": "CHATIKOBO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:12.841Z"
+    },
+    {
+      "id": "7371477f-7097-4792-ba2a-fee9d7da69d7",
+      "name": "CHARINGENO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:12.430Z"
+    },
+    {
+      "id": "3ad349d6-e9e3-4178-afc9-62631375d49b",
+      "name": "CHAMASVINGA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:11.891Z"
+    },
+    {
+      "id": "95996f96-8fc9-4214-ae58-4ef57d07f6ff",
+      "name": "BWANYA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:11.466Z"
+    },
+    {
+      "id": "0ed4580e-c797-4574-8bcb-1690cb132a33",
+      "name": "AVHUNGA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:11.046Z"
+    },
+    {
+      "id": "a7cce400-7b95-4bd9-b260-1df79d455b38",
+      "name": "ZVOMUKONDE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:10.702Z"
+    },
+    {
+      "id": "d067a31d-4305-4e61-b0b8-cc497dd0d65e",
+      "name": "ZVAVASHE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:10.343Z"
+    },
+    {
+      "id": "3204bf90-7346-4f29-9211-88219703f181",
+      "name": "ZVAMANWIRO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:09.991Z"
+    },
+    {
+      "id": "21c22e25-6750-4d3c-bb14-12ce5e498ecf",
+      "name": "ZVAMAGWIRO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:09.426Z"
+    },
+    {
+      "id": "4f828448-e173-420d-a4d7-1063d75ae77f",
+      "name": "VURONGA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:08.971Z"
+    },
+    {
+      "id": "d8e282b5-d751-4ef3-b92a-2240637fb759",
+      "name": "VURASHA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:08.545Z"
+    },
+    {
+      "id": "714c66a8-67c3-48db-a6c8-df6cfcecb188",
+      "name": "VURASHA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:08.143Z"
+    },
+    {
+      "id": "032dc740-920f-4cc5-9bfc-4b98721306cc",
+      "name": "VUNGU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:07.829Z"
+    },
+    {
+      "id": "55e7e416-7d03-4cc9-862a-499f6ee4be19",
+      "name": "VUBWE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:07.467Z"
+    },
+    {
+      "id": "a21e6f01-5984-4b9d-9cdb-8de750eb164d",
+      "name": "THORNHILL HIGH SCHOOL",
+      "created": "2026-07-24T09:58:07.060Z"
+    },
+    {
+      "id": "c08032d7-3b79-459f-9f27-3efb148b09ee",
+      "name": "SVIBE HIGH SCHOOL",
+      "created": "2026-07-24T09:58:06.625Z"
+    },
+    {
+      "id": "59da1668-1f49-4159-8118-9806005e6038",
+      "name": "SIKOMBINGO ADVENTIST HIGGH SCHOOL",
+      "created": "2026-07-24T09:58:06.200Z"
+    },
+    {
+      "id": "55858cf4-fd0d-41e5-85f5-fae78d019b71",
+      "name": "SIBOMVU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:05.491Z"
+    },
+    {
+      "id": "08e54721-e231-42e4-b307-be33b492b2c7",
+      "name": "SAWIRANGWANDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:05.118Z"
+    },
+    {
+      "id": "0c5ca078-4580-4458-b205-687e0ab78edb",
+      "name": "RUZENGWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:04.669Z"
+    },
+    {
+      "id": "24d0433e-1e19-4054-83df-d6d51587cb6b",
+      "name": "NTABAMHLOPHE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:04.192Z"
+    },
+    {
+      "id": "27adeeba-a9ad-4d1c-878e-bb3b2ab819d8",
+      "name": "NORAH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:03.761Z"
+    },
+    {
+      "id": "e502f797-bec5-4835-98c0-a86e9b958f1f",
+      "name": "NDLAMATULU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:03.243Z"
+    },
+    {
+      "id": "d7913f36-9012-4b0f-ac87-5d33d9958ec6",
+      "name": "MUSUME HIGH SCHOOL",
+      "created": "2026-07-24T09:58:02.715Z"
+    },
+    {
+      "id": "db78478f-7d27-4392-8b79-61d1c159f5b3",
+      "name": "MUSIKAVANHU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:58:02.164Z"
+    },
+    {
+      "id": "9c69e0db-ac0b-4fd5-a415-734330f80819",
+      "name": "MTSHINGWE PLATINUM HIGH SCHOOL",
+      "created": "2026-07-24T09:58:01.662Z"
+    },
+    {
+      "id": "c3b05fec-0e04-4859-a67c-916575310e54",
+      "name": "MPOSI HIGH SCHOOL",
+      "created": "2026-07-24T09:58:01.100Z"
+    },
+    {
+      "id": "a692d047-3487-48b1-b034-eada90c17258",
+      "name": "MPANDASHANGO HIGH SCHOOL",
+      "created": "2026-07-24T09:58:00.702Z"
+    },
+    {
+      "id": "e3f380a3-6b54-4f53-bc39-e6ec043a48e5",
+      "name": "MPADASHAYA HIGH SCHOOL",
+      "created": "2026-07-24T09:58:00.213Z"
+    },
+    {
+      "id": "ffae4d1f-519a-41cb-9978-dcff3d1b78b7",
+      "name": "MBUYANEHANDA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:59.657Z"
+    },
+    {
+      "id": "3e19d6a2-ccc3-473a-a8cc-35dc33b0bbc0",
+      "name": "MBUNGU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:59.222Z"
+    },
+    {
+      "id": "d6b856fb-b48c-4135-8a4e-e5ce553a84d0",
+      "name": "MBOVHANA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:58.842Z"
+    },
+    {
+      "id": "c5da9a91-e42f-447c-88b2-844b0ec28770",
+      "name": "MATABO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:58.180Z"
+    },
+    {
+      "id": "888ab9b9-8017-4c64-aba9-8ead48c654a4",
+      "name": "MASHAME SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:57.758Z"
+    },
+    {
+      "id": "e8806795-148d-45ec-9642-dea766de3533",
+      "name": "MARINGAMBIZI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:57.288Z"
+    },
+    {
+      "id": "94fa854e-142d-453e-b547-7ec3210b4420",
+      "name": "MANZINYAMA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:56.709Z"
+    },
+    {
+      "id": "7aaa9be3-52c2-4bc3-8958-061067daa7aa",
+      "name": "MAKULAMBILI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:56.227Z"
+    },
+    {
+      "id": "0beb2fbc-3333-4564-9d7f-a6032a5db683",
+      "name": "MABOLENI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:55.863Z"
+    },
+    {
+      "id": "83153d49-0bb8-4eb8-a685-1d00a919eb43",
+      "name": "MABIKA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:55.459Z"
+    },
+    {
+      "id": "d94b6a0b-c89b-454c-b086-74e666ed3e93",
+      "name": "KAGUWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:55.095Z"
+    },
+    {
+      "id": "56a14126-060b-471c-9d0b-36e564ad7eb4",
+      "name": "GWAMURE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:54.652Z"
+    },
+    {
+      "id": "5a119cba-bef2-4595-8c09-640d434c4890",
+      "name": "GURUVA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:54.263Z"
+    },
+    {
+      "id": "0ad3db9a-721c-46a3-8628-d4b2ec73f6f9",
+      "name": "GUNUNYU HIGH SCHOOL",
+      "created": "2026-07-24T09:57:53.765Z"
+    },
+    {
+      "id": "2122e793-cdd1-455f-a8e1-df28e541fec7",
+      "name": "GONAWAPOTERA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:53.357Z"
+    },
+    {
+      "id": "2a4828cf-dfe7-490a-bde3-85e2f6a17433",
+      "name": "DORSET SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:52.914Z"
+    },
+    {
+      "id": "94c18793-2e30-481c-b7eb-329f61fff485",
+      "name": "DEFE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:52.386Z"
+    },
+    {
+      "id": "86355cd3-106d-4385-9d65-e71ecde8a96b",
+      "name": "CHUSHUKU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:51.843Z"
+    },
+    {
+      "id": "ce0b3884-784b-40ad-8636-4eb8f0ce749b",
+      "name": "CHOVURACH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:51.267Z"
+    },
+    {
+      "id": "91a40ed5-f18d-4fae-9269-92d7893c1b77",
+      "name": "CHIVONA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:50.717Z"
+    },
+    {
+      "id": "cdaad990-b99b-4d9c-8669-9f71a179fbc7",
+      "name": "CHIKEYA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:50.234Z"
+    },
+    {
+      "id": "7d5e2795-48df-4893-bc2f-6621d8b469a7",
+      "name": "CHIBHUKU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:49.667Z"
+    },
+    {
+      "id": "1b796d96-df63-4ab6-a1cb-4ca69efb84ce",
+      "name": "CHEMIMWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:49.351Z"
+    },
+    {
+      "id": "a7afae21-a979-4553-b6dc-02afbd3c051e",
+      "name": "CHEBVUTE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:48.966Z"
+    },
+    {
+      "id": "f3efe518-e887-4295-882e-5526813b6652",
+      "name": "BONSTEAD SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:48.597Z"
+    },
+    {
+      "id": "c5a63b4b-bd60-433f-bad7-c6145d683c2c",
+      "name": "BAYAYI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:48.156Z"
+    },
+    {
+      "id": "9492f238-4a0f-4011-8967-8cb1ad26b943",
+      "name": "ZAMBEZI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:47.775Z"
+    },
+    {
+      "id": "622b6c79-c85e-4470-928b-8c7a730b00fe",
+      "name": "TAME SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:47.352Z"
+    },
+    {
+      "id": "301c2fdc-1f7f-4d2d-83d5-2fcd3c892345",
+      "name": "SOMVUBU HIGH SCHOOL",
+      "created": "2026-07-24T09:57:46.884Z"
+    },
+    {
+      "id": "10e43ae4-98cb-413f-8ab3-3bb6ff4d65ba",
+      "name": "SOJINI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:45.976Z"
+    },
+    {
+      "id": "20db0f68-5878-4db1-b799-754df808b47c",
+      "name": "SIZINDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:45.539Z"
+    },
+    {
+      "id": "75e12e4d-35b5-476e-b94f-d37cc1b06669",
+      "name": "SINANGENGWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:45.141Z"
+    },
+    {
+      "id": "b3ebeaf2-8a66-48e7-a0a2-11cb19ee6d05",
+      "name": "SAWMILLS SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:44.823Z"
+    },
+    {
+      "id": "9bf1f0c5-5cf5-4734-a444-6df0ae04ed4d",
+      "name": "SAMENDE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:44.429Z"
+    },
+    {
+      "id": "abbf43bb-7b13-43e6-805e-f56414102898",
+      "name": "SABA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:44.104Z"
+    },
+    {
+      "id": "cd6cc19e-1394-41df-ac54-59d2c33338d5",
+      "name": "RCZ MANYANDA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:43.557Z"
+    },
+    {
+      "id": "793c51c9-d484-40ee-b1c6-c7cd95709eea",
+      "name": "NYAMANDLOVU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:43.182Z"
+    },
+    {
+      "id": "a164cc32-683e-4371-be00-36de3b15cb10",
+      "name": "NHLAMBABALOYI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:42.685Z"
+    },
+    {
+      "id": "07bfabbc-400c-44da-9d94-d49c9cf54ce0",
+      "name": "NAKALUBA SECONDARY",
+      "created": "2026-07-24T09:57:42.316Z"
+    },
+    {
+      "id": "8ab78b51-f466-43e2-9e2c-f780d9c821c0",
+      "name": "MUCHESU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:41.845Z"
+    },
+    {
+      "id": "6700a4ed-297d-4890-9b10-ad64d4eadfb5",
+      "name": "MNONDO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:41.219Z"
+    },
+    {
+      "id": "555d9696-3617-4eeb-945f-ef83b64b2d04",
+      "name": "MKHOSANA ADVENTIST SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:40.733Z"
+    },
+    {
+      "id": "f36922fd-b0b6-4d08-a722-60df0c9ebb53",
+      "name": "MATEME SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:40.319Z"
+    },
+    {
+      "id": "4386e2fa-2c96-4913-8c44-0665e53d4851",
+      "name": "MADLELENYONI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:39.894Z"
+    },
+    {
+      "id": "c783ebb6-103c-4d67-be58-43b5d95c66ec",
+      "name": "LUSULU HIGH SCHOOL",
+      "created": "2026-07-24T09:57:39.459Z"
+    },
+    {
+      "id": "d1ae6731-4596-4949-8626-a16c1f7e7644",
+      "name": "LUBU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:39.071Z"
+    },
+    {
+      "id": "1992ed62-602e-48a4-8328-30cbf376b13b",
+      "name": "LESEDI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:38.617Z"
+    },
+    {
+      "id": "9e6416a6-63e8-4bd1-bc27-b94983e41a13",
+      "name": "KAPANE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:38.212Z"
+    },
+    {
+      "id": "cb217a80-dead-48a3-8d44-775beb84e08f",
+      "name": "JIBAJIBA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:37.792Z"
+    },
+    {
+      "id": "af0f9087-6308-4ba0-809c-76b38fe07d08",
+      "name": "GEORGE SILUNDIKA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:37.412Z"
+    },
+    {
+      "id": "353aef4c-78e6-4130-aa32-65711a96d224",
+      "name": "GEBHUZA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:37.061Z"
+    },
+    {
+      "id": "4f1927ef-f7a2-4700-afa9-236feef0053d",
+      "name": "DON BOSCO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:36.645Z"
+    },
+    {
+      "id": "842bfa99-78f0-4336-b19d-8a0e02070d24",
+      "name": "DIKILI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:36.171Z"
+    },
+    {
+      "id": "812177a6-9d2d-4720-a8be-5310c1fa9a45",
+      "name": "CHIPALE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:35.739Z"
+    },
+    {
+      "id": "de024d56-6761-442b-920d-2ea22f0049cb",
+      "name": "CHINONGE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:35.392Z"
+    },
+    {
+      "id": "b7dedac5-e694-448a-b1b7-c2571c6d651d",
+      "name": "CHIBILA ADVENTIST SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:34.955Z"
+    },
+    {
+      "id": "a7d13df5-cd2b-45f7-8e60-d4c63ab0d097",
+      "name": "BEMBESI SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:34.557Z"
+    },
+    {
+      "id": "1f16ef7c-e799-4d0d-8072-a3e7e712ccab",
+      "name": "AMR CONVENT HIGH SCHOOL",
+      "created": "2026-07-24T09:57:34.165Z"
+    },
+    {
+      "id": "76df3cda-6be5-420a-958f-430e78626ce5",
+      "name": "NTALALE SECONDARY SCHOOLS",
+      "created": "2026-07-24T09:57:33.787Z"
+    },
+    {
+      "id": "19b0efdf-2a85-4151-91dc-a4f6f50675f0",
+      "name": "VALUKHALO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:33.252Z"
+    },
+    {
+      "id": "e51c69c5-4481-4d5c-a32c-4f9d9c97ecf7",
+      "name": "TSHANYAUGWE SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:32.786Z"
+    },
+    {
+      "id": "22db0c6d-9172-431f-99f9-9ac385ab53a1",
+      "name": "TONGWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:32.386Z"
+    },
+    {
+      "id": "6f3183cc-8bc7-44f8-b14a-60864fd07381",
+      "name": "TOKWANA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:32.015Z"
+    },
+    {
+      "id": "a97a5d9b-0bd4-46d7-9d4c-f0127b2c86d8",
+      "name": "TAHANGANA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:31.650Z"
+    },
+    {
+      "id": "e10b431a-1d3f-4de7-a4ee-665e3ba1491b",
+      "name": "SOLUSI ADVENTIST HIGH SCHOOL",
+      "created": "2026-07-24T09:57:31.231Z"
+    },
+    {
+      "id": "96c5513f-0570-4e1b-bf5b-a5112e8fcbaf",
+      "name": "SIWAZI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:30.571Z"
+    },
+    {
+      "id": "e381099f-9c92-4ed1-bd07-c9f4ad0c4047",
+      "name": "SIBHATA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:30.115Z"
+    },
+    {
+      "id": "3c228154-e3ba-4489-86fa-e4812e5589dc",
+      "name": "NTALALE HIGH SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:29.645Z"
+    },
+    {
+      "id": "ee3d45f8-9a5e-4140-88d8-f7dd5b95cd7e",
+      "name": "NHWALI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:29.302Z"
+    },
+    {
+      "id": "bc097a8c-d6ab-4fbf-9a3f-1b671a0ad955",
+      "name": "MZINGWANE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:28.738Z"
+    },
+    {
+      "id": "6b07e4ab-e2a5-49ac-80c7-2df3038c112c",
+      "name": "MSAKOROKORO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:28.195Z"
+    },
+    {
+      "id": "a3396a63-0e20-4a6a-a446-28ad54e530fa",
+      "name": "MQABUKO SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:26.677Z"
+    },
+    {
+      "id": "d7eec657-ac15-4093-a949-5b32020365b4",
+      "name": "MLOMOTSHA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:26.261Z"
+    },
+    {
+      "id": "0a09e409-aeb1-45c2-aaaa-acab8edae43b",
+      "name": "MAWABENI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:25.696Z"
+    },
+    {
+      "id": "c8c4fb93-a18a-401a-866d-d8d3a36e01f4",
+      "name": "MALUNGUDZI HIGH SCHOOL",
+      "created": "2026-07-24T09:57:25.231Z"
+    },
+    {
+      "id": "eaab46d0-f9aa-4007-a5d4-9481b1b8c047",
+      "name": "MAKIKUWA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:24.748Z"
+    },
+    {
+      "id": "c0447d91-f90d-4ebe-9f74-60c5a020d209",
+      "name": "LUSHONKWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:24.293Z"
+    },
+    {
+      "id": "67813e50-8f4a-47af-ae48-4c4b13c3fcc9",
+      "name": "LUBUZE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:23.754Z"
+    },
+    {
+      "id": "1856dd23-9a4d-49cd-be70-714afad9db7d",
+      "name": "LUBHANGWE HIGH SCHOOL",
+      "created": "2026-07-24T09:57:23.289Z"
+    },
+    {
+      "id": "dd50d4d9-9f32-41d6-9285-45c39ff8af50",
+      "name": "KWALU SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:22.760Z"
+    },
+    {
+      "id": "e2c66501-bd95-472c-8295-786399935cff",
+      "name": "J.Z MOYO HIGH SCHOOL",
+      "created": "2026-07-24T09:57:22.306Z"
+    },
+    {
+      "id": "d2b46709-70c8-4f7d-83aa-2acd5e31beb4",
+      "name": "GARANYEMBA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:21.707Z"
+    },
+    {
+      "id": "41f75298-ed04-45cd-8097-e8b03d09d3b1",
+      "name": "DULA SECONDARY SCHOOL",
+      "created": "2026-07-24T09:57:21.239Z"
+    },
+    {
+      "id": "44bc5c62-4a7b-4116-9011-42c0fed46122",
+      "name": "BUVUMA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:20.850Z"
+    },
+    {
+      "id": "4a8c4b3f-f44e-4fb9-9e8d-1193874d58b6",
+      "name": "TENNYSON HLABANGANA",
+      "created": "2026-07-24T09:57:20.203Z"
+    },
+    {
+      "id": "301efdc5-cf4c-4c0a-bc4a-66e8418c531a",
+      "name": "LIGHT HOUSE SECONDARY SCHOOOL",
+      "created": "2026-07-24T09:57:19.705Z"
+    },
+    {
+      "id": "ddcbf4fc-da5f-4b29-baa9-e8310eba592d",
+      "name": "INYANDA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:19.165Z"
+    },
+    {
+      "id": "966d2b3d-c600-43e0-b0c1-4b8ce20be9b0",
+      "name": "INDUNA HIGH SCHOOL",
+      "created": "2026-07-24T09:57:01.041Z"
+    },
+    {
+      "id": "1de3af6f-0a3d-4af0-9356-829d8889a9cd",
+      "name": "BULAWAYO ADVENTIST HIGH SCHOOL",
+      "created": "2026-07-24T09:57:00.498Z"
+    },
+    {
+      "id": "ee5afcff-6b70-4112-acec-8afc0fe8a415",
+      "name": "AMHLOPHE HIGH SCHOOL",
+      "created": "2026-07-24T09:56:59.876Z"
+    }
+  ]
+}
