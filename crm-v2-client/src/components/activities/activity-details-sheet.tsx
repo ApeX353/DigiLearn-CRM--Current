@@ -97,6 +97,38 @@ export function ActivityDetailsSheet({
                 </p>
               ) : null}
 
+              {/* eea1c4ae: outcome/note captured at completion (e.g. for a
+                  task closed via the outcome dialog) were saved but never
+                  shown. Surface them here so they aren't lost from view. */}
+              {(activity as { completion_outcome?: string }).completion_outcome ||
+              (activity as { completion_note?: string }).completion_note ? (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Outcome</h4>
+                    {(activity as { completion_outcome?: string })
+                      .completion_outcome ? (
+                      <InfoRow
+                        label="Outcome"
+                        value={formatEnumLabel(
+                          (activity as { completion_outcome?: string })
+                            .completion_outcome,
+                        )}
+                      />
+                    ) : null}
+                    {(activity as { completion_note?: string })
+                      .completion_note ? (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {
+                          (activity as { completion_note?: string })
+                            .completion_note
+                        }
+                      </p>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+
               <Separator />
 
               <div className="space-y-2">

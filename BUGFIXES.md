@@ -34,6 +34,19 @@ the future; a future due date creates a `scheduled` next step. Email stays
 completed (sent on save). Logging a past/now call is unchanged.
 **Data impact.** None. Files: `crm-v2-client/src/components/activities/create-activity-modal.tsx`.
 
+### eea1c4ae: a completed task's recorded outcome/notes were invisible
+**Symptom.** A rep records an outcome + note when completing a next-up task,
+then the task drops into the completed feed and the outcome appears lost.
+**Root cause.** The data **is** saved (`completion_outcome` / `completion_note`
+on the activity) and is not wiped by later edits — but no read surface
+renders it for a task. The feed only derived an outcome from call/meeting
+sub-records, and the details sheet had no completion block.
+**Fix.** Display-only: the completed-activity feed item now falls back to
+the activity-level `completion_outcome`/`completion_note`, and the activity
+details sheet shows an "Outcome" section when they're set. No backfill —
+the data was intact all along.
+**Data impact.** None (rendering only). Files: `crm-v2-client/src/components/activities/{activity-kit.tsx,activity-details-sheet.tsx}`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

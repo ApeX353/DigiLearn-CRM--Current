@@ -556,18 +556,24 @@ export function CompletedActivityFeedItem({
   );
   const note =
     (activity.type === "note" && activity.note?.content) ||
+    // eea1c4ae: a task completed through the outcome dialog stores its
+    // note on the activity itself — show it so it isn't invisible.
+    (activity as { completion_note?: string }).completion_note ||
     activity.description;
 
   // Outcome surfacing — calls and meetings carry an outcome blob; we
   // pull whatever short label exists so the feed reads like a sales
-  // log instead of a plain timeline.
+  // log instead of a plain timeline. eea1c4ae: fall back to the
+  // activity-level `completion_outcome` (set by the outcome dialog on
+  // task/other completions) so a recorded outcome always shows.
   const outcome =
-    activity.type === "call"
+    (activity.type === "call"
       ? activity.call?.outcome ??
         (activity.call as { outcome_label?: string } | undefined)?.outcome_label
       : activity.type === "meeting"
         ? (activity.meeting as { outcome?: string } | undefined)?.outcome
-        : undefined;
+        : undefined) ??
+    (activity as { completion_outcome?: string }).completion_outcome;
 
   return (
     <li className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30">
