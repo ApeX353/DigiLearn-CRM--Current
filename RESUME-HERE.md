@@ -121,12 +121,10 @@ is Midlands) and "Solusi Adventist" (is Bulawayo Metro, not Mat South). The
 
 ---
 
-## 7b. ⚠️ Pending: restore Kim's staging password
-Kim's staging password (`mpofunk@clearhue.co.zw`) is **temporarily changed**
-to a test value (2026-07-30) so we could work the meeting backlog as her.
-**Restore it before wrapping** — full instructions + her saved original hash
-are in `ops/kim-staging-password-status.local.md` (git-ignored). Do this once
-the `TEST-BACKLOG-2026-07-30.md` items are done.
+## 7b. ✅ Kim's staging password — RESTORED (2026-07-31)
+Kim's staging password was temporarily changed for testing and has been
+**restored to her original** (verified: stored hash matches the captured one;
+the temp `KimTest2026` no longer works). Nothing pending here.
 
 ## 8. Credentials / access reminders
 
