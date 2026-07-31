@@ -58,6 +58,21 @@ cards, and exclude the whole set (not just the first) from the Activity log.
 Client-only; multiple open activities already coexist in the DB.
 **Data impact.** None. Files: `crm-v2-client/src/components/activities/engagement-workspace.tsx`.
 
+### PH1 (0ac3f2f7): phone dedup compared raw digits, so formats never matched
+**Symptom.** The same number saved as "+263772123456" then "0772123456"
+created a second contact — the duplicate check never matched across formats.
+**Root cause.** The write path's `normalizePhone` only stripped non-digits,
+leaving "263772123456" vs "0772123456" — two different strings for one
+number.
+**Fix.** New shared `canonPhone` helper reduces a Zimbabwe number to its
+national significant digits (drops 263 country code / leading 0, keeps the
+trailing 9), used by the contact-matching in `createWithSchoolAndContacts`
+so the existing contact is reused. (The `canonName`/`canonCity` helpers in
+the same module are staged for the SCH1/SCH2/DUP1 write-path pass.)
+**Data impact.** None going forward; historical duplicate contacts remain a
+separate cleanup. Files: `crm-v2-server/src/leads/utils/record-normalization.ts`,
+`crm-v2-server/src/leads/leads.service.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

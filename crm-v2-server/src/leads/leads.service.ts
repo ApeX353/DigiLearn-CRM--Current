@@ -57,6 +57,7 @@ import { EmailSequenceService } from '../email-sequences/email-sequence.service'
 import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 import { isTacticalDisqualifyReason } from './constants/reasons';
 import { LEAD_STATUSES } from './constants/lead-statuses';
+import { canonPhone } from './utils/record-normalization';
 
 @Injectable()
 export class LeadsService {
@@ -141,8 +142,10 @@ export class LeadsService {
     const { lead: leadInfo, contacts: contactsList } = input;
     const normalizeText = (value?: string | null): string =>
       value?.trim().toLowerCase().replace(/\s+/g, ' ') ?? '';
-    const normalizePhone = (value?: string | null): string =>
-      value ? value.replace(/\D/g, '') : '';
+    // PH1: canonicalize to the national significant number so the same
+    // phone written as +263…, 0…, or spaced/dashed matches and we reuse the
+    // existing contact instead of creating a duplicate.
+    const normalizePhone = (value?: string | null): string => canonPhone(value);
     const toNullableString = (value?: string | null): string | null => {
       const trimmed = value?.trim();
       return trimmed ? trimmed : null;
