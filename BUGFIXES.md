@@ -47,6 +47,17 @@ details sheet shows an "Outcome" section when they're set. No backfill —
 the data was intact all along.
 **Data impact.** None (rendering only). Files: `crm-v2-client/src/components/activities/{activity-kit.tsx,activity-details-sheet.tsx}`.
 
+### NEXT4 (ae4f56b0): a lead could only show one next step at a time
+**Symptom.** Reps need two concurrent next steps on a record, but only one
+showed; a second scheduled step vanished into the Activity log.
+**Root cause.** No schema limit exists — the engagement workspace just took
+`dated[0]` for the single Planned card and folded every other open dated
+step into the feed.
+**Fix.** Render **all** open dated next steps (soonest first) as Planned
+cards, and exclude the whole set (not just the first) from the Activity log.
+Client-only; multiple open activities already coexist in the DB.
+**Data impact.** None. Files: `crm-v2-client/src/components/activities/engagement-workspace.tsx`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

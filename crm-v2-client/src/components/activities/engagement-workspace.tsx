@@ -154,8 +154,11 @@ export function EngagementWorkspace({
   // content) while the Done feed below already had the same note
   // listed correctly. Now the Planned card stays null when only notes
   // are open, and notes only live in the Done/history feed.
-  const plannedActivity = useMemo<Activity | null>(() => {
-    // The Planned card is strictly the next UPCOMING, dated step. It must
+  // NEXT4: a lead/deal can hold more than one open next step at a time, so
+  // the Planned section lists ALL open dated steps (soonest first), not just
+  // the single soonest — the rest used to be swept into the Activity log.
+  const plannedActivities = useMemo<Activity[]>(() => {
+    // The Planned cards are strictly the UPCOMING, dated steps. They must
     // NOT fall back to "newest open regardless of date": logged calls and
     // WhatsApps are saved with status "scheduled" and no due date, so the
     // old fallback promoted a random logged interaction into the Planned
@@ -171,7 +174,7 @@ export function EngagementWorkspace({
         const bd = new Date(b.due_at ?? b.scheduled_at!).getTime();
         return ad - bd;
       });
-    return dated[0] ?? null;
+    return dated;
   }, [openData]);
 
   // The historical feed is every logged interaction EXCEPT the single
@@ -182,9 +185,9 @@ export function EngagementWorkspace({
   // can only appear in one of the two source queries.
   const feedActivities = useMemo<Activity[]>(() => {
     const done = doneData?.data ?? [];
-    const plannedId = plannedActivity?.id;
+    const plannedIds = new Set(plannedActivities.map((a) => a.id));
     const openLogged = (openData?.data ?? []).filter(
-      (a) => a.id !== plannedId,
+      (a) => !plannedIds.has(a.id),
     );
     const byId = new Map<string, Activity>();
     for (const a of [...done, ...openLogged]) byId.set(a.id, a);
@@ -198,7 +201,7 @@ export function EngagementWorkspace({
       ).getTime();
       return bt - at;
     });
-  }, [doneData, openData, plannedActivity, feedFilter]);
+  }, [doneData, openData, plannedActivities, feedFilter]);
 
   const requestCompletion = useActivityCompletionStore((s) => s.request);
 
@@ -269,13 +272,18 @@ export function EngagementWorkspace({
               </p>
             </div>
           </div>
-        ) : plannedActivity ? (
-          <PlannedActivityCard
-            activity={plannedActivity}
-            onComplete={toggleComplete}
-            onOpen={openInspector}
-            disabled={isReadonly}
-          />
+        ) : plannedActivities.length > 0 ? (
+          <div className="space-y-2">
+            {plannedActivities.map((planned) => (
+              <PlannedActivityCard
+                key={planned.id}
+                activity={planned}
+                onComplete={toggleComplete}
+                onOpen={openInspector}
+                disabled={isReadonly}
+              />
+            ))}
+          </div>
         ) : (
           <ActivityEmptyState
             scope={scope}
