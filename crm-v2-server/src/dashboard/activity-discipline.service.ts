@@ -773,24 +773,33 @@ export class ActivityDisciplineService {
     uid?: string,
   ): Promise<RepDisciplineRow[]> {
     // Get candidate users (active, scoped to filter if given).
+    // Sales scoreboard only: active users who hold a sales role. We select
+    // them with an IN-subquery on the roles relation rather than
+    // leftJoinAndSelect + a JS filter. A to-many join combined with .take()
+    // makes TypeORM paginate via a distinct-id subquery whose row order is
+    // undefined; the entity transformer then hydrates `roles` as an empty
+    // array for some rows, so the JS filter silently dropped EVERYONE on the
+    // team view (the single-rep view happened to survive). The subquery has
+    // no such dependency and is deterministic regardless of take().
     const usersQb = this.userRepo
       .createQueryBuilder('u')
-      // Eager relations are NOT auto-loaded by QueryBuilder — join roles
-      // explicitly, or the sales-role filter below sees an empty roles array
-      // for every user and returns nobody.
-      .leftJoinAndSelect('u.roles', 'role')
-      .where('u.is_active = TRUE');
+      .where('u.is_active = TRUE')
+      .andWhere((qb) => {
+        const sub = qb
+          .subQuery()
+          .select('su.id')
+          .from(User, 'su')
+          .innerJoin('su.roles', 'sr')
+          .where('sr.name IN (:...salesRoles)')
+          .getQuery();
+        return `u.id IN ${sub}`;
+      })
+      .setParameter('salesRoles', SALES_ROLES);
     if (uid) usersQb.andWhere('u.id = :uid', { uid });
     // Limit the table width — team views are naturally capped at ~30
     // reps in this product, take 50 for safety.
     usersQb.take(50);
-    // Sales scoreboard only: keep people who hold a sales role (roles are
-    // eager-loaded). Excludes admins/admin_support/non-sales managers.
-    const users = (await usersQb.getMany()).filter((u) =>
-      ((u.roles as Array<{ name?: string }>) ?? []).some((r) =>
-        SALES_ROLES.includes(String(r?.name)),
-      ),
-    );
+    const users = await usersQb.getMany();
 
     if (users.length === 0) return [];
 

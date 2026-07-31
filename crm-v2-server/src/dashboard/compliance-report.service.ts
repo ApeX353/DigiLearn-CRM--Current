@@ -110,20 +110,27 @@ export class ComplianceReportService {
       this.compliance.getNumber('stale_deal_days'),
     ]);
 
-    const users = (
-      await this.userRepo
-        .createQueryBuilder('u')
-        // QueryBuilder doesn't auto-load eager relations — join roles or the
-        // sales-role filter below sees empty roles and returns nobody.
-        .leftJoinAndSelect('u.roles', 'role')
-        .where('u.is_active = TRUE')
-        .take(200)
-        .getMany()
-    ).filter((u) =>
-      ((u.roles as Array<{ name?: string }>) ?? []).some((r) =>
-        SALES_ROLES.includes(String(r?.name)),
-      ),
-    );
+    // Sales scoreboard only — select active users holding a sales role via
+    // an IN-subquery on the roles relation. Avoids the leftJoinAndSelect +
+    // .take() pagination trap where a to-many join makes TypeORM hydrate
+    // `roles` as an empty array for some rows, silently dropping reps
+    // (see activity-discipline.service for the full write-up).
+    const users = await this.userRepo
+      .createQueryBuilder('u')
+      .where('u.is_active = TRUE')
+      .andWhere((qb) => {
+        const sub = qb
+          .subQuery()
+          .select('su.id')
+          .from(User, 'su')
+          .innerJoin('su.roles', 'sr')
+          .where('sr.name IN (:...salesRoles)')
+          .getQuery();
+        return `u.id IN ${sub}`;
+      })
+      .setParameter('salesRoles', SALES_ROLES)
+      .take(200)
+      .getMany();
 
     const reps = await Promise.all(
       users.map((u) =>
