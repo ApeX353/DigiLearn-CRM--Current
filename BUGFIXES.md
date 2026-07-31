@@ -103,6 +103,19 @@ transaction, demo/commercial-intent derivation after it.
 (A third divergence — bulk bypasses the `enforce_next_step_on_completion`
 gate — is left as a flagged product decision, not silently changed.)
 
+### LNAME2 (95999841): capture & show what the client wants on a lead
+**Symptom.** Ms Mpofu wanted a lead field for the client's interest / what
+they want, captured and shown.
+**Root cause / state.** `Lead.notes` already exists and is persisted +
+carried into the deal on conversion, but the create form never collected it
+and the lead view never showed it (the "Notes" tab is *activity* notes).
+**Fix.** Reuse the existing column (no migration): add `notes` to the client
+`leadInfoSchema`, a "What the client wants / Interest" textarea to the
+create-lead form, and an "Interest" row on the lead at-a-glance.
+**Data impact.** None. Files: `crm-v2-client/src/api/leads/types.ts`,
+`crm-v2-client/src/pages/leads/create-new-lead.tsx`,
+`crm-v2-client/src/components/leads/lead-at-a-glance.tsx`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

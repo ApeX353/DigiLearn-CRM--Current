@@ -338,6 +338,15 @@ export function LeadAtAGlance({
             </span>
           </SectionRow>
 
+          {/* LNAME2: what the client wants / is interested in. */}
+          {lead.notes ? (
+            <SectionRow icon={PackageSearch} label="Interest">
+              <span className="text-foreground line-clamp-3 text-pretty">
+                {lead.notes}
+              </span>
+            </SectionRow>
+          ) : null}
+
           <SectionRow icon={temperatureVisual.icon} label="Temperature">
             {lead.temperature ? (
               <Badge

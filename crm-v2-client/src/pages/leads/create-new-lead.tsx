@@ -81,6 +81,7 @@ export default function CreateNewLeadPage() {
         source: "Website",
         school_name: "",
         estimated_value: 0,
+        notes: "",
         assigned_to: undefined,
       },
       contacts: [
@@ -429,6 +430,27 @@ export default function CreateNewLeadPage() {
                             onChange={(e) =>
                               field.onChange(parseFloat(e.target.value) || 0)
                             }
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* LNAME2: capture what the client wants / is interested
+                      in, on the lead itself. */}
+                  <FormField
+                    control={form.control}
+                    name="lead.notes"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>What the client wants / Interest</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="e.g. interested in interactive boards for 850 students; wants a demo next term"
+                            rows={3}
+                            {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />

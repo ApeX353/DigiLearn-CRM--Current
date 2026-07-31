@@ -146,6 +146,9 @@ export const leadInfoSchema = z.object({
   region: z.enum(REGIONS).optional(),
   city: z.string().optional(),
   estimated_value: z.number().optional(),
+  // LNAME2: what the client is interested in / wants. Captured on the lead
+  // and carried into the deal description on conversion.
+  notes: z.string().max(2000).optional(),
   assigned_to: z.string().max(36).optional(), // For managers/admins to assign to sales agents
   // Campaign/event the lead was captured at (e.g. NASH congress).
   // Survives lead→deal conversion for campaign ROI attribution.
