@@ -6,6 +6,36 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-31 — Sales-interrupting bundle (Kim/Tanya sprint, 11 quick wins)
+
+Shipped alongside DEAL-OPEN (Tanya's #1). Each fix below is minimal and
+sales-facing; root causes were confirmed in code before changing anything.
+
+### DEALS1 (55c824b0): `/deals` silently hid won/lost deals
+**Symptom.** The deals list showed only ongoing deals; ~2/3 of closed
+business (won/lost) never appeared, with nothing on screen saying so.
+**Root cause.** `getDeals` (`deals.service.ts`) defaulted `close_status` to
+`ONGOING` and applied it as an unconditional WHERE, so any caller that
+didn't pass a status got ongoing-only.
+**Fix.** Only filter by `close_status` when the caller supplies it; order
+the now-mixed list by `COALESCE(actual_close_date, created_at) DESC` so it
+stays newest-first. The dedicated closed-only view (`/deals/archived`) is
+unchanged.
+**Data impact.** None (read path). Files: `crm-v2-server/src/deals/deals.service.ts`.
+
+### NEXT3 (81958979): scheduling a call/WhatsApp as the next step filed it as done
+**Symptom.** Picking Call or WhatsApp as an upcoming next step created it
+already **completed**, so it never showed as the next step and it bumped
+`last_contacted_at`.
+**Root cause.** `create-activity-modal.tsx` stamped `status: completed` on
+every call/WhatsApp/email unconditionally.
+**Fix.** Only auto-complete call/WhatsApp when they are **not** dated for
+the future; a future due date creates a `scheduled` next step. Email stays
+completed (sent on save). Logging a past/now call is unchanged.
+**Data impact.** None. Files: `crm-v2-client/src/components/activities/create-activity-modal.tsx`.
+
+---
+
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text
 
 **Symptom.** Clicking a ticket in the Bug Tracker opened a tall, narrow tile

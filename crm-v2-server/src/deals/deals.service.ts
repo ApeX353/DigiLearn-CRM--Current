@@ -1289,22 +1289,25 @@ export class DealsService {
 
     const options: IPaginationOptions = { page, limit };
 
-    // `close_status` filter — caller may override the default. The
-    // previous implementation hardcoded ONGOING then AND'd the dto
-    // filter on top, which made `?close_status=won` return 0 rows
-    // (contradictory WHERE: ongoing AND won). Now the caller's
-    // choice wins; if absent, we default to ONGOING so the list
-    // page doesn't show closed-won/lost inventory by default.
-    const effectiveCloseStatus = dto.close_status ?? DealCloseStatus.ONGOING;
     const qb = this.dealRepository
       .createQueryBuilder('deal')
       .leftJoinAndSelect('deal.school', 'school')
       .leftJoinAndSelect('deal.assigned_user', 'assigned_user')
       .leftJoinAndSelect('deal.current_stage', 'current_stage')
-      .where('deal.close_status = :close_status', {
-        close_status: effectiveCloseStatus,
-      })
-      .orderBy('deal.actualCloseDate', 'DESC');
+      // Closed deals sort by close date, ongoing (null close date) by
+      // when they were opened — the mixed list stays newest-first.
+      .orderBy('COALESCE(deal.actual_close_date, deal.created_at)', 'DESC');
+
+    // DEALS1: only filter by close_status when the caller explicitly asks.
+    // The list previously defaulted to ONGOING and silently hid won/lost
+    // deals (~2/3 of pipeline value — nothing on screen said so). The
+    // dedicated closed-only view is /deals/archived; this general list
+    // must surface all business unless a status filter is supplied.
+    if (dto.close_status) {
+      qb.andWhere('deal.close_status = :close_status', {
+        close_status: dto.close_status,
+      });
+    }
 
     // DEAL-1: reps see (and export) their own deals, not the company's.
     if (scopeUserId) {

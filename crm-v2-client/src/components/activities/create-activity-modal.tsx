@@ -234,10 +234,19 @@ export function CreateActivityModal({
     // completed items + notes only — so reps thought their logged call
     // vanished, and (b) never advanced the lead's `last_contacted_at`.
     // Tasks, meetings and demo bookings remain scheduled future work.
+    //
+    // NEXT3: but a call/WhatsApp with a FUTURE due date is an upcoming
+    // next step, not a log of something that already happened. Marking
+    // it completed filed it as done, so it never appeared as the next
+    // step. So only auto-complete call/WhatsApp when they aren't dated
+    // for the future. Email is sent on save, so it stays completed.
+    const scheduledForFuture =
+      !!tabPayload.due_at &&
+      new Date(tabPayload.due_at).getTime() > Date.now();
     const isLoggedInteraction =
-      resolvedType === "call" ||
-      resolvedType === "whatsapp" ||
-      resolvedType === "email";
+      resolvedType === "email" ||
+      ((resolvedType === "call" || resolvedType === "whatsapp") &&
+        !scheduledForFuture);
 
     const payload: CreateActivityDto = {
       type: resolvedType,
