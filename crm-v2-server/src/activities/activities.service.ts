@@ -1287,6 +1287,9 @@ export class ActivitiesService {
     }
 
     const updatedIds: string[] = [];
+    // AUD-M01: demo-type leads whose completion should re-derive commercial
+    // intent after the transaction, mirroring the single-completion path.
+    const demoLeadIds = new Set<string>();
 
     await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Activity);
@@ -1318,6 +1321,26 @@ export class ActivitiesService {
         await repo.save(activity);
         updatedIds.push(activity.id);
 
+        // AUD-M01: bring bulk in line with the single-completion path. A
+        // fresh completion propagates to the parent lead (bumps
+        // last_contacted_at / last_action_at and flips New -> Contacted);
+        // bulk previously skipped this, so bulk-completing calls/meetings
+        // left the lead's contact state stale and broke stale-lead
+        // detection. The helper is idempotent and forward-only, so it's
+        // safe to run per row. (`oldStatus === status` no-ops already
+        // `continue`d above, so COMPLETED here is always a fresh finish.)
+        if (status === ActivityStatus.COMPLETED) {
+          await this.updateLeadContactStatus(manager, activity, 'complete');
+          if (
+            activity.lead_id &&
+            (activity.type === ActivityType.DEMO_BOOKING ||
+              activity.type === ActivityType.DEMO_DELIVERY ||
+              activity.type === ActivityType.DEMO_FOLLOWUP)
+          ) {
+            demoLeadIds.add(activity.lead_id);
+          }
+        }
+
         // Keep log writes inside the transaction so a failure rolls
         // back the status change AND its audit row together.
         await this.activityLogsService.logUpdate(
@@ -1330,6 +1353,17 @@ export class ActivitiesService {
         );
       }
     });
+
+    // AUD-M01: demo / commercial-intent re-derivation, mirroring the single
+    // path — run after the transaction, idempotent and best-effort so a
+    // derivation hiccup never fails the completed batch.
+    for (const leadId of demoLeadIds) {
+      await this.deriveDemoEffectsForLead(leadId, userId).catch((err) => {
+        console.warn(
+          `[ActivitiesService.bulkUpdateStatus] demo derivation failed for lead ${leadId}: ${err?.message}`,
+        );
+      });
+    }
 
     // Re-fetch with relations so the response mirrors the shape of
     // single-item updates (callers render the updated cards directly).

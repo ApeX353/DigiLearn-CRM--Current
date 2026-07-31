@@ -87,6 +87,22 @@ double-conversion guard.
 (QUOTE1-a "revert-to-draft still Accepted" did not reproduce in current code;
 QUOTE1-c "one accepted quote per deal" is deferred — needs a data check.)
 
+### AUD-M01 (473d220c): bulk activity completion diverged from single
+**Symptom.** Completing activities in bulk behaved differently from
+completing them one at a time.
+**Root cause.** `bulkUpdateStatus` saved the status + audit row but — unlike
+`updateStatus` — never called `updateLeadContactStatus` or
+`deriveDemoEffectsForLead`. So bulk-completing a call/meeting did NOT bump
+the lead's `last_contacted_at`/`last_action_at`, did NOT flip New→Contacted,
+and a bulk-completed demo did NOT re-derive commercial intent (leaving the
+Create-Deal gate wrongly shut).
+**Fix.** Route each freshly-completed row in the bulk loop through the same
+idempotent, forward-only helpers: lead-contact propagation inside the
+transaction, demo/commercial-intent derivation after it.
+**Data impact.** None retroactive. Files: `crm-v2-server/src/activities/activities.service.ts`.
+(A third divergence — bulk bypasses the `enforce_next_step_on_completion`
+gate — is left as a flagged product decision, not silently changed.)
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text
