@@ -113,6 +113,9 @@ export class ComplianceReportService {
     const users = (
       await this.userRepo
         .createQueryBuilder('u')
+        // QueryBuilder doesn't auto-load eager relations — join roles or the
+        // sales-role filter below sees empty roles and returns nobody.
+        .leftJoinAndSelect('u.roles', 'role')
         .where('u.is_active = TRUE')
         .take(200)
         .getMany()

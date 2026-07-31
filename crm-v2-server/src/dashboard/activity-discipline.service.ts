@@ -775,6 +775,10 @@ export class ActivityDisciplineService {
     // Get candidate users (active, scoped to filter if given).
     const usersQb = this.userRepo
       .createQueryBuilder('u')
+      // Eager relations are NOT auto-loaded by QueryBuilder — join roles
+      // explicitly, or the sales-role filter below sees an empty roles array
+      // for every user and returns nobody.
+      .leftJoinAndSelect('u.roles', 'role')
       .where('u.is_active = TRUE');
     if (uid) usersQb.andWhere('u.id = :uid', { uid });
     // Limit the table width — team views are naturally capped at ~30
