@@ -6,6 +6,29 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text
+
+**Symptom.** Clicking a ticket in the Bug Tracker opened a tall, narrow tile
+whose text got cut off — long descriptions/resolution notes pushed the
+dialog past the screen with no way to scroll to the rest (reported by Mr
+Dube).
+
+**Root cause.** Both ticket dialogs (`TriageDialog`, `BugDetailDialog` in
+`bug-reports-page.tsx`) used `DialogContent className="sm:max-w-lg"` with no
+height cap or scroll. A long `whitespace-pre-wrap` description grew the
+dialog taller than the viewport, so the top/bottom (and the action buttons)
+were clipped. Long unbroken tokens could also overflow horizontally.
+
+**Fix.** Added `max-h-[85vh] overflow-y-auto` to both `DialogContent`s so
+the dialog scrolls instead of clipping, and `break-words` on the titles and
+description/resolution boxes so long tokens wrap.
+
+**Data impact.** None — presentation only.
+
+Files: `crm-v2-client/src/pages/bug-reports/bug-reports-page.tsx`.
+
+---
+
 ## 2026-07-31 — DEAL-OPEN: reps got "Deal not found" opening their own pipeline deals (Tanya)
 
 **Symptom.** Tanya (a `sales_rep`) reported "Pipeline deals not opening —

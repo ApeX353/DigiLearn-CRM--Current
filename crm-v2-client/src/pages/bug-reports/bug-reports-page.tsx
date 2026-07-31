@@ -252,9 +252,9 @@ function TriageDialog({
 
   return (
     <Dialog open={!!bug} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="pr-6">{bug.title}</DialogTitle>
+          <DialogTitle className="pr-6 break-words">{bug.title}</DialogTitle>
           <DialogDescription>
             Reported{" "}
             {bug.reported_by
@@ -266,7 +266,7 @@ function TriageDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
+          <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
             {bug.description}
           </div>
 
@@ -383,9 +383,9 @@ function BugDetailDialog({
 
   return (
     <Dialog open={!!bug} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="pr-6">{bug.title}</DialogTitle>
+          <DialogTitle className="pr-6 break-words">{bug.title}</DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-1.5 pt-1">
             <Badge variant={severityVariant[bug.severity]}>
               {SEVERITY_LABELS[bug.severity]}
@@ -422,7 +422,7 @@ function BugDetailDialog({
             <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
               What was wrong
             </p>
-            <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
+            <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap break-words">
               {bug.description}
             </div>
           </div>
@@ -431,7 +431,7 @@ function BugDetailDialog({
             <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
               What was done about it
             </p>
-            <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap">
+            <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap break-words">
               {bug.resolution_note
                 ? bug.resolution_note
                 : isDone
