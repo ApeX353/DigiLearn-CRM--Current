@@ -73,6 +73,20 @@ the same module are staged for the SCH1/SCH2/DUP1 write-path pass.)
 separate cleanup. Files: `crm-v2-server/src/leads/utils/record-normalization.ts`,
 `crm-v2-server/src/leads/leads.service.ts`.
 
+### QUOTE1-b (618ec6f2, part b): Convert-to-Invoice threw on an uninvoiced Accepted quote
+**Symptom.** Clicking "Convert to Invoice" on a deal errored for a quote
+that was Accepted but had no invoice yet.
+**Root cause.** `convertFromQuote` rejected ANY quote with status Accepted,
+but a quote can reach Accepted without an invoice (manual status change, or
+the manual-invoice path). The deal-page button only checks invoice
+existence, so it offered a click the server refused.
+**Fix.** Block an Accepted quote only when an invoice actually exists for it
+(`quote_id` lookup); otherwise allow the conversion. Preserves the
+double-conversion guard.
+**Data impact.** None. Files: `crm-v2-server/src/invoices/invoices.service.ts`.
+(QUOTE1-a "revert-to-draft still Accepted" did not reproduce in current code;
+QUOTE1-c "one accepted quote per deal" is deferred — needs a data check.)
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

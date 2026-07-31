@@ -579,10 +579,22 @@ export class InvoicesService {
         throw new NotFoundException(`Quote ${quoteId} not found`);
       }
 
+      // QUOTE1-b: "Accepted" usually means an invoice was already created,
+      // but a quote can reach Accepted with NO invoice — via a manual status
+      // change, or the manual-invoice path which flips its source quote to
+      // Accepted. Blocking purely on status made "Convert to Invoice" 400 on
+      // a legitimate, uninvoiced Accepted quote (the deal-page button only
+      // checks invoice existence, so it offered a click the server refused).
+      // Block only when an invoice actually exists for this quote.
       if (quote.status === 'Accepted') {
-        throw new BadRequestException(
-          'Quote has already been accepted/converted',
-        );
+        const existingInvoice = await manager.findOne(Invoice, {
+          where: { quote_id: quoteId },
+        });
+        if (existingInvoice) {
+          throw new BadRequestException(
+            'Quote has already been converted to an invoice',
+          );
+        }
       }
 
       // Draft and Sent may convert (the previous CRM's data shows Draft
