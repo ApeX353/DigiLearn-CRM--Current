@@ -6,6 +6,43 @@ the data impact. Newest first.
 
 ---
 
+## 2026-07-31 — DEAL-OPEN: reps got "Deal not found" opening their own pipeline deals (Tanya)
+
+**Symptom.** Tanya (a `sales_rep`) reported "Pipeline deals not opening —
+the response is saying this lead doesn't exist" for several of her own
+deals (Mutendi Primary, Bikita Fashu, Mutsambwa). Reproduced on staging as
+Manake (`sales_rep`): `GET /deals/:id` and `GET /deals/:id/rollback-requests`
+returned **404 "Deal not found"** for deals assigned to her; admins and
+sales managers were unaffected. The client renders any deal-fetch error as
+"Deal not found", which Tanya paraphrased as "lead doesn't exist" (the
+lead calls actually returned 200).
+
+**Root cause.** The DEAL-1 hardening added an instance-level ownership
+check in `deals.controller.ts` — `ability.can(READ, subject('Deal', data))`
+(and the shared `assertDealAccess` helper). But the runtime ability built
+by `CaslAbilityFactory.createForUser` sets
+`detectSubjectType: (item) => item.constructor`, while the DB permission
+rules are registered under the **string** subject `'Deal'`. So for an
+instance subject CASL resolved the type to the Deal **class**, which never
+matched the string-keyed rep rule — `canRead` was always false and every
+rep 404'd on their own deals. The class-level guard `@CheckPermission('read',
+'Deal')` uses the string form and passed, which is why the request reached
+the handler and failed in its body rather than at the guard.
+
+**Fix.** Replaced the broken instance check in `assertDealAccess` and
+`findOne` with a direct ownership comparison that mirrors the existing,
+working `dealsService.assertDealInScope`: keep `canManage`
+(`can(MANAGE,'all'|'Deal')`, string form — correct) for admins/managers,
+and for everyone else require `deal.assigned_to === userId`. A foreign id
+still answers 404 (not 403) so ids can't be probed. The rollback-request
+GET/POST handlers now pass `userId` instead of a CASL action.
+
+**Data impact.** None — read-path authorization only; no rows changed.
+
+Files: `crm-v2-server/src/deals/deals.controller.ts`.
+
+---
+
 ## 2026-07-30 — SEC-RL: API rate limiting added; unused `helmet` dependency removed
 
 **Context.** During the earlier security pass two libraries were added to

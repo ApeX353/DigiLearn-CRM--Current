@@ -14,7 +14,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { subject } from '@casl/ability';
 import { DealsService } from './deals.service';
 import {
   CreateDealDto,
@@ -263,9 +262,10 @@ export class DealsController {
   async findRollbackRequests(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: QueryDealRollbackRequestsDto,
+    @CurrentUser('id') userId: string,
     @CaslAbility() ability: AppAbility,
   ) {
-    await this.assertDealAccess(id, ability, Action.READ);
+    await this.assertDealAccess(id, ability, userId);
     const data = await this.dealsService.findRollbackRequestsByDeal(
       id,
       query.status,
@@ -287,7 +287,7 @@ export class DealsController {
     @CurrentUser('id') userId: string,
     @CaslAbility() ability: AppAbility,
   ) {
-    await this.assertDealAccess(id, ability, Action.UPDATE);
+    await this.assertDealAccess(id, ability, userId);
     const data = await this.dealsService.createRollbackRequest(id, dto, userId);
     return {
       success: true,
@@ -309,27 +309,13 @@ export class DealsController {
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
     @CaslAbility() ability: AppAbility,
   ) {
-    const data = await this.dealsService.findDealDetails(id);
-
-    // manage:all / manage:Deal → full access (admin, sales_manager)
-    // read:Deal { conditions } → ownership-scoped access (sales_rep)
-    //
-    // DEAL-1: the read check must run against THIS deal (the subject
-    // instance) — `can(READ, 'Deal')` at class level answers yes for a
-    // rep whose rule merely has conditions, which made the ownership
-    // check a no-op and let any rep open any deal. And the refusal is a
-    // 404, not a 403, so ids cannot be probed.
-    const canManage =
-      ability.can(Action.MANAGE, 'all' as any) ||
-      ability.can(Action.MANAGE, 'Deal');
-    const canRead = ability.can(Action.READ, subject('Deal', data as Deal));
-
-    if (!canManage && !canRead) {
-      throw new NotFoundException('Deal not found');
-    }
-
+    // DEAL-1: managers/admins see any deal; a rep only their own (404 on
+    // a foreign id). See assertDealAccess for why the CASL instance check
+    // was replaced with a direct assigned_to comparison.
+    const data = await this.assertDealAccess(id, ability, userId);
     return { success: true, data };
   }
 
@@ -474,18 +460,27 @@ export class DealsController {
   private async assertDealAccess(
     id: string,
     ability: AppAbility,
-    action: Action,
-  ): Promise<void> {
+    userId: string,
+  ): Promise<Deal> {
     const deal = await this.dealsService.findDealDetails(id);
-    // DEAL-1: instance check only — the class-level can() answers yes
-    // for any rep with a conditional rule, which made this a no-op.
+    // manage:all / manage:Deal → full access (admin, sales_manager).
+    // The STRING subject form of can() matches the DB permission rules.
     const canManage =
       ability.can(Action.MANAGE, 'all' as any) ||
       ability.can(Action.MANAGE, 'Deal');
-    const canAct = ability.can(action, subject('Deal', deal as Deal));
+    // DEAL-1: a rep may open only a deal assigned to them; a foreign id
+    // answers 404 (not 403) so ids cannot be probed. We compare
+    // assigned_to directly instead of `ability.can(READ, subject('Deal',
+    // deal))`: the runtime ability's detectSubjectType returns the entity
+    // CONSTRUCTOR while the DB permission rules are keyed on the STRING
+    // subject 'Deal', so the instance-level rule never matched and every
+    // rep 404'd on their OWN deals — this was "pipeline deals not opening".
+    // Mirrors dealsService.assertDealInScope.
+    const isOwner = !!userId && deal.assigned_to === userId;
 
-    if (!canManage && !canAct) {
+    if (!canManage && !isOwner) {
       throw new NotFoundException('Deal not found');
     }
+    return deal;
   }
 }
