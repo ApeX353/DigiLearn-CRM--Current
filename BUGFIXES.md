@@ -188,6 +188,20 @@ leads 2441/2441, schools 2061/2061, activities 5556/5556 — no dups, no gaps.
 all lists and documenting the limit cap remain optional enhancements.
 **Data impact.** None (read path). Files: `crm-v2-server/src/{leads/leads.service,activities/activities.service,deals/deals.service,schools/schools.service,contacts/contacts.service}.ts`.
 
+### QUOTE3 (6c4277b5): quotes could be saved with no validity date
+**Symptom.** A quote could be created with `valid_until = null` (17 of 67
+were) — the expiry sweep skips null dates, so those quotes never lapse and
+nobody knows when they run out.
+**Root cause.** Quote create stored `dto.valid_until ? … : null`, leaving
+the date empty when the caller didn't supply one.
+**Fix.** Default `valid_until` to **30 days from issue** when not supplied
+(`QUOTE_VALIDITY_DAYS`), so every quote can lapse. **NB — the 30-day window
+is a business default I chose; change `QUOTE_VALIDITY_DAYS` (or say the
+word) if Ms Mpofu wants a different period.** Existing null-dated quotes are
+a separate backfill.
+**Verified locally:** a quote created with no date came back valid ~30 days
+out. **Data impact.** None retroactive. Files: `crm-v2-server/src/quotes/quotes.service.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

@@ -138,11 +138,26 @@ export class QuotesService {
       const calculatedItems = this.calculateItemTotals(itemDtos);
       const totals = this.sumTotals(calculatedItems);
 
+      // QUOTE3: never leave a quote without a validity date. A null
+      // valid_until is skipped by the expiry sweep, so the quote can never
+      // lapse and sits in a blind spot forever (17 of 67 live quotes were
+      // like this). Default to 30 days from issue when the caller doesn't
+      // supply one — a standard quote validity; change QUOTE_VALIDITY_DAYS
+      // if the business wants a different window.
+      const QUOTE_VALIDITY_DAYS = 30;
+      let validUntil: Date;
+      if (dto.valid_until) {
+        validUntil = new Date(dto.valid_until);
+      } else {
+        validUntil = new Date();
+        validUntil.setDate(validUntil.getDate() + QUOTE_VALIDITY_DAYS);
+      }
+
       const quote = transactionManager.create(Quote, {
         ...quoteData,
         quote_number: quoteNumber,
         owner_id: userId,
-        valid_until: dto.valid_until ? new Date(dto.valid_until) : null,
+        valid_until: validUntil,
         ...totals,
       });
 
