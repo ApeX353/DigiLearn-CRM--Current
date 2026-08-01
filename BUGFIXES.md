@@ -153,6 +153,23 @@ contract, and drop the pointless join.
 Disqualified=234, Nurture=91, Converted=29, Qualified=12 — all labelled.
 **Data impact.** None (read path). Files: `crm-v2-server/src/dashboard/dashboard.service.ts`.
 
+### API1 (ba1793d4): owner filter silently dropped a rep's unassigned tasks
+**Symptom.** `GET /activities?created_by_id=<rep>` returned fewer records
+than the rep actually has — specifically it dropped `task` activities with
+`assigned_to_id = null` (the "next step after call" tasks), hiding their
+follow-up evidence.
+**Root cause.** The filter collapsed `created_by_id` and `assigned_to_id`
+into one `userId` and applied a type heuristic: tasks matched on
+`assigned_to_id`, non-tasks on `created_by_id`. So a task created by the rep
+but unassigned (`assigned_to_id IS NULL`) never matched a `created_by_id`
+filter.
+**Fix.** Honour each owner param literally and independently
+(`created_by_id` → `activity.created_by_id`, `assigned_to_id` →
+`activity.assigned_to_id`) — restoring the original intent.
+**Verified locally:** `?created_by_id=<Tanya>&type=task` now returns her 16
+unassigned tasks (previously dropped).
+**Data impact.** None (read path). Files: `crm-v2-server/src/activities/activities.service.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

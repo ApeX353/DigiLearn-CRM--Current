@@ -795,34 +795,20 @@ export class ActivitiesService {
       qb.andWhere('lead.school_id = :school_id', { school_id });
     }
 
-    // if (created_by_id) {
-    //   qb.andWhere('activity.created_by_id = :created_by_id', { created_by_id });
-    // }
-
-    // if (assigned_to_id) {
-    //   qb.andWhere('activity.assigned_to_id = :assigned_to_id', {
-    //     assigned_to_id,
-    //   });
-    // }
-
-    if (created_by_id || assigned_to_id) {
-      const userId = assigned_to_id || created_by_id;
-
-      qb.andWhere(
-        new Brackets((qb1) => {
-          // TASKS → filter by assigned_to
-          qb1.where(
-            'activity.type = :taskType AND activity.assigned_to_id = :userId',
-            { taskType: 'task', userId },
-          );
-
-          // NON-TASKS → filter by created_by
-          qb1.orWhere(
-            'activity.type != :taskType AND activity.created_by_id = :userId',
-            { taskType: 'task', userId },
-          );
-        }),
-      );
+    // API1: honour each owner filter literally and independently. The
+    // previous heuristic collapsed both params into one userId and routed
+    // TASKS to assigned_to_id — so `?created_by_id=<rep>` silently dropped
+    // the rep's own unassigned "next step" tasks (assigned_to_id IS NULL),
+    // hiding exactly the follow-up evidence reps had logged.
+    if (created_by_id) {
+      qb.andWhere('activity.created_by_id = :created_by_id', {
+        created_by_id,
+      });
+    }
+    if (assigned_to_id) {
+      qb.andWhere('activity.assigned_to_id = :assigned_to_id', {
+        assigned_to_id,
+      });
     }
 
     if (start_date) {
