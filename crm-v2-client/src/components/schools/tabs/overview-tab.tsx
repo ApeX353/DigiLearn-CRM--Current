@@ -28,6 +28,29 @@ interface OverviewTabProps {
  * side-column.
  */
 export function OverviewTab({ school }: OverviewTabProps) {
+  // SCH3: surface the school's decision maker (the head contact) on the
+  // summary. The data is already loaded via school.contacts — it just was
+  // never shown here; only the free-text principal_name was. Prefer the
+  // Head role, then a DecisionMaker stakeholder, then the primary contact.
+  const contacts = school.contacts ?? [];
+  const decisionMaker =
+    contacts.find((c) => c.role === "Head") ??
+    contacts.find(
+      (c) =>
+        (c as { stakeholder_type?: string }).stakeholder_type ===
+        "DecisionMaker",
+    ) ??
+    contacts.find((c) => c.is_primary) ??
+    null;
+  const decisionMakerName = decisionMaker
+    ? [decisionMaker.first_name, decisionMaker.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim() ||
+      decisionMaker.email ||
+      "—"
+    : null;
+
   return (
     <div className="space-y-3">
       <RelatedLeadsSection schoolId={school.id} schoolName={school.name} />
@@ -51,6 +74,35 @@ export function OverviewTab({ school }: OverviewTabProps) {
               <Row label="Denomination" value={school.church_denomination} />
             )}
             <Row label="Principal" value={school.principal_name} />
+            {decisionMaker && (
+              <Row
+                label="Decision maker"
+                value={
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span>
+                      {decisionMakerName}
+                      {decisionMaker.role ? ` · ${decisionMaker.role}` : ""}
+                    </span>
+                    {decisionMaker.phone && (
+                      <a
+                        href={`tel:${decisionMaker.phone}`}
+                        className="text-primary hover:underline"
+                      >
+                        {decisionMaker.phone}
+                      </a>
+                    )}
+                    {decisionMaker.email && (
+                      <a
+                        href={`mailto:${decisionMaker.email}`}
+                        className="block max-w-full truncate text-primary hover:underline"
+                      >
+                        {decisionMaker.email}
+                      </a>
+                    )}
+                  </div>
+                }
+              />
+            )}
             {school.website && (
               <Row
                 label="Website"

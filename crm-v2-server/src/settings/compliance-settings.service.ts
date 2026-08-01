@@ -34,6 +34,16 @@ export const COMPLIANCE_SETTINGS = {
     description:
       'How many first-time / outreach actionable activities each rep is expected to log per day. Drives the dashboard "Leads Contacted vs Target" card.',
   },
+  // DISC2: managers carry their own (lower) daily target — they sell less
+  // than a full-time rep. Default 10 vs a rep's 40.
+  daily_contacts_per_manager: {
+    key: 'compliance.targets.daily_contacts_per_manager',
+    type: 'number' as const,
+    default: 10,
+    label: 'Daily contacts target per manager',
+    description:
+      'How many outreach actionable activities each sales MANAGER is expected to log per day. Managers get a lower target than reps (default 10 vs 40).',
+  },
   stale_lead_days: {
     key: 'compliance.thresholds.stale_lead_days',
     type: 'number' as const,

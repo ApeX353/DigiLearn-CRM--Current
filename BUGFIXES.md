@@ -202,6 +202,45 @@ a separate backfill.
 **Verified locally:** a quote created with no date came back valid ~30 days
 out. **Data impact.** None retroactive. Files: `crm-v2-server/src/quotes/quotes.service.ts`.
 
+### SCH3 (7271ca11): show the decision maker on the school
+**Symptom.** The school summary only showed the free-text `principal_name`;
+the real decision-maker contact (with phone/email) wasn't surfaced.
+**Root cause / state.** The head contact is already loaded via
+`school.contacts` — it just wasn't displayed on the overview.
+**Fix.** Client-only: add a "Decision maker" row to the school overview,
+derived Head → DecisionMaker → primary, with tap-to-call/email. No API/DB
+change. Files: `crm-v2-client/src/components/schools/tabs/overview-tab.tsx`.
+
+### DUP5 (a27f99ba): duplicate checker showed a nonsensical "165% match"
+**Symptom.** The duplicate warning read like noise — a "% match" over 100%.
+**Root cause.** `score` is an uncapped weighted sum (phone 60 + email 55 +
+name 30 + …) rendered as `{score}% match`. The per-field reasons already
+show below it.
+**Fix.** Client-only: replace the false percentage with a qualitative
+strength badge (Strong / Likely / Possible match). Files:
+`crm-v2-client/src/components/duplicates/duplicate-warning-banner.tsx`.
+(The merge-dialog annotation is a separate optional surface.)
+
+### DISC2 (d51baddc): daily call target is now role-aware (40 rep / 10 manager)
+**Symptom.** The daily contacts target was a flat 40 for everyone; managers
+should carry a lower target (10). "Reset at midnight" was already handled by
+the date-window logic.
+**Root cause.** Both the discipline board and the dashboard "Leads
+Contacted vs Target" card multiplied a single flat `daily_contacts_per_rep`
+(40) by a headcount, with no role distinction (and the board counted ALL
+active users, admins included).
+**Fix.** New auto-seeded compliance setting `daily_contacts_per_manager`
+(default 10, no migration). Targets are role-aware: single-rep view uses
+that user's role; team view sums each role's target across the active sales
+cohort. Role lookups use `innerJoin + getCount` / a no-`take`
+`leftJoinAndSelect` to avoid the eager-roles pagination trap.
+**Verified locally:** rep target 40, manager 10, team = 4×40 + 2×10 = 180;
+dashboard card role-aware; 9 dashboard tests pass.
+**Follow-up:** expose the new setting in Admin → Compliance & Controls (it
+already applies via its default). **Data impact.** None (read path).
+Files: `crm-v2-server/src/settings/compliance-settings.service.ts`,
+`crm-v2-server/src/dashboard/{activity-discipline.service,dashboard.service}.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

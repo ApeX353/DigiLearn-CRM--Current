@@ -159,8 +159,17 @@ export function DuplicateWarningBanner(props: Props) {
                 <div className="flex items-center gap-1.5 font-medium">
                   <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="truncate">{displayName(kind, c.record)}</span>
+                  {/* DUP5: `score` is an uncapped weighted sum (phone 60 +
+                      email 55 + name 30 + … can exceed 100), so "{score}%
+                      match" printed nonsense like "165% match". Show a
+                      qualitative strength instead; the SignalsRow below
+                      already explains WHICH fields matched. */}
                   <Badge variant="outline" className="text-[10px]">
-                    {c.score}% match
+                    {c.score >= 100
+                      ? "Strong match"
+                      : c.score >= 70
+                        ? "Likely match"
+                        : "Possible match"}
                   </Badge>
                 </div>
                 <SignalsRow signals={c.signals} />

@@ -252,18 +252,28 @@ export class ActivityDisciplineService {
     // the headcount of active users so the expectation scales.
     // Settings-driven (Phase A.3) — admins tune the daily target
     // via Admin Settings → Compliance & Controls without a deploy.
-    let repCount = 1;
-    if (!uid) {
-      const activeUsers = await this.userRepo
-        .createQueryBuilder('u')
-        .where('u.is_active = TRUE')
-        .getCount();
-      repCount = Math.max(1, activeUsers);
-    }
-    const perRepTarget = await this.compliance.getNumber(
-      'daily_contacts_per_rep',
+    // DISC2: the daily target is role-aware — a rep carries the full
+    // target, a manager a lower one. The single-rep view uses that user's
+    // role; the team view sums each role's target across the active SALES
+    // cohort (the old code multiplied a flat 40 by ALL active users, admins
+    // included, so the team bar was both flat-rate and over-counted).
+    const repTarget = await this.compliance.getNumber('daily_contacts_per_rep');
+    const managerTarget = await this.compliance.getNumber(
+      'daily_contacts_per_manager',
     );
-    const dailyTarget = perRepTarget * repCount;
+    let dailyTarget: number;
+    if (uid) {
+      dailyTarget = (await this.userHoldsRole(uid, 'sales_manager'))
+        ? managerTarget
+        : repTarget;
+    } else {
+      const reps = await this.countActiveWithRole('sales_rep');
+      const managers = await this.countActiveWithRole('sales_manager');
+      dailyTarget = Math.max(
+        repTarget,
+        reps * repTarget + managers * managerTarget,
+      );
+    }
 
     // --- KPI 2: New Leads Touched Within SLA ------------------
     // Denominator: leads created in window whose SLA clock has come
@@ -761,6 +771,31 @@ export class ActivityDisciplineService {
         value: slaBreached,
       },
     ];
+  }
+
+  /**
+   * DISC2: does this active user hold the given role? Used for role-aware
+   * daily targets. innerJoin + getCount (no take) so it is immune to the
+   * eager-roles pagination trap that bit the sales-cohort query.
+   */
+  private async userHoldsRole(uid: string, roleName: string): Promise<boolean> {
+    const count = await this.userRepo
+      .createQueryBuilder('u')
+      .innerJoin('u.roles', 'r')
+      .where('u.id = :uid', { uid })
+      .andWhere('r.name = :roleName', { roleName })
+      .getCount();
+    return count > 0;
+  }
+
+  /** DISC2: count active users holding a given role. */
+  private async countActiveWithRole(roleName: string): Promise<number> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .innerJoin('u.roles', 'r')
+      .where('u.is_active = TRUE')
+      .andWhere('r.name = :roleName', { roleName })
+      .getCount();
   }
 
   // =========================================================

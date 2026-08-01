@@ -8,6 +8,7 @@ type QueryBuilderMock = {
   andWhere: jest.Mock;
   innerJoin: jest.Mock;
   leftJoin: jest.Mock;
+  leftJoinAndSelect: jest.Mock;
   groupBy: jest.Mock;
   orderBy: jest.Mock;
   addOrderBy: jest.Mock;
@@ -28,6 +29,7 @@ function createQueryBuilderMock(options?: {
     andWhere: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
     groupBy: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     addOrderBy: jest.fn().mockReturnThis(),
@@ -88,7 +90,9 @@ describe('DashboardService (leads contacted)', () => {
                 ? 20000
                 : k === 'daily_contacts_per_rep'
                   ? 40
-                  : 0,
+                  : k === 'daily_contacts_per_manager'
+                    ? 10
+                    : 0,
         getBoolean: async () => false,
       } as any,
     );

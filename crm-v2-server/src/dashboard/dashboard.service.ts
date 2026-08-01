@@ -426,10 +426,18 @@ export class DashboardService {
           typeof repId === 'string' && repId.trim().length > 0,
       );
 
+    // DISC2: managers carry a lower daily target than reps.
+    const managerTarget = await this.complianceSettings.getNumber(
+      'daily_contacts_per_manager',
+    );
+
     let repUsers: User[] = [];
     if (cohortRepIds.length > 0) {
       repUsers = await this.userRepo
-          .createQueryBuilder('u')
+        .createQueryBuilder('u')
+        // DISC2: hydrate roles so each rep's target is role-aware. Safe
+        // here — no take(), so not the eager-roles pagination trap.
+        .leftJoinAndSelect('u.roles', 'r')
         .where('u.is_active = :active', { active: true })
         .andWhere('u.id IN (:...repIds)', { repIds: cohortRepIds })
         .orderBy('u.first_name', 'ASC')
@@ -467,7 +475,9 @@ export class DashboardService {
           repId: rep.id,
           repName: repName || rep.email || 'Unknown Rep',
           today: Number(todayResult?.count || 0),
-          target: dailyTarget,
+          target: (rep.roles || []).some((r) => r.name === 'sales_manager')
+            ? managerTarget
+            : dailyTarget,
           mtdTotal,
           mtdAverage: Math.round(mtdAverage * 10) / 10,
         };
@@ -475,7 +485,8 @@ export class DashboardService {
     );
 
     const today = byRep.reduce((sum, rep) => sum + rep.today, 0);
-    const target = byRep.length * dailyTarget;
+    // DISC2: sum each rep's own (role-aware) target, not a flat rep-count × 40.
+    const target = byRep.reduce((sum, rep) => sum + rep.target, 0);
     const mtdAverage =
       byRep.length > 0
         ? byRep.reduce((sum, rep) => sum + rep.mtdAverage, 0) / byRep.length
