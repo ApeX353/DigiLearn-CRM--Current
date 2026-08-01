@@ -911,6 +911,9 @@ export class ActivitiesService {
       );
     }
     qb.addOrderBy('activity.created_at', 'DESC');
+    // API2: unique tiebreaker so tied rows don't reorder between pages
+    // (offset pagination silently drops/duplicates rows without it).
+    qb.addOrderBy('activity.id', 'DESC');
 
     return paginate<Activity>(qb, {
       page: parseInt(page, 10),
@@ -1551,6 +1554,7 @@ export class ActivitiesService {
     }
 
     qb.orderBy('activity.created_at', 'DESC');
+    qb.addOrderBy('activity.id', 'DESC'); // API2: deterministic tiebreaker
 
     const paginatedResult = await paginate<Activity>(qb, {
       page: parseInt(page, 10),

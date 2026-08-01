@@ -170,6 +170,24 @@ filter.
 unassigned tasks (previously dropped).
 **Data impact.** None (read path). Files: `crm-v2-server/src/activities/activities.service.ts`.
 
+### API2 (3f94f609): list pagination silently dropped/duplicated rows
+**Symptom.** Paging any list at limit=100 during writes lost records —
+measured on `/leads`: 1753 rows returned but only 1577 distinct, 176 leads
+never appeared on any page (they exist; `?assigned_to=` returns them). The
+app's own list screens and CSV export can silently lose records.
+**Root cause.** List queries ordered by a **non-unique** column
+(`created_at`, or a close-date) with **no tiebreaker**. Bulk-imported rows
+share a `created_at`, so tied rows came back in arbitrary order and offset
+pagination duplicated some and skipped others.
+**Fix.** Add a deterministic `id` tiebreaker (`addOrderBy('<alias>.id',
+'DESC')`) to every paginated list query — leads, activities (both list
+paths), deals (list + archived), schools, contacts.
+**Verified locally** (page through at limit=100, distinct == totalItems):
+leads 2441/2441, schools 2061/2061, activities 5556/5556 — no dups, no gaps.
+**Follow-up (not data-loss):** accepting explicit `sort=`/`sortBy=` params on
+all lists and documenting the limit cap remain optional enhancements.
+**Data impact.** None (read path). Files: `crm-v2-server/src/{leads/leads.service,activities/activities.service,deals/deals.service,schools/schools.service,contacts/contacts.service}.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

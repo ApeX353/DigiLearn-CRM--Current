@@ -1235,7 +1235,8 @@ export class DealsService {
       .where('deal.closeStatus != :ongoing', {
         ongoing: DealCloseStatus.ONGOING,
       })
-      .orderBy('deal.actualCloseDate', 'DESC');
+      .orderBy('deal.actualCloseDate', 'DESC')
+      .addOrderBy('deal.id', 'DESC'); // API2: deterministic tiebreaker
 
     // DEAL-1: reps see their own archive, not the whole company's.
     if (scopeUserId) {
@@ -1296,7 +1297,8 @@ export class DealsService {
       .leftJoinAndSelect('deal.current_stage', 'current_stage')
       // Closed deals sort by close date, ongoing (null close date) by
       // when they were opened — the mixed list stays newest-first.
-      .orderBy('COALESCE(deal.actual_close_date, deal.created_at)', 'DESC');
+      .orderBy('COALESCE(deal.actual_close_date, deal.created_at)', 'DESC')
+      .addOrderBy('deal.id', 'DESC'); // API2: deterministic tiebreaker
 
     // DEALS1: only filter by close_status when the caller explicitly asks.
     // The list previously defaulted to ONGOING and silently hid won/lost

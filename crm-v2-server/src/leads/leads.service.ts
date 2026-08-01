@@ -593,6 +593,13 @@ export class LeadsService {
     } else {
       queryBuilder.orderBy('lead.created_at', 'DESC');
     }
+    // API2: a deterministic tiebreaker. The primary sort alone is NOT unique
+    // — bulk-imported leads share a created_at (and many share a
+    // temperature_score), so tied rows came back in arbitrary order and
+    // offset pagination silently duplicated some rows and skipped others
+    // (measured: 1753 rows / 1577 distinct, 176 leads never appearing).
+    // Ordering by id last makes every page boundary stable.
+    queryBuilder.addOrderBy('lead.id', 'DESC');
 
     const options: IPaginationOptions = {
       page: parseInt(page, 10),

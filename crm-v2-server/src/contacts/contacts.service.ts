@@ -105,6 +105,7 @@ export class ContactsService {
     }
 
     queryBuilder.orderBy('contact.created_at', 'DESC');
+    queryBuilder.addOrderBy('contact.id', 'DESC'); // API2: deterministic tiebreaker
 
     const options: IPaginationOptions = {
       page: parseInt(page, 10),

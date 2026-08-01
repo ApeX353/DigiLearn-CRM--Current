@@ -198,6 +198,7 @@ export class SchoolsService {
     }
 
     queryBuilder.orderBy('school.created_at', 'DESC');
+    queryBuilder.addOrderBy('school.id', 'DESC'); // API2: deterministic tiebreaker
 
     const options: IPaginationOptions = {
       page: parseInt(page, 10),
