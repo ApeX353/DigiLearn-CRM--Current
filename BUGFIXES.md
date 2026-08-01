@@ -116,6 +116,30 @@ create-lead form, and an "Interest" row on the lead at-a-glance.
 `crm-v2-client/src/pages/leads/create-new-lead.tsx`,
 `crm-v2-client/src/components/leads/lead-at-a-glance.tsx`.
 
+### SCH1 (3e0666cb) + SCH2 (e494fedc): school records split by punctuation / city spelling
+**Symptom.** One school forked into several records — a punctuation/spacing
+variant of the name ("St. Mary's" vs "St Marys") or a different city
+spelling ("Harare" vs "Harare CBD") created a second school, splitting its
+leads across records.
+**Root cause.** `createWithSchoolAndContacts` matched schools on exact
+`LOWER(TRIM(name))` + province (so punctuation/spacing forked — SCH1) and
+added `city` as a **hard AND-filter** to the match (so a city spelling
+variance excluded the real school → new one created — SCH2).
+**Fix.** Match on a **canonical name** (`REGEXP_REPLACE(LOWER(name),
+'[^a-z0-9]','','g')`, mirrored by the shared `canonName`) so punctuation/
+spacing variants resolve to the same school. Use **city only as a
+tie-breaker** among multiple same-name schools (compared via `canonCity`),
+never as an exclusion — a single name+province match is reused regardless of
+city spelling. The ambiguity guard (>1 genuine same-name school, no
+disambiguating city → ask the caller to choose) is preserved.
+**Verified locally:** apostrophe variant reused the school; a different city
+spelling still reused; the guard fired on a real duplicate (Chidiya Primary
+×2); a city singled out the right one. Test leads cleaned up.
+**Data impact.** Prevents new forks; existing already-split schools are a
+separate merge/cleanup task (owner: Ms Mpofu per the lead-merge rule).
+Files: `crm-v2-server/src/leads/leads.service.ts`,
+`crm-v2-server/src/leads/utils/record-normalization.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

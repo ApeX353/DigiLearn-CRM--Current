@@ -57,7 +57,7 @@ import { EmailSequenceService } from '../email-sequences/email-sequence.service'
 import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 import { isTacticalDisqualifyReason } from './constants/reasons';
 import { LEAD_STATUSES } from './constants/lead-statuses';
-import { canonPhone } from './utils/record-normalization';
+import { canonName, canonCity, canonPhone } from './utils/record-normalization';
 
 @Injectable()
 export class LeadsService {
@@ -178,33 +178,57 @@ export class LeadsService {
           );
         }
 
-        const schoolMatchQuery = manager
+        // SCH1: match on a CANONICAL name (case-folded, punctuation and
+        // spacing stripped) so "St. Mary's High School", "St Marys High
+        // School" and "St. Mary's  High School" resolve to the SAME school
+        // instead of forking a duplicate that splits its leads. Abbreviation
+        // expansion (HS → High School) is deliberately NOT done — it would
+        // risk merging genuinely distinct schools.
+        const canonSchoolName = canonName(leadInfo.school_name);
+        const matchingSchools = await manager
           .createQueryBuilder(School, 'school')
-          .where('LOWER(TRIM(school.name)) = LOWER(TRIM(:schoolName))', {
-            schoolName: leadInfo.school_name,
-          })
-          .andWhere('LOWER(TRIM(school.province::text)) = LOWER(TRIM(:province))', {
-            province: leadInfo.province,
-          })
-          .andWhere('school.deleted_at IS NULL');
+          .where(
+            "REGEXP_REPLACE(LOWER(school.name), '[^a-z0-9]', '', 'g') = :canonName",
+            { canonName: canonSchoolName },
+          )
+          .andWhere(
+            'LOWER(TRIM(school.province::text)) = LOWER(TRIM(:province))',
+            { province: leadInfo.province },
+          )
+          .andWhere('school.deleted_at IS NULL')
+          .take(5)
+          .getMany();
 
-        if (leadInfo.city) {
-          schoolMatchQuery.andWhere(
-            'LOWER(TRIM(school.city)) = LOWER(TRIM(:city))',
-            { city: leadInfo.city },
-          );
+        let resolvedSchool: School | undefined;
+        if (matchingSchools.length === 1) {
+          // SCH2: a single name+province match IS the school — reuse it
+          // regardless of any city spelling difference. City disambiguates
+          // BETWEEN multiple same-name schools; it must not fork a new
+          // record over "Harare" vs "Harare CBD" vs "Hre".
+          resolvedSchool = matchingSchools[0];
+        } else if (matchingSchools.length > 1) {
+          // Several genuinely same-named schools in this province — use the
+          // city to pick one, compared canonically so spelling variance
+          // still matches. If the city is missing or doesn't single one out,
+          // the caller must choose explicitly.
+          if (leadInfo.city) {
+            const canonInputCity = canonCity(leadInfo.city);
+            const cityMatches = matchingSchools.filter(
+              (s) => canonCity(s.city) === canonInputCity,
+            );
+            if (cityMatches.length === 1) {
+              resolvedSchool = cityMatches[0];
+            }
+          }
+          if (!resolvedSchool) {
+            throw new BadRequestException(
+              `Several schools named "${leadInfo.school_name}" exist in ${leadInfo.province} — select the school from the suggestions or provide its city`,
+            );
+          }
         }
 
-        const matchingSchools = await schoolMatchQuery.take(2).getMany();
-
-        if (!leadInfo.city && matchingSchools.length > 1) {
-          throw new BadRequestException(
-            `Several schools named "${leadInfo.school_name}" exist in ${leadInfo.province} — select the school from the suggestions or provide its city`,
-          );
-        }
-
-        if (matchingSchools.length > 0) {
-          school = matchingSchools[0];
+        if (resolvedSchool) {
+          school = resolvedSchool;
         } else {
           // Create new school only when no existing school matches.
           // City is mandatory for user-created schools. The exception is
