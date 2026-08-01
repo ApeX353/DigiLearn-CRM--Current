@@ -140,6 +140,19 @@ separate merge/cleanup task (owner: Ms Mpofu per the lead-merge rule).
 Files: `crm-v2-server/src/leads/leads.service.ts`,
 `crm-v2-server/src/leads/utils/record-normalization.ts`.
 
+### AUD-M06 (9c14ee4b): Leads-by-Stage dashboard chart was broken
+**Symptom.** The "Leads by Stage" chart on the dashboard didn't render
+properly.
+**Root cause.** `getLeadsByStage` grouped by `l.status` and returned each
+row as `{ status, count }`, but the client's `LeadsByStageData` reads
+`{ stage, count }` — so every bar's label/key was `undefined`. (It also
+carried a dead `leftJoinAndSelect('l.stage')` that `.select()` discarded.)
+**Fix.** Return the grouped value under `stage` to match the client
+contract, and drop the pointless join.
+**Verified locally:** endpoint returns New=1286, Contacted=789,
+Disqualified=234, Nurture=91, Converted=29, Qualified=12 — all labelled.
+**Data impact.** None (read path). Files: `crm-v2-server/src/dashboard/dashboard.service.ts`.
+
 ---
 
 ## 2026-07-31 — BUGUI1: bug-tracker detail dialog overflowed the viewport, clipping text

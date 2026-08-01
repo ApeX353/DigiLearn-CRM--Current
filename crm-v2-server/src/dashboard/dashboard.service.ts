@@ -1049,7 +1049,6 @@ export class DashboardService {
   ) {
     const qb = this.leadRepo
       .createQueryBuilder('l')
-      .leftJoinAndSelect('l.stage', 'stage')
       .leftJoin('l.school', 'school')
       .where('l.deleted_at IS NULL');
 
@@ -1066,8 +1065,11 @@ export class DashboardService {
       .groupBy('l.status')
       .getRawMany();
 
+    // AUD-M06: the client's LeadsByStageData is keyed on `stage` (holding
+    // the lead's status value); returning `status` here left every bar with
+    // an undefined label, so the "Leads by Stage" chart rendered broken.
     return result.map((r) => ({
-      status: r.status,
+      stage: r.status,
       count: Number(r.count),
     }));
   }
