@@ -36,7 +36,10 @@ import {
 import { useAnyRole } from "~/hooks/use-permission";
 
 export default function DuplicatesQueuePage() {
-  const canAccess = useAnyRole(["admin", "sales_manager"]);
+  // admin_support is an oversight role (aliases to admin at the API's
+  // RolesGuard, which already admits it to the duplicates endpoints) — let
+  // it view the review queue in the UI too, so support can scope duplicates.
+  const canAccess = useAnyRole(["admin", "admin_support", "sales_manager"]);
   if (!canAccess) {
     return (
       <div>
