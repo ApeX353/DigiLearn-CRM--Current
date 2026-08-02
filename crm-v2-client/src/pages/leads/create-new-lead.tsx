@@ -185,6 +185,10 @@ export default function CreateNewLeadPage() {
     form.setValue("contacts.0.email", inheritedContact.email || "");
     form.setValue("contacts.0.phone", inheritedContact.phone || "");
     form.setValue(
+      "contacts.0.secondary_phone",
+      inheritedContact.secondary_phone || "",
+    );
+    form.setValue(
       "contacts.0.whatsapp_number",
       inheritedContact.whatsapp_number || "",
     );
@@ -935,6 +939,28 @@ export default function CreateNewLeadPage() {
                               <Input
                                 placeholder="+263..."
                                 {...field}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  clearInheritedContactIfEditing(index);
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name={`contacts.${index}.secondary_phone`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Second phone (optional)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="+263..."
+                                {...field}
+                                value={field.value ?? ""}
                                 onChange={(e) => {
                                   field.onChange(e);
                                   clearInheritedContactIfEditing(index);

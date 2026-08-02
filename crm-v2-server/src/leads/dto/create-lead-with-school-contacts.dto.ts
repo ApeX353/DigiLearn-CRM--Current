@@ -67,6 +67,15 @@ export class CreateContactDto {
   @MaxLength(20)
   phone?: string;
 
+  @ApiPropertyOptional({
+    example: '+27123456780',
+    description: 'Optional second phone number (CON1). Never required.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  secondary_phone?: string;
+
   @ApiPropertyOptional({ example: '+27123456789' })
   @IsOptional()
   @IsString()

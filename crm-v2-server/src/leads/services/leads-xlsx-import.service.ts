@@ -200,6 +200,7 @@ export class LeadsXlsxImportService {
         city: cell(row, cols.city) || undefined,
         district: cell(row, cols.district) || undefined,
         phone: cell(row, cols.phone) || undefined,
+        secondary_phone: cell(row, cols.secondaryPhone) || undefined,
         role: this.toRole(cell(row, cols.position)),
         status,
         invalidReason,
@@ -419,6 +420,7 @@ export class LeadsXlsxImportService {
                 first_name: row.contactFirst,
                 last_name: row.contactLast,
                 phone: row.phone,
+                secondary_phone: row.secondary_phone,
                 role: row.role as never,
                 is_primary: true,
               } as never,
@@ -492,6 +494,12 @@ export class LeadsXlsxImportService {
       const key = String(c.value ?? '')
         .toLowerCase()
         .replace(/[^a-z]/g, '');
+      // CON1: a digit-preserving variant so "Phone 2"/"Mobile2" can be told
+      // apart from the primary "Phone" column (the alpha-only key above
+      // collapses "phone2" → "phone").
+      const rawKey = String(c.value ?? '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
       // IMPORT2: accept common header variants so real spreadsheets
       // ("Phone Number", "Cell", "Contact Person"…) don't silently drop the
       // value. Exact-match on 'phone'/'contact' alone lost most of them.
@@ -509,6 +517,26 @@ export class LeadsXlsxImportService {
         idx.contact = i;
       else if (['position', 'role', 'title', 'designation'].includes(key))
         idx.position = i;
+      // CON1: recognise a second-phone column (best-effort). Checked BEFORE
+      // the primary phone so "Phone 2"/"Mobile2" are not swallowed by it.
+      else if (
+        [
+          'phone2',
+          'mobile2',
+          'cell2',
+          'tel2',
+        ].includes(rawKey) ||
+        [
+          'secondphone',
+          'secondaryphone',
+          'altphone',
+          'alternatephone',
+          'otherphone',
+          'phonetwo',
+          'mobiletwo',
+        ].includes(key)
+      )
+        idx.secondaryPhone = i;
       else if (
         [
           'phone',

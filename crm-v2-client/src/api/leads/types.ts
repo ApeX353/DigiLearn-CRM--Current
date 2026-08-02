@@ -124,6 +124,7 @@ export interface AddLeadStakeholderPayload {
   last_name?: string;
   email?: string;
   phone?: string;
+  secondary_phone?: string;
   whatsapp_number?: string;
   role?: ContactRole;
   preferred_contact_method?: PreferredContactMethod;

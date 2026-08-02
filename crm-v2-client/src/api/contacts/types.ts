@@ -29,6 +29,7 @@ export interface Contact {
   is_primary: boolean;
   email?: string;
   phone?: string;
+  secondary_phone?: string;
   whatsapp_number?: string;
   preferred_contact_method?: PreferredContactMethod;
   notes?: string;
@@ -48,6 +49,7 @@ export const createContactSchema = z.object({
   last_name: z.string().min(2, "Last name is required"),
   email: z.email("Invalid email").optional(),
   phone: z.string().optional(),
+  secondary_phone: z.string().optional(),
   whatsapp_number: z.string().optional(),
   is_primary: z.boolean(),
   notes: z.string().optional(),

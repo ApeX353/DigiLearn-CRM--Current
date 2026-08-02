@@ -186,12 +186,22 @@ export function LeadAtAGlance({
 
           <SectionRow icon={Phone} label="Phone">
             {contactPhone ? (
-              <a
-                href={`tel:${contactPhone}`}
-                className="text-primary hover:underline tabular"
-              >
-                {contactPhone}
-              </a>
+              <span className="inline-flex flex-wrap items-center gap-x-2">
+                <a
+                  href={`tel:${contactPhone}`}
+                  className="text-primary hover:underline tabular"
+                >
+                  {contactPhone}
+                </a>
+                {lead.primary_contact?.secondary_phone && (
+                  <a
+                    href={`tel:${lead.primary_contact.secondary_phone}`}
+                    className="text-primary hover:underline tabular"
+                  >
+                    {lead.primary_contact.secondary_phone}
+                  </a>
+                )}
+              </span>
             ) : (
               <EmptyHint>Missing</EmptyHint>
             )}

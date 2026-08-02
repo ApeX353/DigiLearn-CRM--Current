@@ -72,6 +72,13 @@ export class Contact {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;
 
+  /**
+   * Optional second phone number (CON1). Headmasters often carry two
+   * numbers; this is always optional and never required anywhere.
+   */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  secondary_phone: string | null;
+
   @Column({ type: 'varchar', length: 20, nullable: true })
   whatsapp_number: string | null;
 

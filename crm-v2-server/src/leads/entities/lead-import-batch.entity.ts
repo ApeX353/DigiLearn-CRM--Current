@@ -38,6 +38,8 @@ export interface PendingImportRow {
   city?: string;
   district?: string;
   phone?: string;
+  /** CON1: optional second phone number recognised from the sheet. */
+  secondary_phone?: string;
   role: string;
   /** importable = has the fields needed to create a lead; invalid = missing. */
   status: 'importable' | 'invalid';

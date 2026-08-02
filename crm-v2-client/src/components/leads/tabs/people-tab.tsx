@@ -143,6 +143,7 @@ const addStakeholderSchema = z.object({
   last_name: z.string().min(2, "Last name is required"),
   email: z.string().email("Invalid email address").or(z.literal("")),
   phone: z.string(),
+  secondary_phone: z.string(),
   whatsapp_number: z.string(),
   role: z.enum(CONTACT_ROLES),
   preferred_contact_method: z.enum(PREFERRED_CONTACT_METHODS),
@@ -159,6 +160,7 @@ const addStakeholderDefaults: AddStakeholderFormValues = {
   last_name: "",
   email: "",
   phone: "",
+  secondary_phone: "",
   whatsapp_number: "",
   role: "Teacher",
   preferred_contact_method: "Email",
@@ -200,6 +202,7 @@ export function PeopleTab({ lead }: LeadPeopleTabProps) {
         last_name: values.last_name.trim(),
         email: values.email.trim() || undefined,
         phone: values.phone.trim() || undefined,
+        secondary_phone: values.secondary_phone.trim() || undefined,
         whatsapp_number: values.whatsapp_number.trim() || undefined,
         role: values.role,
         preferred_contact_method: values.preferred_contact_method,
@@ -520,6 +523,20 @@ export function PeopleTab({ lead }: LeadPeopleTabProps) {
 
             <FormField
               control={addStakeholderForm.control}
+              name="secondary_phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Second phone (optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="+263..." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={addStakeholderForm.control}
               name="whatsapp_number"
               render={({ field }) => (
                 <FormItem>
@@ -685,6 +702,17 @@ function StakeholderCard({
                 className="hover:text-primary"
               >
                 {stakeholder.contact.phone}
+              </a>
+            </div>
+          )}
+          {stakeholder.contact?.secondary_phone && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Phone className="h-3.5 w-3.5" />
+              <a
+                href={`tel:${stakeholder.contact.secondary_phone}`}
+                className="hover:text-primary"
+              >
+                {stakeholder.contact.secondary_phone}
               </a>
             </div>
           )}
