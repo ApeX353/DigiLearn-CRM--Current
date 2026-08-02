@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,6 +58,17 @@ import { useAuthStore } from "~/stores/use-auth-store";
 import { useRbacStore } from "~/stores/use-rbac-store";
 import { useCampaigns } from "~/api/campaigns";
 import { DuplicateWarningBanner } from "~/components/duplicates/duplicate-warning-banner";
+import type { DuplicateCandidate } from "~/api/duplicates";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "~/components/ui/alert-dialog";
 
 export default function CreateNewLeadPage() {
   const navigate = useNavigate();
@@ -65,6 +76,16 @@ export default function CreateNewLeadPage() {
   const prefillSchoolId = searchParams.get("school_id");
   const [prefillApplied, setPrefillApplied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // DUP3: likely-duplicate confirm-to-proceed gate. The banner already peeks
+  // for duplicates as the rep types; we lift its flagged candidates here so
+  // the first save attempt on a clear duplicate is intercepted with a confirm.
+  const [duplicateCandidates, setDuplicateCandidates] = useState<
+    DuplicateCandidate[]
+  >([]);
+  const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<AddLeadValues | null>(
+    null,
+  );
   const [schoolSearchTerm, setSchoolSearchTerm] = useState("");
   const [hydratedSchoolId, setHydratedSchoolId] = useState<string | null>(null);
   const createLead = useCreateLead();
@@ -227,7 +248,14 @@ export default function CreateNewLeadPage() {
     }
   }, [canAssign, isSalesRep, currentUser?.id, form]);
 
-  const onSubmit = async (values: AddLeadValues) => {
+  const handleDuplicateCandidatesChange = useCallback(
+    (candidates: DuplicateCandidate[]) => {
+      setDuplicateCandidates(candidates);
+    },
+    [],
+  );
+
+  const doCreate = async (values: AddLeadValues) => {
     setIsSubmitting(true);
     try {
       const payload = isSalesRep
@@ -258,6 +286,26 @@ export default function CreateNewLeadPage() {
     }
   };
 
+  const onSubmit = async (values: AddLeadValues) => {
+    // DUP3: a clear duplicate (the peek only returns candidates at/above the
+    // flag threshold — the same ones the banner shows) requires an explicit
+    // confirm before we create. Not a hard block: the rep can still proceed.
+    if (duplicateCandidates.length > 0) {
+      setPendingValues(values);
+      setDuplicateConfirmOpen(true);
+      return;
+    }
+    await doCreate(values);
+  };
+
+  // Top flagged duplicate, used to name the record in the confirm prompt.
+  const topDuplicateName = useMemo(() => {
+    const record = duplicateCandidates[0]?.record as
+      | { lead_name?: string }
+      | undefined;
+    return record?.lead_name?.trim() || "an existing lead";
+  }, [duplicateCandidates]);
+
   return (
     <div>
       <PageHeader hasBackButton title="Create New Lead" />
@@ -266,7 +314,11 @@ export default function CreateNewLeadPage() {
         {/* Phase 8 — peek for duplicates as the rep types. The
             banner renders nothing until a candidate is found, so the
             page stays empty when nothing looks suspicious. */}
-        <DuplicateBannerBridge form={form} className="mb-4" />
+        <DuplicateBannerBridge
+          form={form}
+          className="mb-4"
+          onCandidatesChange={handleDuplicateCandidatesChange}
+        />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Lead Information Card */}
@@ -1033,6 +1085,50 @@ export default function CreateNewLeadPage() {
           </form>
         </Form>
       </Container>
+
+      {/* DUP3: confirm-to-proceed on a likely duplicate. Graceful, per owner —
+          the rep can still create the lead, but must acknowledge first. */}
+      <AlertDialog
+        open={duplicateConfirmOpen}
+        onOpenChange={(open) => {
+          setDuplicateConfirmOpen(open);
+          if (!open) setPendingValues(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This looks like a duplicate</AlertDialogTitle>
+            <AlertDialogDescription>
+              This looks like a duplicate of {topDuplicateName}
+              {duplicateCandidates.length > 1
+                ? ` (and ${duplicateCandidates.length - 1} other likely match${
+                    duplicateCandidates.length - 1 > 1 ? "es" : ""
+                  })`
+                : ""}
+              . Are you sure you want to create it anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>
+              Go back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isSubmitting}
+              onClick={(e) => {
+                // Keep the dialog logic in our hands: run the create with the
+                // values captured at submit time, then close.
+                e.preventDefault();
+                const values = pendingValues;
+                setDuplicateConfirmOpen(false);
+                setPendingValues(null);
+                if (values) void doCreate(values);
+              }}
+            >
+              Create anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1045,9 +1141,11 @@ export default function CreateNewLeadPage() {
 function DuplicateBannerBridge({
   form,
   className,
+  onCandidatesChange,
 }: {
   form: ReturnType<typeof useForm<AddLeadValues>>;
   className?: string;
+  onCandidatesChange?: (candidates: DuplicateCandidate[]) => void;
 }) {
   const leadName = form.watch("lead.name");
   const schoolId = form.watch("lead.school_id");
@@ -1058,6 +1156,7 @@ function DuplicateBannerBridge({
     <DuplicateWarningBanner
       kind="lead"
       className={className}
+      onCandidatesChange={onCandidatesChange}
       value={{
         lead_name: leadName,
         school_id: schoolId ?? null,

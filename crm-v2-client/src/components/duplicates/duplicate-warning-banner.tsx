@@ -18,6 +18,14 @@ interface BaseProps {
   /** Live form values used to peek — component debounces internally. */
   enabled?: boolean;
   className?: string;
+  /**
+   * DUP3: notify the parent whenever the peek result changes, so a
+   * create form can gate its submit on a likely duplicate (require an
+   * explicit confirm-to-proceed) without re-running the peek itself.
+   * Fires with the current flagged candidates (empty array when none).
+   * Pass a stable callback (useCallback) to avoid extra renders.
+   */
+  onCandidatesChange?: (candidates: DuplicateCandidate[]) => void;
 }
 
 interface LeadProps extends BaseProps {
@@ -63,9 +71,17 @@ type Props = LeadProps | SchoolProps | ContactProps;
  * suspicion for a manager if they decide to save anyway.
  */
 export function DuplicateWarningBanner(props: Props) {
-  const { kind, enabled = true, className } = props;
+  const { kind, enabled = true, className, onCandidatesChange } = props;
   const [candidates, setCandidates] = useState<DuplicateCandidate[]>([]);
   const [dismissed, setDismissed] = useState(false);
+
+  // DUP3: keep the parent in step with the peek result. Independent of the
+  // banner's dismissed state — dismissing hides the notice but the duplicate
+  // still exists, so the submit gate must still fire.
+  useEffect(() => {
+    onCandidatesChange?.(candidates);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidates]);
 
   const peekLead = usePeekLeadDuplicates();
   const peekSchool = usePeekSchoolDuplicates();
