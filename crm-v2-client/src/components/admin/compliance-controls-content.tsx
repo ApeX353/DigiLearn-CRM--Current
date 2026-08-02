@@ -67,6 +67,7 @@ const COMPLIANCE_KEYS = [
   "compliance.policy.tactical_disqualify_requires_approval",
   "compliance.policy.enforce_outcome_on_completion",
   "compliance.policy.enforce_next_step_on_completion",
+  "compliance.policy.require_activity_due_date",
   "compliance.policy.sla_prebreach_nudge_hours",
   "compliance.policy.enforce_commercial_intent_for_deal",
   "compliance.policy.demo_followup_sla_hours",
@@ -92,6 +93,7 @@ const DEFAULTS: Record<ComplianceKey, number | boolean> = {
   "compliance.policy.tactical_disqualify_requires_approval": true,
   "compliance.policy.enforce_outcome_on_completion": false,
   "compliance.policy.enforce_next_step_on_completion": false,
+  "compliance.policy.require_activity_due_date": true,
   "compliance.policy.sla_prebreach_nudge_hours": 4,
   "compliance.policy.enforce_commercial_intent_for_deal": false,
   "compliance.policy.demo_followup_sla_hours": 48,
@@ -179,6 +181,9 @@ const ComplianceControlsContent = () => {
   );
   const [enforceNextStep, setEnforceNextStep] = useState<boolean>(
     DEFAULTS["compliance.policy.enforce_next_step_on_completion"] as boolean,
+  );
+  const [requireActivityDueDate, setRequireActivityDueDate] = useState<boolean>(
+    DEFAULTS["compliance.policy.require_activity_due_date"] as boolean,
   );
   // Phase D — pre-breach nudge window.
   const [prebreachHours, setPrebreachHours] = useState<number>(
@@ -304,6 +309,12 @@ const ComplianceControlsContent = () => {
         DEFAULTS[
           "compliance.policy.enforce_next_step_on_completion"
         ] as boolean,
+      ),
+    );
+    setRequireActivityDueDate(
+      toBoolean(
+        settings["compliance.policy.require_activity_due_date"],
+        DEFAULTS["compliance.policy.require_activity_due_date"] as boolean,
       ),
     );
     setPrebreachHours(
@@ -508,6 +519,15 @@ const ComplianceControlsContent = () => {
             is_public: false,
           },
           {
+            key: "compliance.policy.require_activity_due_date",
+            value: requireActivityDueDate,
+            data_type: "boolean",
+            description:
+              "Require a due date on every OPEN actionable activity",
+            category: "compliance",
+            is_public: false,
+          },
+          {
             key: "compliance.policy.sla_prebreach_nudge_hours",
             value: prebreachHours,
             data_type: "number",
@@ -657,6 +677,12 @@ const ComplianceControlsContent = () => {
           DEFAULTS[
             "compliance.policy.enforce_next_step_on_completion"
           ] as boolean,
+        ),
+      );
+      setRequireActivityDueDate(
+        toBoolean(
+          settings["compliance.policy.require_activity_due_date"],
+          DEFAULTS["compliance.policy.require_activity_due_date"] as boolean,
         ),
       );
       setPrebreachHours(
@@ -1265,6 +1291,34 @@ const ComplianceControlsContent = () => {
               data-testid="cc-enforce-next-step"
               checked={enforceNextStep}
               onCheckedChange={(v) => handleBoolChange(setEnforceNextStep, v)}
+            />
+          </div>
+
+          {/* Require a due date on every open activity */}
+          <div className="flex flex-col gap-4 rounded-md border p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div className="space-y-1">
+              <Label
+                htmlFor="cc-require-due-date"
+                className="flex items-center gap-2 text-base font-medium"
+              >
+                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                Require a date on every open activity
+              </Label>
+              <p className="text-xs text-muted-foreground max-w-xl">
+                When <strong>on</strong> (default), an actionable activity
+                (call / meeting / email / WhatsApp / task) left <strong>open</strong>
+                {" "}must carry a due date — the "when" of the commitment.
+                Completed activities are exempt. Turn this <strong>off</strong>
+                {" "}to let reps save an open activity with no date at all.
+              </p>
+            </div>
+            <Switch
+              id="cc-require-due-date"
+              data-testid="cc-require-due-date"
+              checked={requireActivityDueDate}
+              onCheckedChange={(v) =>
+                handleBoolChange(setRequireActivityDueDate, v)
+              }
             />
           </div>
 

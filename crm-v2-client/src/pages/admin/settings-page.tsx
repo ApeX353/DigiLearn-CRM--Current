@@ -241,9 +241,11 @@ function SettingsPageContent() {
         <TabsContent value="general" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Company Information</CardTitle>
+              <CardTitle>Company Information 🚧 WIP</CardTitle>
               <CardDescription>
-                Update your company details
+                Work in progress — saving here does not yet update generated
+                quotes/invoices (those currently use server configuration).
+                Changes are stored but not applied.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -325,12 +327,16 @@ function SettingsPageContent() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="timezone">Timezone</Label>
+                      <Label htmlFor="timezone">Timezone 🚧 WIP</Label>
                       <Input
                         id="timezone"
                         value={timezone}
                         onChange={(e) => setTimezone(e.target.value)}
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Work in progress — not yet applied anywhere. (Currency
+                        above is live.)
+                      </p>
                     </div>
                   </div>
                   <Button

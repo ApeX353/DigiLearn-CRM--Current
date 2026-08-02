@@ -190,10 +190,19 @@ const TargetsConfigContent = () => {
         </CardTitle>
         <CardDescription>
           Configure system-wide default targets for sales performance tracking.
-          These values are used when calculating team metrics and forecasting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* WIP notice — these controls are being migrated to the
+            Compliance & Controls tab, which is the live source. */}
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          <strong>🚧 Work in progress.</strong> Monthly Revenue Target,
+          Expected Win Rate and High-Value Threshold below are being migrated —
+          changing them here does <strong>not</strong> yet affect dashboards.
+          Set those on the <strong>Compliance &amp; Controls</strong> tab, which
+          is the live source. (Daily Leads Target here overlaps with that tab's
+          "daily contacts per rep" — avoid setting both.)
+        </div>
         {/* Daily Leads Target */}
         <div className="space-y-2">
           <Label
