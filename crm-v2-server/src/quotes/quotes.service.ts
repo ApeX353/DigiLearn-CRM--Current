@@ -366,6 +366,18 @@ export class QuotesService {
         await this.assertDealAttachable(manager, dto.deal_id, scopeUserId);
       }
       Object.assign(quote, dto);
+
+      // QUOTE1: editing an Accepted quote's content without re-affirming its
+      // status invalidates the acceptance — the customer accepted different
+      // terms. Drop it back to Draft (and clear po_received) so the UI stops
+      // showing "Accepted" on a document that no longer matches. A caller
+      // that explicitly sends `status` (e.g. the status dropdown) is honoured
+      // as-is and never overridden here.
+      if (dto.status === undefined && oldValues.status === 'Accepted') {
+        quote.status = 'Draft';
+        quote.po_received = false;
+      }
+
       const updatedQuote = await manager.save(Quote, quote);
 
       // look up the deal and update deal value to match the invoice total
@@ -541,6 +553,41 @@ export class QuotesService {
   // Item Management
   // ========================
 
+  /**
+   * QUOTE1: an "Accepted" quote records terms the customer signed off on.
+   * The moment those terms change — a line item added/edited/removed, or the
+   * quote otherwise edited — the acceptance no longer describes the document,
+   * so the quote must drop back to Draft. Without this the UI kept showing
+   * "Accepted" on a quote whose contents had since changed.
+   *
+   * Only Accepted is rolled back; Draft / Sent / Rejected / Expired are left
+   * as-is. `po_received` is cleared alongside it — it is meaningful only for
+   * an accepted quote, and leaving it set on a Draft is contradictory.
+   */
+  private async revertAcceptanceOnEdit(
+    quoteId: string,
+    userId: string,
+  ): Promise<void> {
+    const quote = await this.quoteRepository.findOne({
+      where: { id: quoteId },
+    });
+    if (!quote || quote.status !== 'Accepted') return;
+
+    await this.quoteRepository.update(quoteId, {
+      status: 'Draft',
+      po_received: false,
+    });
+
+    await this.activityLogsService.logUpdate(
+      'Quote',
+      quoteId,
+      { status: 'Accepted' },
+      { status: 'Draft' },
+      userId,
+      `Quote ${quote.quote_number} reverted to Draft after its contents were edited`,
+    );
+  }
+
   async addItem(
     quoteId: string,
     dto: CreateQuoteItemDto,
@@ -558,6 +605,8 @@ export class QuotesService {
 
     await this.documentItemRepository.save(item);
     await this.recalculateQuoteTotals(quoteId);
+    // QUOTE1: adding an item changes the quote's terms — drop it out of Accepted.
+    await this.revertAcceptanceOnEdit(quoteId, userId);
 
     await this.activityLogsService.logUpdate(
       'Quote',
@@ -600,6 +649,8 @@ export class QuotesService {
 
     await this.documentItemRepository.save(item);
     await this.recalculateQuoteTotals(quoteId);
+    // QUOTE1: editing an item changes the quote's terms — drop it out of Accepted.
+    await this.revertAcceptanceOnEdit(quoteId, userId);
 
     await this.activityLogsService.logUpdate(
       'Quote',
@@ -630,6 +681,8 @@ export class QuotesService {
 
     await this.documentItemRepository.remove(item);
     await this.recalculateQuoteTotals(quoteId);
+    // QUOTE1: removing an item changes the quote's terms — drop it out of Accepted.
+    await this.revertAcceptanceOnEdit(quoteId, userId);
 
     await this.activityLogsService.logUpdate(
       'Quote',
