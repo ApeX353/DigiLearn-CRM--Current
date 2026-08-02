@@ -9,6 +9,7 @@ import {
   IsString,
   Matches,
   Max,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
@@ -53,10 +54,12 @@ export class CreateSchedulingLinkDto {
 
   @IsString()
   @MinLength(1)
+  @MaxLength(200)
   title: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   description?: string;
 
   @IsEnum(SchedulingLinkLocation)
@@ -203,11 +206,15 @@ export class ConfirmHoldDto {
   @IsEmail()
   invitee_email: string;
 
+  // L-05: public booking endpoint — cap the free-text fields so an
+  // anonymous caller can't post unbounded strings.
   @IsString()
   @MinLength(1)
+  @MaxLength(200)
   invitee_name: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(2000)
   notes?: string;
 }

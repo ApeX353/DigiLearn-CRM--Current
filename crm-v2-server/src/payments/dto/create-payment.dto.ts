@@ -16,9 +16,9 @@ export class CreatePaymentDto {
   @IsNotEmpty()
   invoice_id: string;
 
-  @ApiProperty({ example: 500.0, minimum: 0 })
+  @ApiProperty({ example: 500.0, minimum: 0.01 })
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @Min(0.01)
   amount: number;
 
   @ApiProperty({ example: '2026-01-30T00:00:00.000Z' })

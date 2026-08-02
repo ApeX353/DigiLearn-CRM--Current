@@ -63,7 +63,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Register new user',
     description:
-      'Create a new user account with email and password. Automatically assigns default student role.',
+      'Create a new user account with email and password. Automatically assigns the default sales_rep role.',
   })
   @ApiBody({ type: RegisterDto })
   @ApiResponse({

@@ -1,4 +1,5 @@
 import {
+  ArrayMaxSize,
   IsBoolean,
   IsEmail,
   IsInt,
@@ -127,18 +128,23 @@ export { UserEmailProvider };
  * inboxes (notably many Android clients) prefer the plain part.
  */
 export class SendUserEmailDto {
+  // L-05: recipients must be real addresses and capped, so a malformed or
+  // runaway list can't reach the mailer.
   @ApiProperty({ type: [String], example: ['lead@example.com'] })
-  @IsString({ each: true })
+  @IsEmail({}, { each: true })
+  @ArrayMaxSize(100)
   to: string[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsString({ each: true })
+  @IsEmail({}, { each: true })
+  @ArrayMaxSize(100)
   cc?: string[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsString({ each: true })
+  @IsEmail({}, { each: true })
+  @ArrayMaxSize(100)
   bcc?: string[];
 
   @ApiProperty({ example: 'Follow-up: Acme Demo' })
@@ -193,18 +199,22 @@ export class SendUserEmailDto {
  * of step.
  */
 export class SendWithTemplateDto {
+  // L-05: same recipient hygiene as the one-off send path.
   @ApiProperty({ type: [String] })
-  @IsString({ each: true })
+  @IsEmail({}, { each: true })
+  @ArrayMaxSize(100)
   to: string[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsString({ each: true })
+  @IsEmail({}, { each: true })
+  @ArrayMaxSize(100)
   cc?: string[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsString({ each: true })
+  @IsEmail({}, { each: true })
+  @ArrayMaxSize(100)
   bcc?: string[];
 
   @ApiProperty()
