@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ContactsService } from './contacts.service';
 import { CreateContactDto, UpdateContactDto, QueryContactDto } from './dto';
@@ -58,7 +59,7 @@ export class ContactsController {
   @ApiOperation({ summary: 'Get a single contact by ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Contact retrieved successfully' })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Contact not found' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const contact = await this.contactsService.findOne(id);
     return {
       success: true,
@@ -74,7 +75,7 @@ export class ContactsController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Contact not found' })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateContactDto: UpdateContactDto,
     @CurrentUser('id') userId: string,
   ) {
@@ -93,7 +94,7 @@ export class ContactsController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Contact not found' })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
   async remove(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
   ) {
     await this.contactsService.remove(id, userId);
@@ -110,7 +111,7 @@ export class ContactsController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Contact not found or not deleted' })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
   async restore(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
   ) {
     const contact = await this.contactsService.restore(id, userId);

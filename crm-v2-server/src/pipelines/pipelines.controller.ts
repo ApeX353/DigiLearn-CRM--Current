@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -84,7 +85,7 @@ export class PipelinesController {
     status: HttpStatus.NOT_FOUND,
     description: 'Pipeline not found',
   })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const pipeline = await this.pipelinesService.findOne(id);
     return {
       success: true,
@@ -140,7 +141,7 @@ export class PipelinesController {
     description: 'Requires admin or sales_manager role',
   })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateDto: UpdatePipelineDto,
     @CurrentUser('id') userId: string,
   ) {
@@ -172,7 +173,10 @@ export class PipelinesController {
     status: HttpStatus.FORBIDDEN,
     description: 'Requires admin or sales_manager role',
   })
-  async remove(@Param('id') id: string, @CurrentUser('id') userId: string) {
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+  ) {
     await this.pipelinesService.remove(id, userId);
     return {
       success: true,
@@ -196,7 +200,10 @@ export class PipelinesController {
     status: HttpStatus.FORBIDDEN,
     description: 'Requires admin or sales_manager role',
   })
-  async setDefault(@Param('id') id: string, @CurrentUser('id') userId: string) {
+  async setDefault(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+  ) {
     const pipeline = await this.pipelinesService.setDefault(id, userId);
     return {
       success: true,

@@ -10,6 +10,7 @@ import {
   UseGuards,
   Patch,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
@@ -75,7 +76,7 @@ export class ProductsController {
     status: HttpStatus.NOT_FOUND,
     description: 'Product not found',
   })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const product = await this.productsService.findOne(id);
     return {
       success: true,
@@ -91,7 +92,7 @@ export class ProductsController {
     description: 'Product updated successfully',
   })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductDto: UpdateProductDto,
     @CurrentUser('id') userId: string,
   ) {
@@ -115,7 +116,7 @@ export class ProductsController {
     description: 'Product deleted successfully',
   })
   async remove(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
   ) {
     await this.productsService.remove(id, userId);
@@ -133,7 +134,7 @@ export class ProductsController {
     description: 'Product restored successfully',
   })
   async restore(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
   ) {
     const product = await this.productsService.restore(id, userId);

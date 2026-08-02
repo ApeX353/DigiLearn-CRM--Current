@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PaymentTermsService } from './payment-terms.service';
@@ -83,7 +84,7 @@ export class PaymentTermsController {
   @ApiOperation({
     summary: 'Get installment schedule for a document (invoice/quote)',
   })
-  async getSchedule(@Param('documentId') documentId: string) {
+  async getSchedule(@Param('documentId', ParseUUIDPipe) documentId: string) {
     const schedule =
       await this.paymentTermsService.getInstallmentSchedule(documentId);
     return {
@@ -95,7 +96,7 @@ export class PaymentTermsController {
   @Get(':id')
   @Roles('admin', 'sales_manager', 'sales_rep')
   @ApiOperation({ summary: 'Get a single payment term with periods' })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const term = await this.paymentTermsService.findOne(id);
     return {
       success: true,
@@ -107,7 +108,7 @@ export class PaymentTermsController {
   @Roles('admin', 'sales_manager')
   @ApiOperation({ summary: 'Update a payment term configuration' })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePaymentTermDto,
     @CurrentUser('id') userId: string,
   ) {
@@ -123,7 +124,7 @@ export class PaymentTermsController {
   @Roles('admin')
   @ApiOperation({ summary: 'Delete a payment term configuration' })
   async remove(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
   ) {
     await this.paymentTermsService.remove(id, userId);
@@ -172,7 +173,7 @@ export class PaymentTermsController {
     summary: 'FIFO allocate a payment to installments',
   })
   async allocate(
-    @Param('paymentId') paymentId: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
     @CurrentUser('id') userId: string,
   ) {
     const result = await this.paymentTermsService.allocatePaymentFIFO(

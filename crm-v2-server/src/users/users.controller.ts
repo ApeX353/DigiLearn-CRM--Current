@@ -11,6 +11,7 @@ import {
   UseGuards,
   HttpStatus,
   HttpCode,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -97,7 +98,7 @@ export class UsersController {
     status: HttpStatus.NOT_FOUND,
     description: 'User member not found',
   })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const staff = await this.staffService.findOne(id);
     return {
       success: true,
@@ -145,7 +146,10 @@ export class UsersController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid input data',
   })
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
     const staff = await this.staffService.update(id, updateUserDto);
     return {
       success: true,
@@ -167,7 +171,7 @@ export class UsersController {
     status: HttpStatus.NOT_FOUND,
     description: 'User member not found',
   })
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.staffService.remove(id);
     return {
       success: true,
@@ -187,7 +191,7 @@ export class UsersController {
     status: HttpStatus.NOT_FOUND,
     description: 'User member not found',
   })
-  async activate(@Param('id') id: string) {
+  async activate(@Param('id', ParseUUIDPipe) id: string) {
     const staff = await this.staffService.activate(id);
     return {
       success: true,
