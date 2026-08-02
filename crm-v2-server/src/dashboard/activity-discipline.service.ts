@@ -217,35 +217,47 @@ export class ActivityDisciplineService {
     end: Date,
     uid?: string,
   ): Promise<DisciplineKpi[]> {
-    // --- KPI 1: first-time lead contacts TODAY ----------------
-    const firstTimeTodayQb = this.activityRepo
+    // --- KPI 1: lead activities completed TODAY ---------------
+    // "40 a day" is an EFFORT metric: any actionable activity a rep
+    // completes on a lead that day counts — new AND existing leads, not
+    // just first-time contacts. We count activities (not distinct
+    // leads), so five follow-ups on one lead register as five.
+    //
+    // "Today" is the local business day (Africa/Harare, UTC+2). The
+    // server stores completed_at in UTC, so we build the UTC window that
+    // spans the Harare calendar day and match with BETWEEN rather than
+    // the old `::date = CURRENT_DATE`, which used the UTC date and rolled
+    // over two hours early for the team.
+    const HARARE_OFFSET_MS = 2 * 60 * 60 * 1000;
+    const harareNow = new Date(Date.now() + HARARE_OFFSET_MS);
+    const localDayStart = new Date(
+      Date.UTC(
+        harareNow.getUTCFullYear(),
+        harareNow.getUTCMonth(),
+        harareNow.getUTCDate(),
+      ) - HARARE_OFFSET_MS,
+    );
+    const localDayEnd = new Date(
+      localDayStart.getTime() + 24 * 60 * 60 * 1000,
+    );
+
+    const contactsTodayQb = this.activityRepo
       .createQueryBuilder('a')
-      .select('COUNT(DISTINCT a.lead_id)', 'c')
+      .select('COUNT(a.id)', 'c')
       .where('a.lead_id IS NOT NULL')
-      .andWhere('a.type IN (:...types)', { types: CONTACT_TYPES })
+      .andWhere('a.type IN (:...types)', { types: ACTIONABLE_TYPES })
       .andWhere("a.status = 'completed'")
       .andWhere('a.completed_at IS NOT NULL')
-      .andWhere("a.completed_at::date = CURRENT_DATE")
-      // "First-time" — no earlier completed contact on the same lead.
-      .andWhere(
-        `NOT EXISTS (
-          SELECT 1 FROM activities a2
-          WHERE a2.lead_id = a.lead_id
-            AND a2.type IN (:...types2)
-            AND a2.status = 'completed'
-            AND a2.completed_at IS NOT NULL
-            AND a2.completed_at < a.completed_at
-        )`,
-        { types2: CONTACT_TYPES },
-      );
+      .andWhere('a.completed_at >= :dayStart', { dayStart: localDayStart })
+      .andWhere('a.completed_at < :dayEnd', { dayEnd: localDayEnd });
     if (uid) {
-      firstTimeTodayQb.andWhere(
+      contactsTodayQb.andWhere(
         '(a.assigned_to_id = :u OR a.created_by_id = :u)',
         { u: uid },
       );
     }
-    const firstTimeTodayRow = await firstTimeTodayQb.getRawOne<{ c: string }>();
-    const firstTimeToday = Number(firstTimeTodayRow?.c ?? 0);
+    const contactsTodayRow = await contactsTodayQb.getRawOne<{ c: string }>();
+    const firstTimeToday = Number(contactsTodayRow?.c ?? 0);
 
     // Target = compliance.daily_contacts_per_rep × active reps in scope.
     // Per-rep view uses the rep's own target; team view multiplies by
@@ -310,7 +322,7 @@ export class ActivityDisciplineService {
         denom: dailyTarget,
         target: dailyTarget,
         tone: 'higher-better',
-        hint: 'First-time lead contacts made today vs required daily target',
+        hint: 'Lead activities completed today (any contact/task, new or existing) vs required daily target',
       },
       {
         key: 'new_leads_sla_touch_pct',
