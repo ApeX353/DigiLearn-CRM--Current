@@ -341,6 +341,22 @@ export class AuthService {
     }
   }
 
+  // AUD-H01: revoke by session id. The refresh cookie is path-scoped to
+  // /auth/refresh and is never sent to /auth/logout, so revoking by cookie
+  // never ran. The authenticated session id is always available, and the
+  // JwtStrategy re-checks is_active on every request, so this immediately
+  // kills the access token too.
+  async logoutBySessionId(sessionId: string): Promise<void> {
+    await this.authSessionRepository.update(
+      { id: sessionId, is_active: true },
+      {
+        is_active: false,
+        revoked_at: new Date(),
+        revoke_reason: 'User logout',
+      },
+    );
+  }
+
   async logoutAllSessions(userId: string): Promise<void> {
     await this.authSessionRepository.update(
       { user_id: userId, is_active: true },

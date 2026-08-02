@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import * as OTPAuth from 'otpauth';
 import * as QRCode from 'qrcode';
 import * as argon2 from '@node-rs/argon2';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { NotificationsService } from '../notifications';
 import { AccountSecurity } from './entities/account-security.entity';
 import { User } from '../users/entities/user.entity';
@@ -273,7 +273,9 @@ export class TwoFactorService {
     }
 
     // Generate a 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // AUD-H03: crypto-secure OTP. Math.random() is a predictable PRNG and
+    // must never mint a security code. randomInt is uniform over 0–999999.
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const codeHash = await argon2.hash(code);
 
     // Store the code temporarily (expires in 10 minutes)
@@ -319,7 +321,9 @@ export class TwoFactorService {
     }
 
     // Generate a 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // AUD-H03: crypto-secure OTP. Math.random() is a predictable PRNG and
+    // must never mint a security code. randomInt is uniform over 0–999999.
+    const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const codeHash = await argon2.hash(code);
 
     // Store the code temporarily (expires in 10 minutes)

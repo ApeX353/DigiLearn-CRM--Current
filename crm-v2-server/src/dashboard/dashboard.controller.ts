@@ -60,11 +60,10 @@ export class DashboardController {
         r?.name || r,
       ),
     );
-    const resolvedUser = userId
-      ? userId
-      : isManager
-        ? undefined
-        : callerId;
+    // AUD-H05: a non-manager may NOT read another rep by passing user_id —
+    // it is ignored and they are always scoped to themselves. Only oversight
+    // roles may target a specific rep (or see the whole team when unset).
+    const resolvedUser = isManager ? userId || undefined : callerId;
     const w = (
       ['week', 'mtd', 'quarter', 'year'].includes(window ?? '')
         ? window
@@ -111,13 +110,12 @@ export class DashboardController {
         r?.name || r,
       ),
     );
+    // AUD-H05: only oversight roles may target a specific rep (or see the
+    // whole team when salesRepId is unset). A non-manager's supplied
+    // salesRepId is ignored and they are always scoped to themselves.
     const scoped: DashboardFiltersDto = {
       ...filters,
-      salesRepId: filters.salesRepId
-        ? filters.salesRepId
-        : isManager
-          ? undefined
-          : callerId,
+      salesRepId: isManager ? filters.salesRepId || undefined : callerId,
     };
     const data = await this.activityDiscipline.compute(scoped);
     return { data, status: 'success' };

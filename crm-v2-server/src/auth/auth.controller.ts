@@ -243,12 +243,21 @@ export class AuthController {
     description: 'Unauthorized - Invalid or missing JWT token',
   })
   async logout(@Req() req: Request) {
-    const token = req.cookies?.[REFRESH_COOKIE_NAME];
-    if (!token) {
-      throw new UnauthorizedException('No refresh token found');
+    // AUD-H01: the refresh cookie is path-scoped to /auth/refresh, so the
+    // browser never sends it to /auth/logout — the old code always 401'd and
+    // the session was never revoked (access + refresh stayed valid until
+    // expiry). Revoke by the authenticated session id (always present via the
+    // global JwtAuthGuard); the JwtStrategy's per-request is_active check then
+    // invalidates the access token immediately. Idempotent: clear the cookie
+    // with its real path and return 204 even if no session is found.
+    const sessionId = (req as { user?: { sessionId?: string } }).user
+      ?.sessionId;
+    if (sessionId) {
+      await this.authService.logoutBySessionId(sessionId);
     }
-    await this.authService.logout(token);
-    req.res?.clearCookie(REFRESH_COOKIE_NAME);
+    req.res?.clearCookie(REFRESH_COOKIE_NAME, {
+      path: '/api/v2/auth/refresh',
+    });
   }
 
   @SkipRolesCheck()

@@ -73,12 +73,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // @CurrentUser('role'): the auth model is multi-role (user.roles[]), and
       // without this `role` was undefined, so admins/sales_managers never got
       // their owner-scope bypass and could not see invoices/quotes they didn't own.
+      // AUD-H06: admin_support is an elevated/oversight role (it already
+      // satisfies `admin` at the RolesGuard via ROLE_ALIASES and holds
+      // manage permissions). Derive it to the effective `admin` role here so
+      // the per-record ownership guards that read @CurrentUser('role')
+      // (CanAccessLead/Quote/Invoice) treat it as elevated too — previously
+      // it fell through to roleNames[0]='admin_support' and was blocked from
+      // records it didn't own, i.e. the "shortcut only works at one layer".
       const roleNames = user.roles?.map((r: any) => r.name) ?? [];
-      const role = roleNames.includes('admin')
-        ? 'admin'
-        : roleNames.includes('sales_manager')
-          ? 'sales_manager'
-          : (roleNames[0] ?? null);
+      const role =
+        roleNames.includes('admin') || roleNames.includes('admin_support')
+          ? 'admin'
+          : roleNames.includes('sales_manager')
+            ? 'sales_manager'
+            : (roleNames[0] ?? null);
 
       // Return user object that will be attached to request
       return {

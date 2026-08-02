@@ -6,6 +6,54 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-02 — Security batch + DISC3 (autonomous, no-input fixes)
+
+### DISC3 (+AUD-H05): admin_support saw an empty discipline board; non-managers could read peers
+**Symptom.** The discipline board/metrics came back empty for the
+admin_support (prince) account — the "discipline regression" chased through
+the whole cache saga. Admins/managers always saw the team fine.
+**Root cause.** `dashboard.controller` self-scopes non-managers to their own
+id, but the `isManager` role list omitted `admin_support` (and
+discipline-metrics also omitted `manager`), so admin_support was scoped to
+its own id and, holding no sales role, got an empty table. Separately (H-05)
+a supplied `salesRepId`/`user_id` was honoured for *anyone*, so a rep could
+read a peer.
+**Fix.** Include `admin_support`+`manager` as oversight roles that get the
+team view; and only oversight roles may target a specific rep — a
+non-manager's supplied id is ignored and they're always self-scoped.
+**Verify.** As prince (admin_support), the team board now populates; as a
+rep, `?salesRepId=<peer>` is ignored. Files: `dashboard.controller.ts`.
+
+### AUD-H03: 2FA email/SMS codes used Math.random()
+**Fix.** Generate with `crypto.randomInt(0, 1_000_000)` (uniform, secure),
+zero-padded to 6 digits, at both send sites. Files: `auth/two-factor.service.ts`.
+
+### AUD-H06: admin_support elevation only applied at the RolesGuard layer
+**Root cause.** `jwt.strategy` derived a representative `role` mapping only
+admin/sales_manager, so admin_support fell through to `roles[0]` and the
+per-record ownership guards (CanAccessLead/Quote/Invoice) treated it as a
+plain owner — blocked from records it didn't own.
+**Fix.** Derive admin_support to the effective `admin` role in the one shared
+place, fixing all three guards at once. Files: `auth/strategies/jwt.strategy.ts`.
+
+### AUD-H01: logout did not end the session
+**Root cause.** The refresh cookie is path-scoped to `/auth/refresh`, so the
+browser never sends it to `/auth/logout`; the handler read the (absent)
+cookie, 401'd, and never revoked — access + refresh stayed valid until
+expiry.
+**Fix.** Revoke by the authenticated `sessionId` (always present via the
+global JwtAuthGuard); the JwtStrategy's per-request `is_active` check then
+kills the access token immediately. Idempotent: clears the cookie with its
+real path and 204s. Files: `auth/auth.controller.ts`, `auth/auth.service.ts`.
+
+**Still open in the security cluster (need env/migration or a decision):**
+AUD-H13 (needs a real `USER_EMAIL_CREDENTIALS_KEY` + re-encrypt migration),
+AUD-H02 (forced-password-change guard — lock-out risk, do carefully), plain
+HTTP/HSTS + cookie-flag-vs-NODE_ENV (infra/env), and the larger C-01..C-03
+authorization refactors.
+
+---
+
 ## 2026-07-31 — Sales-interrupting bundle (Kim/Tanya sprint, 11 quick wins)
 
 Shipped alongside DEAL-OPEN (Tanya's #1). Each fix below is minimal and
