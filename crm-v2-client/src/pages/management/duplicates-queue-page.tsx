@@ -47,7 +47,7 @@ import {
   type DuplicateSuspicion,
   type DuplicateSuspicionStatus,
 } from "~/api/duplicates";
-import { useLead, useUpdateLead, type Lead } from "~/api/leads";
+import { useLead, useMergeLeads, type Lead } from "~/api/leads";
 import { useAnyRole } from "~/hooks/use-permission";
 
 // Lead status colours — mirrors the map in components/leads/related-leads.tsx
@@ -377,8 +377,7 @@ function leadDisplayName(lead?: Lead | null, fallback = "this lead"): string {
 function LeadMergeDetail({ row }: { row: DuplicateSuspicion }) {
   const newQuery = useLead(row.new_record_id);
   const existingQuery = useLead(row.existing_record_id);
-  const updateLead = useUpdateLead();
-  const review = useReviewDuplicate();
+  const mergeLeads = useMergeLeads();
 
   const newLead = newQuery.data?.data ?? null;
   const existingLead = existingQuery.data?.data ?? null;
@@ -402,7 +401,7 @@ function LeadMergeDetail({ row }: { row: DuplicateSuspicion }) {
   const survivorLead = survivor === "new" ? newLead : existingLead;
   const otherLead = survivor === "new" ? existingLead : newLead;
 
-  const busy = updateLead.isPending || review.isPending;
+  const busy = mergeLeads.isPending;
 
   const handleMerge = async () => {
     if (!survivor || !survivorLead || !otherLead) {
@@ -414,34 +413,22 @@ function LeadMergeDetail({ row }: { row: DuplicateSuspicion }) {
       return;
     }
 
-    // EXACT soft-merge shape from components/leads/merge-leads-dialog.tsx.
-    const mergeTimestamp = new Date().toISOString();
-    const mergeAuditLine = `Merged into ${survivorLead.lead_name} (${survivorLead.id}) on ${mergeTimestamp}.`;
-    const updatedNotes = [otherLead.notes?.trim(), mergeAuditLine]
-      .filter(Boolean)
-      .join("\n\n");
-
+    // DUP2 — TRUE field-level merge. The server fuses the loser into the
+    // survivor (survivor-wins, gaps filled), reparents every child record
+    // (activities/deals/quotes/etc.) to the survivor, retires the loser,
+    // and marks this suspicion 'merged' — all in one transaction.
     try {
-      await updateLead.mutateAsync({
-        id: otherLead.id,
-        data: {
-          status: "Disqualified",
-          disqualify_reason: "Duplicate entry",
-          notes: updatedNotes,
-        },
+      const result = await mergeLeads.mutateAsync({
+        survivorId: survivorLead.id,
+        loserId: otherLead.id,
       });
-      await review.mutateAsync({
-        id: row.id,
-        data: {
-          status: "merged",
-          note: `Merged ${leadDisplayName(otherLead)} into ${leadDisplayName(survivorLead)}`,
-        },
-      });
+      const filled = result.filledFields?.length ?? 0;
       toast.success(
-        `Merged — ${leadDisplayName(otherLead)} retired into ${leadDisplayName(survivorLead)}`,
+        `Merged — ${leadDisplayName(otherLead)} fused into ${leadDisplayName(survivorLead)}` +
+          (filled ? ` (${filled} field${filled === 1 ? "" : "s"} filled)` : ""),
       );
     } catch {
-      toast.error("Merge failed. No changes may have been applied.");
+      toast.error("Merge failed — nothing was changed.");
     }
   };
 
@@ -495,7 +482,9 @@ function LeadMergeDetail({ row }: { row: DuplicateSuspicion }) {
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
         <p className="mr-auto text-[11px] text-muted-foreground">
-          Merging retires the non-survivor as Disqualified — nothing is deleted.
+          Fields are fused (survivor-wins, gaps filled from the other) and all
+          activities, deals and quotes move to the survivor. The other lead is
+          retired as Disqualified — nothing is deleted.
         </p>
         <Button
           size="sm"
@@ -732,23 +721,33 @@ function AfterMergeTile({
               <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
               <span>
                 <span className="font-medium">{survivorName}</span> stays active
-                — the record everyone keeps working.
+                and keeps its own values — any empty field is filled from{" "}
+                <span className="font-medium">{otherName}</span>, and both leads'
+                notes are combined.
+              </span>
+            </li>
+            <li className="flex gap-1.5">
+              <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+              <span>
+                All of {otherName}'s activities, deals, quotes, requisitions and
+                stakeholders move to{" "}
+                <span className="font-medium">{survivorName}</span>.
               </span>
             </li>
             <li className="flex gap-1.5">
               <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
               <span>
-                <span className="font-medium">{otherName}</span> becomes
-                Disqualified (reason: Duplicate entry) with a note pointing to{" "}
-                <span className="font-medium">{survivorName}</span> — kept for
+                <span className="font-medium">{otherName}</span> is retired
+                (Disqualified, reason: Merged (field-level)) with a note pointing
+                to <span className="font-medium">{survivorName}</span> — kept for
                 history, not deleted.
               </span>
             </li>
           </ul>
 
           <p className="mt-2 border-t pt-2 text-[11px] italic text-muted-foreground">
-            Soft merge — field values are not auto-combined. Copy anything you
-            still need from the retired lead first.
+            True field-level merge — the two records are fused into the survivor
+            in one step. This cannot be undone automatically.
           </p>
         </>
       ) : (

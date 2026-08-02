@@ -191,6 +191,51 @@ export function useUpdateLead() {
 }
 
 /**
+ * DUP2 — TRUE field-level merge. Fuses `loserId` into `survivorId` on the
+ * server in one transaction: the survivor keeps its populated fields and
+ * fills gaps from the loser, every child record (activities, deals,
+ * quotes/invoices via the deal, cash requisitions, stakeholders, SLA
+ * history, escalations, reversal requests, assignment proposals, queued
+ * emails) is reparented to the survivor, and the loser is retired
+ * (Disqualified, "Merged (field-level)") — kept for history, not deleted.
+ */
+export interface MergeLeadsResult {
+  survivor: Lead;
+  filledFields: string[];
+  reparented: Record<string, number>;
+}
+
+export function useMergeLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      survivorId,
+      loserId,
+    }: {
+      survivorId: string;
+      loserId: string;
+    }): Promise<MergeLeadsResult> =>
+      apiClientAuth
+        .post(`/leads/${survivorId}/merge/${loserId}`)
+        .then((res) => res.data?.data as MergeLeadsResult),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: leadsKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: leadsKeys.byId(variables.survivorId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: leadsKeys.byId(variables.loserId),
+      });
+      queryClient.invalidateQueries({ queryKey: ["duplicates"] });
+    },
+    onError: (error) => {
+      console.error("Merge leads error:", handleApiError(error));
+    },
+  });
+}
+
+/**
  * Add stakeholder to a lead
  */
 export function useCreateLeadStakeholder(leadId: string) {

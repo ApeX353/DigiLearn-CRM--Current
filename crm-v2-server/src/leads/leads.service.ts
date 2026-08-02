@@ -51,6 +51,11 @@ import { Deal } from '../deals/entities/deal.entity';
 import { Quote } from '../quotes/entities/quote.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { Activity, ActivityType } from '../activities/entities/activity.entity';
+import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
+import { LeadEscalation } from './entities/lead-escalation.entity';
+import { LeadAssignmentProposal } from '../automation/entities/lead-assignment-proposal.entity';
+import { EmailQueue } from '../email-sequences/entities/email-queue.entity';
+import { DuplicateSuspicion } from './entities/duplicate-suspicion.entity';
 import { DocumentItem } from '../document-items/entities/document-item.entity';
 import { AppliedPaymentTerm } from '../payment-terms/entities/applied-payment-term.entity';
 import { EmailSequenceService } from '../email-sequences/email-sequence.service';
@@ -1902,6 +1907,272 @@ export class LeadsService {
     );
 
     return this.findOne(id);
+  }
+
+  /**
+   * DUP2 — TRUE field-level lead merge.
+   *
+   * Fuses `loserId` into `survivorId` in ONE transaction:
+   *   1. FIELD FUSION — survivor keeps every non-empty field; any field
+   *      that is empty/null on the survivor is filled from the loser
+   *      (survivor-wins, loser fills gaps). Notes are concatenated with
+   *      a merge audit line.
+   *   2. REPARENT — every child record that carries `lead_id` is moved
+   *      from the loser to the survivor (activities, deals — quotes and
+   *      invoices follow via deal_id — cash requisitions, stakeholders
+   *      [deduped by contact_id], SLA history, escalations, reversal
+   *      requests, assignment proposals, queued emails).
+   *   3. RETIRE — the loser is marked Disqualified (reason "Merged
+   *      (field-level)") and never hard-deleted, so history survives.
+   *   4. AUDIT — an activity-log entry records survivor id, loser id,
+   *      the fields filled from the loser and the reparent counts.
+   *   5. Any duplicate_suspicion row for the pair is marked 'merged'.
+   *
+   * Guards: survivor != loser; both must exist and be readable by the
+   * actor; a loser that is already a merge target is a clear conflict
+   * (no double-merge). The whole operation is atomic — any failure
+   * rolls everything back, so there is never a partial merge.
+   */
+  async mergeLeads(
+    survivorId: string,
+    loserId: string,
+    userId: string,
+    ability?: AppAbility,
+  ): Promise<{
+    survivor: Lead;
+    filledFields: string[];
+    reparented: Record<string, number>;
+  }> {
+    if (survivorId === loserId) {
+      throw new BadRequestException(
+        'Survivor and loser must be two different leads.',
+      );
+    }
+
+    // Existence + read-scope (throws 404/403). Also confirms the actor is
+    // allowed to see BOTH records before anything is mutated.
+    await this.findOne(survivorId, ability);
+    await this.findOne(loserId, ability);
+
+    const MERGE_REASON = 'Merged (field-level)';
+
+    const isEmpty = (v: unknown): boolean =>
+      v === null ||
+      v === undefined ||
+      (typeof v === 'string' && v.trim() === '');
+
+    const result = await this.dataSource.transaction(async (manager) => {
+      const leadRepo = manager.getRepository(Lead);
+
+      const survivor = await leadRepo.findOne({ where: { id: survivorId } });
+      const loser = await leadRepo.findOne({ where: { id: loserId } });
+      if (!survivor) {
+        throw new NotFoundException(`Lead with ID ${survivorId} not found`);
+      }
+      if (!loser) {
+        throw new NotFoundException(`Lead with ID ${loserId} not found`);
+      }
+
+      // Idempotency guard: a lead already retired by a field-level merge
+      // must never be merged again — re-running would double-append notes
+      // and re-scan already-moved children. Fail loud with a clear error.
+      if (loser.status === 'Disqualified' && loser.reason === MERGE_REASON) {
+        throw new ConflictException(
+          `Lead ${loserId} has already been merged into another record.`,
+        );
+      }
+
+      // ---- 1. FIELD FUSION (survivor-wins, loser fills gaps) ----------
+      const filledFields: string[] = [];
+
+      const fillScalar = (field: keyof Lead): void => {
+        if (isEmpty(survivor[field]) && !isEmpty(loser[field])) {
+          (survivor as unknown as Record<string, unknown>)[field] =
+            loser[field];
+          filledFields.push(field as string);
+        }
+      };
+
+      // Plain "empty means fill" scalars.
+      fillScalar('school_id');
+      fillScalar('primary_contact_id');
+      fillScalar('source_campaign_id');
+      fillScalar('assigned_to');
+      fillScalar('stage_id');
+
+      // estimated_value: treat null / 0 as a gap.
+      if (
+        (survivor.estimated_value == null ||
+          Number(survivor.estimated_value) <= 0) &&
+        loser.estimated_value != null &&
+        Number(loser.estimated_value) > 0
+      ) {
+        survivor.estimated_value = loser.estimated_value;
+        filledFields.push('estimated_value');
+      }
+
+      // source: 'Other' is the default placeholder — treat it as a gap so a
+      // more specific loser source can fill it.
+      if (
+        (isEmpty(survivor.source) || survivor.source === 'Other') &&
+        !isEmpty(loser.source) &&
+        loser.source !== 'Other'
+      ) {
+        survivor.source = loser.source;
+        filledFields.push('source');
+      }
+
+      // commercial_intent: once true it stays true; carry the loser's
+      // supporting audit fields so the flag remains explainable.
+      if (!survivor.commercial_intent && loser.commercial_intent) {
+        survivor.commercial_intent = true;
+        survivor.commercial_intent_at = loser.commercial_intent_at ?? new Date();
+        survivor.commercial_intent_reason =
+          loser.commercial_intent_reason ?? 'Carried over from merged duplicate';
+        filledFields.push('commercial_intent');
+      }
+
+      // demo_status: fill only if the survivor has none.
+      if (isEmpty(survivor.demo_status) && !isEmpty(loser.demo_status)) {
+        survivor.demo_status = loser.demo_status;
+        survivor.demo_status_changed_at =
+          loser.demo_status_changed_at ?? new Date();
+        filledFields.push('demo_status');
+      }
+
+      // notes: always concatenate both, then a merge audit line.
+      const stamp = new Date().toISOString();
+      const auditLine = `--- Merged (field-level): "${loser.lead_name}" (${loser.id}) fused into this record on ${stamp}. ---`;
+      const loserNotes = loser.notes?.trim()
+        ? `Notes carried over from "${loser.lead_name}":\n${loser.notes.trim()}`
+        : null;
+      survivor.notes =
+        [survivor.notes?.trim() || null, loserNotes, auditLine]
+          .filter(Boolean)
+          .join('\n\n') || null;
+      if (loserNotes) filledFields.push('notes');
+
+      await leadRepo.save(survivor);
+
+      // ---- 2. REPARENT child records loser -> survivor ---------------
+      const reparented: Record<string, number> = {};
+
+      const reparent = async (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        entity: any,
+        label: string,
+      ): Promise<void> => {
+        const res = await manager
+          .getRepository(entity)
+          .update({ lead_id: loserId }, { lead_id: survivorId });
+        reparented[label] = res.affected ?? 0;
+      };
+
+      await reparent(Activity, 'activities');
+      await reparent(Deal, 'deals'); // quotes/invoices follow via deal_id
+      await reparent(CashRequisition, 'cash_requisitions');
+      await reparent(LeadSLAHistory, 'lead_sla_history');
+      await reparent(LeadEscalation, 'lead_escalations');
+      await reparent(LeadReversalRequest, 'lead_reversal_requests');
+      await reparent(LeadAssignmentProposal, 'lead_assignment_proposals');
+      await reparent(EmailQueue, 'email_queue');
+
+      // Stakeholders: unique(lead_id, contact_id) — dedupe by contact_id.
+      const stakeRepo = manager.getRepository(LeadStakeholder);
+      const survivorStakes = await stakeRepo.find({
+        where: { lead_id: survivorId },
+      });
+      const survivorContactIds = new Set(
+        survivorStakes.map((s) => s.contact_id),
+      );
+      const survivorHasPrimary = survivorStakes.some((s) => s.is_primary);
+      const loserStakes = await stakeRepo.find({ where: { lead_id: loserId } });
+      let movedStakes = 0;
+      for (const s of loserStakes) {
+        if (survivorContactIds.has(s.contact_id)) {
+          // Same contact already a stakeholder on the survivor — drop the
+          // loser's duplicate row rather than violate the unique key.
+          await stakeRepo.delete({ id: s.id });
+          continue;
+        }
+        s.lead_id = survivorId;
+        // Never end up with two primaries on the survivor.
+        if (survivorHasPrimary) s.is_primary = false;
+        await stakeRepo.save(s);
+        survivorContactIds.add(s.contact_id);
+        movedStakes += 1;
+      }
+      reparented.lead_stakeholders = movedStakes;
+
+      // ---- 5. Mark any duplicate_suspicion for this pair 'merged' ----
+      const dupRepo = manager.getRepository(DuplicateSuspicion);
+      const dupRes = await dupRepo
+        .createQueryBuilder()
+        .update()
+        .set({
+          status: 'merged',
+          reviewed_by_id: userId,
+          reviewed_at: new Date(),
+          review_note: `Field-level merge: ${loserId} → ${survivorId}`,
+        })
+        .where('record_type = :rt', { rt: 'lead' })
+        .andWhere('status = :st', { st: 'pending' })
+        .andWhere(
+          '(new_record_id = :lid OR existing_record_id = :lid OR new_record_id = :sid OR existing_record_id = :sid)',
+          { lid: loserId, sid: survivorId },
+        )
+        .execute();
+      reparented.duplicate_suspicions = dupRes.affected ?? 0;
+
+      // ---- 3. RETIRE the loser (kept for history, never deleted) -----
+      loser.status = 'Disqualified';
+      loser.reason = MERGE_REASON;
+      const loserRetireLine = `--- Retired ${stamp}: fields fused into "${survivor.lead_name}" (${survivor.id}). See survivor for the combined record. ---`;
+      loser.notes =
+        [loser.notes?.trim() || null, loserRetireLine].filter(Boolean).join('\n\n') ||
+        null;
+      loser.assigned_to = null;
+      await leadRepo.save(loser);
+
+      return { survivor, loser, filledFields, reparented };
+    });
+
+    // ---- 4. AUDIT TRAIL (outside the tx; the merge itself is done) ---
+    await this.activityLogsService.logUpdate(
+      'Lead',
+      survivorId,
+      { id: loserId, status: result.loser.status },
+      {
+        merged_from: loserId,
+        filled_fields: result.filledFields,
+        reparented: result.reparented,
+      },
+      userId,
+      `Field-level merge: "${result.loser.lead_name}" (${loserId}) fused into "${result.survivor.lead_name}" (${survivorId})`,
+      {
+        survivor_id: survivorId,
+        loser_id: loserId,
+        filled_fields: result.filledFields,
+        reparented: result.reparented,
+      },
+    );
+    // Also stamp the retired loser's own trail so its history page shows why.
+    await this.activityLogsService.logUpdate(
+      'Lead',
+      loserId,
+      { status: 'active' },
+      { status: 'Disqualified', reason: MERGE_REASON, merged_into: survivorId },
+      userId,
+      `Retired by field-level merge into "${result.survivor.lead_name}" (${survivorId})`,
+      { survivor_id: survivorId, loser_id: loserId },
+    );
+
+    const survivor = await this.findOne(survivorId);
+    return {
+      survivor,
+      filledFields: result.filledFields,
+      reparented: result.reparented,
+    };
   }
 
   /**

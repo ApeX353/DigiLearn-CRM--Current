@@ -597,4 +597,39 @@ export class LeadsController {
     };
   }
 
+  // ========================
+  // DUP2 — field-level merge
+  // ========================
+
+  @Post(':survivorId/merge/:loserId')
+  @Roles('admin', 'sales_manager', 'admin_support')
+  @ApiOperation({
+    summary: 'Field-level merge — fuse a duplicate lead into a survivor',
+    description:
+      'TRUE merge: the survivor keeps all its populated fields and fills any gaps from the loser; all child records (activities, deals, quotes/invoices via deal, cash requisitions, stakeholders, SLA history, escalations, reversal requests, assignment proposals, queued emails) are reparented to the survivor; the loser is retired (Disqualified, "Merged (field-level)") and kept for history. Everything runs in one transaction.',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Leads merged successfully' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Same lead / invalid' })
+  @ApiResponse({ status: HttpStatus.CONFLICT, description: 'Loser already merged' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Lead not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
+  async mergeLeads(
+    @Param('survivorId') survivorId: string,
+    @Param('loserId') loserId: string,
+    @CurrentUser('id') userId: string,
+    @CaslAbility() ability: AppAbility,
+  ) {
+    const result = await this.leadsService.mergeLeads(
+      survivorId,
+      loserId,
+      userId,
+      ability,
+    );
+    return {
+      success: true,
+      message: 'Leads merged successfully',
+      data: result,
+    };
+  }
+
 }
