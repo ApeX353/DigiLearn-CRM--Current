@@ -52,8 +52,13 @@ export class DashboardController {
     // by default and can filter by user_id.
     const callerId = req.user?.id || req.user?.sub;
     const roles = req.user?.roles || [];
+    // DISC3: same oversight-role list as activity-discipline — include
+    // admin_support and manager so they get the team-wide view, not an
+    // empty self-scoped one.
     const isManager = roles.some((r: any) =>
-      ['admin', 'sales_manager'].includes(r?.name || r),
+      ['admin', 'admin_support', 'sales_manager', 'manager'].includes(
+        r?.name || r,
+      ),
     );
     const resolvedUser = userId
       ? userId
@@ -96,8 +101,15 @@ export class DashboardController {
     // default (matching the discipline-metrics behaviour above).
     const callerId = req.user?.id || req.user?.sub;
     const roles = req.user?.roles || [];
+    // DISC3: oversight roles see the team-wide board. admin_support was
+    // omitted, so an admin_support caller (e.g. the support/triage account)
+    // was self-scoped to its own id — and since it holds no sales role, the
+    // rep table came back empty. That empty board is what looked like a
+    // "discipline regression"; it only ever bit admin_support callers.
     const isManager = roles.some((r: any) =>
-      ['admin', 'sales_manager', 'manager'].includes(r?.name || r),
+      ['admin', 'admin_support', 'sales_manager', 'manager'].includes(
+        r?.name || r,
+      ),
     );
     const scoped: DashboardFiltersDto = {
       ...filters,
