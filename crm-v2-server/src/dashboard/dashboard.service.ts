@@ -353,6 +353,13 @@ export class DashboardService {
     // as the rest of the executive KPIs. Previously this was
     // unscoped and counted lifetime records regardless of whether
     // the manager filtered to a single rep / province.
+    // "Qualified" cut-off comes from Compliance & Controls
+    // (qualification_score_min, default 80, on the 0–100 scale) so it
+    // tracks the same threshold the qualification flow itself uses.
+    const qualThreshold = await this.complianceSettings.getNumber(
+      'qualification_score_min',
+    );
+
     const qualQb = this.qualificationRepo
       .createQueryBuilder('q')
       .leftJoin('q.lead', 'lead')
@@ -366,14 +373,28 @@ export class DashboardService {
     if (filters.province)
       qualQb.andWhere('school.province = :prov', { prov: filters.province });
 
+    // Count distinct LEADS, not qualification ROWS: a lead with several
+    // qualification records was previously double-counted, and a
+    // qualified lead is one that has at least one record at/above the
+    // threshold. `qualified` therefore never exceeds `total`.
     const qualStats = await qualQb
-      .select('COUNT(*)', 'total')
+      .setParameter('qualThreshold', qualThreshold)
+      .select('COUNT(DISTINCT q.lead_id)', 'total')
       .addSelect(
-        'SUM(CASE WHEN q.is_qualified = true THEN 1 ELSE 0 END)',
+        'COUNT(DISTINCT CASE WHEN q.qualification_score >= :qualThreshold THEN q.lead_id END)',
         'qualified',
       )
       .addSelect('AVG(q.qualification_score)', 'avgScore')
       .getRawOne();
+
+    // The stored score is 0–100; the dashboard presents it on a 1–5
+    // scale. Convert, round to one decimal, and clamp to 1–5 (0 only
+    // when there is no data at all so the tile reads "no score yet").
+    const rawAvgScore = Number(qualStats?.avgScore || 0);
+    const averageScore =
+      rawAvgScore > 0
+        ? Math.min(5, Math.max(1, Math.round((rawAvgScore / 100) * 5 * 10) / 10))
+        : 0;
 
     return {
       cashCollected,
@@ -385,7 +406,7 @@ export class DashboardService {
       qualification: {
         totalLeads: Number(qualStats?.total || 0),
         qualifiedLeads: Number(qualStats?.qualified || 0),
-        averageScore: Math.round(Number(qualStats?.avgScore || 0) * 10) / 10,
+        averageScore,
       },
     };
   }
