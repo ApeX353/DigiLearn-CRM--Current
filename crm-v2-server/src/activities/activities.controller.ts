@@ -343,11 +343,14 @@ export class ActivitiesController {
     @Param('id', ParseUUIDPipe) activityId: string,
     @Body() createCommentDto: CreateActivityCommentDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const comment = await this.activitiesService.addComment(
       activityId,
       createCommentDto,
       userId,
+      scopeUserId,
     );
     return {
       success: true,
@@ -377,10 +380,13 @@ export class ActivitiesController {
     @Param('id', ParseUUIDPipe) activity_id: string,
     @Body() createAttachmentDto: Omit<CreateAttachmentDto, 'activity_id'>,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const attachment = await this.activitiesService.addAttachment(
       { ...createAttachmentDto, activity_id },
       userId,
+      scopeUserId,
     );
     return {
       success: true,
@@ -390,14 +396,25 @@ export class ActivitiesController {
   }
 
   @Get(':id/attachments')
+  @Roles('admin', 'sales_manager', 'sales_rep')
   @ApiOperation({ summary: 'Get all attachments for an activity' })
   @ApiParam({ name: 'id', description: 'Activity UUID' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Attachments retrieved successfully',
   })
-  async getAttachments(@Param('id', ParseUUIDPipe) activity_id: string) {
-    const attachments = await this.activitiesService.getAttachments(activity_id);
+  async getAttachments(
+    @Param('id', ParseUUIDPipe) activity_id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // AUD-H05: was unauthenticated-readable by any user; now role-gated and
+    // scoped to activities the caller can access.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const attachments = await this.activitiesService.getAttachments(
+      activity_id,
+      scopeUserId,
+    );
     return {
       success: true,
       data: attachments,
@@ -458,8 +475,14 @@ export class ActivitiesController {
   async removeAttachment(
     @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    await this.activitiesService.removeAttachment(attachmentId, userId);
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    await this.activitiesService.removeAttachment(
+      attachmentId,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Attachment removed successfully',

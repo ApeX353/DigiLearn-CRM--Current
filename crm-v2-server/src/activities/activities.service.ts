@@ -984,8 +984,11 @@ export class ActivitiesService {
     activityId: string,
     dto: CreateActivityCommentDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<ActivityComment> {
-    await this.findOne(activityId);
+    // AUD-H05: a rep may only comment on an activity they can access
+    // (own/assigned/parent-record). findOne 404s otherwise.
+    await this.findOne(activityId, scopeUserId);
 
     const commentText = dto.comment.trim();
     if (!commentText) {
@@ -1408,9 +1411,11 @@ export class ActivitiesService {
   async addAttachment(
     dto: CreateAttachmentDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<ActivityAttachment> {
-    // Verify activity exists
-    await this.findOne(dto.activity_id);
+    // AUD-H05: verify the caller can access the parent activity (own/
+    // assigned/parent-record). findOne 404s for a foreign activity.
+    await this.findOne(dto.activity_id, scopeUserId);
 
     const attachment = this.attachmentRepository.create({
       ...dto,
@@ -1430,7 +1435,11 @@ export class ActivitiesService {
     return saved;
   }
 
-  async removeAttachment(id: string, userId: string): Promise<void> {
+  async removeAttachment(
+    id: string,
+    userId: string,
+    scopeUserId?: string,
+  ): Promise<void> {
     const attachment = await this.attachmentRepository.findOne({
       where: { id },
     });
@@ -1438,6 +1447,10 @@ export class ActivitiesService {
     if (!attachment) {
       throw new NotFoundException(`Attachment ${id} not found`);
     }
+
+    // AUD-H05: a rep may only remove an attachment on an activity they can
+    // access — check the parent activity's ownership scope first.
+    await this.findOne(attachment.activity_id, scopeUserId);
 
     await this.attachmentRepository.remove(attachment);
 
@@ -1450,7 +1463,14 @@ export class ActivitiesService {
     );
   }
 
-  async getAttachments(activity_id: string): Promise<ActivityAttachment[]> {
+  async getAttachments(
+    activity_id: string,
+    scopeUserId?: string,
+  ): Promise<ActivityAttachment[]> {
+    // AUD-H05: enforce the activity's ownership scope before returning file
+    // metadata/URLs (previously any authenticated user could read any
+    // activity's attachments).
+    await this.findOne(activity_id, scopeUserId);
     return this.attachmentRepository.find({
       where: { activity_id },
       relations: ['uploadedBy'],
