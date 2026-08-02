@@ -216,6 +216,36 @@ export class QuotesService {
           savedQuote.deal_id,
           userId,
         );
+      } else {
+        // QUOTE6(c): the quote carries no deal. If it resolves to a lead
+        // that has no deal yet, auto-create one (owner decision), link the
+        // quote to it, advance it to the quoting stage and flip the lead to
+        // Converted. All within this transaction so quote + deal + lead
+        // conversion commit atomically. When no single lead can be resolved
+        // (a pure standalone quote), autoCreateDealForQuotedLead returns
+        // null and this is a no-op — we never invent a lead. When the
+        // resolved lead already has a deal, that existing deal is returned
+        // (no duplicate) and the quote is simply linked to it.
+        const autoDeal = await this.dealsService.autoCreateDealForQuotedLead(
+          transactionManager,
+          {
+            schoolId: savedQuote.school_id,
+            personId: savedQuote.person_id,
+            value: Number(savedQuote.total),
+            actorId: userId,
+          },
+        );
+
+        if (autoDeal) {
+          savedQuote.deal_id = autoDeal.id;
+          await transactionManager.save(Quote, savedQuote);
+
+          await this.dealsService.advanceDealToQuotingStage(
+            transactionManager,
+            autoDeal.id,
+            userId,
+          );
+        }
       }
 
       await this.activityLogsService.logCreate(

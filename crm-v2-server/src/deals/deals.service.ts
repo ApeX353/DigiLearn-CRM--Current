@@ -8,7 +8,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In, ILike, Brackets } from 'typeorm';
+import { Repository, DataSource, EntityManager, In, ILike, Brackets, Not } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { addDays } from 'date-fns';
 import {
@@ -1178,13 +1178,9 @@ export class DealsService {
    * the quote commit atomically; a genuine DB failure rolls both back.
    * Returns true when the deal was advanced.
    *
-   * TODO(QUOTE6): the sibling case — a quote issued for a lead that has
-   * NO deal yet — is intentionally left to the deal-creation flow
-   * (`createDeal` with items) rather than auto-created here. A standalone
-   * quote (POST /quotes) carries only person_id + school_id and no
-   * lead_id, so reliably identifying "the lead", picking a pipeline and
-   * initial stage, and flipping the lead to Converted needs a product
-   * decision. Until then, issue such quotes from the deal-creation path.
+   * The sibling case — a quote issued for a lead that has NO deal yet —
+   * is handled by `autoCreateDealForQuotedLead` below (owner-approved:
+   * issuing a quote on a dealless lead auto-creates + links the deal).
    */
   async advanceDealToQuotingStage(
     manager: EntityManager,
@@ -1231,6 +1227,159 @@ export class DealsService {
     );
 
     return true;
+  }
+
+  /**
+   * QUOTE6(c): a quote raised for a LEAD that has no deal yet must create
+   * the deal (owner decision, 2026). Called from QuotesService.create()
+   * inside its transaction when the quote carries no deal_id, so the
+   * quote, the new deal and the lead -> Converted flip commit atomically
+   * (or roll back together).
+   *
+   * Lead resolution — a standalone quote has no lead_id, only school_id +
+   * an optional person_id (a Contact). We therefore resolve the lead as:
+   *   - candidate = an OPEN (non-Converted) lead for the quote's school;
+   *   - narrowed by primary_contact = the quote's person when present;
+   *   - accepted ONLY when exactly one candidate remains. Zero or an
+   *     ambiguous (>1) match returns null and nothing is created — we
+   *     never invent or guess a lead (pure standalone quotes are left
+   *     as-is).
+   *
+   * Idempotent + safe:
+   *   - if the resolved lead already has a deal, that deal is returned
+   *     as-is (no second deal, no re-conversion) so the caller can still
+   *     link the quote to it;
+   *   - the commercial-intent compliance gate is deliberately NOT run.
+   *     The quote itself is the commercial evidence, and this is a
+   *     server-initiated conversion, not a rep pressing "Create deal", so
+   *     the gate (which exists to stop reps opening premature deals) does
+   *     not apply. We reuse the same building blocks as `createDeal`
+   *     (default pipeline + first active stage, stage history, campaign
+   *     provenance, cash-requisition carry-over) and the shared
+   *     `leadsService.updateStatusInTransaction` conversion path rather
+   *     than hand-rolling a parallel conversion.
+   *
+   * Returns the deal to link the quote to (new or pre-existing), or null
+   * when no single lead could be resolved.
+   */
+  async autoCreateDealForQuotedLead(
+    manager: EntityManager,
+    params: {
+      schoolId: string;
+      personId: string | null;
+      value: number;
+      actorId: string;
+    },
+  ): Promise<Deal | null> {
+    const { schoolId, personId, value, actorId } = params;
+
+    // Resolve the lead: open leads for this school, narrowed by the
+    // quote's contact when we have one.
+    const candidates = await manager.find(Lead, {
+      where: personId
+        ? {
+            school_id: schoolId,
+            primary_contact_id: personId,
+            status: Not('Converted') as any,
+          }
+        : { school_id: schoolId, status: Not('Converted') as any },
+    });
+
+    // Exactly one open lead makes the resolution reliable; zero or an
+    // ambiguous match means we do nothing rather than guess.
+    if (candidates.length !== 1) return null;
+    const lead = candidates[0];
+
+    // Idempotency guard: never create a second deal for a lead that
+    // already has one — hand back the existing deal to link the quote to.
+    const existingDeal = await manager.findOne(Deal, {
+      where: { lead_id: lead.id },
+    });
+    if (existingDeal) return existingDeal;
+
+    // Default pipeline + its first active stage (the canonical entry
+    // point new deals land on).
+    const pipeline = await manager.findOne(Pipeline, {
+      where: { is_default: true, is_active: true },
+    });
+    if (!pipeline) return null;
+    const stages = await manager.find(Stage, {
+      where: { pipeline_id: pipeline.id, is_active: true },
+      order: { order: 'ASC' },
+    });
+    const initialStage = stages[0];
+    if (!initialStage) return null;
+
+    const maxPositionResult = await manager
+      .createQueryBuilder(Deal, 'deal')
+      .select('MAX(deal.position)', 'maxPos')
+      .where('deal.current_stage_id = :stageId', { stageId: initialStage.id })
+      .getRawOne();
+    const position = (maxPositionResult?.maxPos ?? 0) + 1000;
+
+    const now = new Date();
+    const dealId = uuidv4();
+    const deal = manager.create(Deal, {
+      id: dealId,
+      title: lead.lead_name,
+      value,
+      currency: 'USD',
+      lead_id: lead.id,
+      school_id: schoolId,
+      current_stage_id: initialStage.id,
+      pipeline_id: pipeline.id,
+      // The deal lands on whoever owns the lead (may be null).
+      assigned_to: lead.assigned_to ?? null,
+      currentStatus: initialStage.name,
+      currentStageSince: now,
+      probability: Number(initialStage.probability),
+      position,
+      closeStatus: DealCloseStatus.ONGOING,
+      // Campaign provenance survives conversion — mirrors createDeal.
+      source_campaign_id: lead.source_campaign_id ?? null,
+    });
+    await manager.save(Deal, deal);
+
+    const history = manager.create(DealStageHistory, {
+      id: uuidv4(),
+      dealId,
+      fromStatus: undefined,
+      toStatus: initialStage.name,
+      movedAt: now,
+      movedBy: actorId,
+      slaCompliant: true,
+      notes: 'Deal auto-created on quote issue (QUOTE6)',
+    });
+    await manager.save(DealStageHistory, history);
+
+    // Convert the lead through the shared transition service so SLA
+    // history and status audit stay in lockstep — the same path
+    // createDeal uses.
+    await this.leadsService.updateStatusInTransaction(
+      manager,
+      lead.id,
+      'Converted',
+      actorId,
+    );
+
+    // Cash-requisition carry-over (mirror createDeal): costs raised
+    // while this was still a lead must follow the deal.
+    await manager
+      .createQueryBuilder()
+      .update(CashRequisition)
+      .set({ deal_id: dealId })
+      .where('lead_id = :leadId AND deal_id IS NULL', { leadId: lead.id })
+      .execute();
+
+    await this.activityLogsService.logCreate(
+      'deal',
+      dealId,
+      { title: deal.title, value, pipeline: pipeline.name },
+      actorId,
+      `Auto-created deal "${deal.title}" from lead "${lead.lead_name}" on quote issue (QUOTE6)`,
+    );
+
+    return deal;
   }
 
   /* ========================================
