@@ -14,7 +14,7 @@ export class AuditService {
   async log(
     entityType: string,
     entityId: string,
-    action: 'create' | 'update' | 'delete',
+    action: 'create' | 'update' | 'delete' | 'download',
     changes?: Array<{ field: string; old_value: any; new_value: any }>,
     userId?: string,
     ipAddress?: string,

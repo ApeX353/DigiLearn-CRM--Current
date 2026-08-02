@@ -16,6 +16,7 @@ import {
 import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { QuotesService } from './quotes.service';
+import { AuditService } from '../audit/audit.service';
 import { CreateQuoteDto, CreateQuoteItemDto } from './dto/create-quote.dto';
 import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { QueryQuoteDto } from './dto/query-quote.dto';
@@ -34,7 +35,10 @@ import type { QuoteStatus } from './constants';
 @Controller('quotes')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class QuotesController {
-  constructor(private readonly quotesService: QuotesService) {}
+  constructor(
+    private readonly quotesService: QuotesService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post()
   @Roles('admin', 'sales_manager', 'sales_rep')
@@ -134,6 +138,7 @@ export class QuotesController {
   async downloadPdf(
     @Param('id') id: string,
     @CaslAbility() ability: AppAbility,
+    @CurrentUser('id') userId: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     // Blob-free download: the PDF is generated in-process (pdfkit) and
@@ -141,6 +146,12 @@ export class QuotesController {
     // Vercel Blob is not configured (previously the only path stored the
     // PDF in Blob and served its URL — with no token, nothing downloaded).
     const { buffer, fileName } = await this.quotesService.getPdf(id, ability);
+    // QDL1: a quote PDF carries pricing — record who pulled it and when.
+    // Best-effort; the audit-context middleware fills IP. Never block the
+    // download if the audit write fails.
+    void this.audit
+      .log('Quote', id, 'download', undefined, userId)
+      .catch(() => undefined);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${fileName}"`,

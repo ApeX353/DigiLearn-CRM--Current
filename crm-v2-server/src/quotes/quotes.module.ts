@@ -12,6 +12,7 @@ import { FileManagerModule } from '../file-manager/file-manager.module';
 import { AuthModule } from '../auth/auth.module';
 import { CanAccessQuoteGuard } from './guards/can-access-quote.guard';
 import { SettingsModule } from '../settings/settings.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { SettingsModule } from '../settings/settings.module';
     DocumentGeneratorModule,
     FileManagerModule,
     SettingsModule,
+    AuditModule,
     forwardRef(() => AuthModule),
   ],
   controllers: [QuotesController],

@@ -31,7 +31,7 @@ export class AuditLog {
   user: User | null;
 
   @Column({ type: 'varchar', length: 20 })
-  action: 'create' | 'update' | 'delete';
+  action: 'create' | 'update' | 'delete' | 'download';
 
   @Column({ type: 'json', nullable: true })
   changes: Array<{ field: string; old_value: any; new_value: any }> | null;
