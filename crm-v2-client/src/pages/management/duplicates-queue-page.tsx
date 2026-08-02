@@ -1,11 +1,25 @@
-import { useState } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { useEffect, useState, type ReactNode } from "react";
+import { formatDistanceToNow, format } from "date-fns";
+import { Link } from "react-router";
 import {
   Copy,
   Loader2,
   CheckCircle2,
   XCircle,
   SplitSquareVertical,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  MapPin,
+  Phone,
+  Mail,
+  MessageCircle,
+  User as UserIcon,
+  DollarSign,
+  Tag,
+  Calendar,
+  GitMerge,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import Container from "~/components/container";
@@ -33,7 +47,22 @@ import {
   type DuplicateSuspicion,
   type DuplicateSuspicionStatus,
 } from "~/api/duplicates";
+import { useLead, useUpdateLead, type Lead } from "~/api/leads";
 import { useAnyRole } from "~/hooks/use-permission";
+
+// Lead status colours — mirrors the map in components/leads/related-leads.tsx
+// so the detail tiles read the same as the rest of the leads UI.
+const statusColors: Record<string, string> = {
+  New: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+  Contacted: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300",
+  Qualified:
+    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  Nurture:
+    "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+  Disqualified: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300",
+  Converted:
+    "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+};
 
 export default function DuplicatesQueuePage() {
   // admin_support is an oversight role (aliases to admin at the API's
@@ -133,6 +162,11 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
   const [pendingAction, setPendingAction] = useState<
     "merged" | "kept_separate" | "false_positive" | null
   >(null);
+  const [expanded, setExpanded] = useState(false);
+
+  // Only pending lead suspicions get the richer detail + merge-preview panel;
+  // school/contact (and already-reviewed) rows keep the simple card.
+  const canReviewDetail = row.record_type === "lead" && row.status === "pending";
 
   const raised = row.created_at
     ? formatDistanceToNow(new Date(row.created_at), { addSuffix: true })
@@ -169,11 +203,23 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
   };
 
   return (
-    <Card>
+    <Card
+      className={canReviewDetail ? "cursor-pointer" : undefined}
+      onClick={canReviewDetail ? () => setExpanded((v) => !v) : undefined}
+      role={canReviewDetail ? "button" : undefined}
+      aria-expanded={canReviewDetail ? expanded : undefined}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-sm">
+            <CardTitle className="text-sm flex items-center gap-1.5">
+              {canReviewDetail && (
+                <ChevronDown
+                  className={`h-4 w-4 text-muted-foreground transition-transform ${
+                    expanded ? "rotate-180" : ""
+                  }`}
+                />
+              )}
               Score {row.score}/100 ·{" "}
               <span className="capitalize text-muted-foreground">
                 {row.record_type}
@@ -232,7 +278,10 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
         </div>
 
         {row.status === "pending" ? (
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div
+            className="flex flex-wrap gap-2 pt-1"
+            onClick={(e) => e.stopPropagation()}
+          >
             <Button
               size="sm"
               onClick={() => decide("merged")}
@@ -263,6 +312,20 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
               <XCircle className="mr-2 h-4 w-4" />
               False positive
             </Button>
+            {canReviewDetail && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded ? (
+                  <ChevronUp className="mr-2 h-4 w-4" />
+                ) : (
+                  <ChevronDown className="mr-2 h-4 w-4" />
+                )}
+                Review details
+              </Button>
+            )}
           </div>
         ) : (
           <div className="text-xs text-muted-foreground">
@@ -272,7 +335,427 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
               : ""}
           </div>
         )}
+
+        {canReviewDetail && expanded && <LeadMergeDetail row={row} />}
       </CardContent>
     </Card>
+  );
+}
+
+// ---- Lead duplicate: detail view + merge preview ------------------------
+
+type Survivor = "new" | "existing";
+
+const COMPLETENESS_MAX = 8;
+
+/** Count populated key fields — used to badge the more/less complete lead. */
+function completenessScore(lead?: Lead | null): number {
+  if (!lead) return 0;
+  let n = 0;
+  if (lead.lead_name?.trim()) n++;
+  if (lead.school?.name?.trim()) n++;
+  if (lead.school?.city?.trim()) n++;
+  const contactName = [
+    lead.primary_contact?.first_name,
+    lead.primary_contact?.last_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (contactName) n++;
+  if (lead.primary_contact?.phone?.trim()) n++;
+  if (lead.primary_contact?.email?.trim()) n++;
+  if ((Number(lead.estimated_value) || 0) > 0) n++;
+  if (lead.notes?.trim()) n++;
+  return n;
+}
+
+function leadDisplayName(lead?: Lead | null, fallback = "this lead"): string {
+  return lead?.lead_name?.trim() || fallback;
+}
+
+function LeadMergeDetail({ row }: { row: DuplicateSuspicion }) {
+  const newQuery = useLead(row.new_record_id);
+  const existingQuery = useLead(row.existing_record_id);
+  const updateLead = useUpdateLead();
+  const review = useReviewDuplicate();
+
+  const newLead = newQuery.data?.data ?? null;
+  const existingLead = existingQuery.data?.data ?? null;
+
+  const isLoading = newQuery.isLoading || existingQuery.isLoading;
+  const newUnavailable = !newQuery.isLoading && !newLead;
+  const existingUnavailable = !existingQuery.isLoading && !existingLead;
+
+  const newScore = completenessScore(newLead);
+  const existingScore = completenessScore(existingLead);
+
+  // Default survivor = the more complete lead (ties default to existing, the
+  // record already in the system). Chosen once both leads have loaded.
+  const [survivor, setSurvivor] = useState<Survivor | null>(null);
+  useEffect(() => {
+    if (survivor === null && newLead && existingLead) {
+      setSurvivor(newScore > existingScore ? "new" : "existing");
+    }
+  }, [survivor, newLead, existingLead, newScore, existingScore]);
+
+  const survivorLead = survivor === "new" ? newLead : existingLead;
+  const otherLead = survivor === "new" ? existingLead : newLead;
+
+  const busy = updateLead.isPending || review.isPending;
+
+  const handleMerge = async () => {
+    if (!survivor || !survivorLead || !otherLead) {
+      toast.error("Both leads must be available to merge.");
+      return;
+    }
+    if (survivorLead.id === otherLead.id) {
+      toast.error("Survivor and retired lead must be different.");
+      return;
+    }
+
+    // EXACT soft-merge shape from components/leads/merge-leads-dialog.tsx.
+    const mergeTimestamp = new Date().toISOString();
+    const mergeAuditLine = `Merged into ${survivorLead.lead_name} (${survivorLead.id}) on ${mergeTimestamp}.`;
+    const updatedNotes = [otherLead.notes?.trim(), mergeAuditLine]
+      .filter(Boolean)
+      .join("\n\n");
+
+    try {
+      await updateLead.mutateAsync({
+        id: otherLead.id,
+        data: {
+          status: "Disqualified",
+          disqualify_reason: "Duplicate entry",
+          notes: updatedNotes,
+        },
+      });
+      await review.mutateAsync({
+        id: row.id,
+        data: {
+          status: "merged",
+          note: `Merged ${leadDisplayName(otherLead)} into ${leadDisplayName(survivorLead)}`,
+        },
+      });
+      toast.success(
+        `Merged — ${leadDisplayName(otherLead)} retired into ${leadDisplayName(survivorLead)}`,
+      );
+    } catch {
+      toast.error("Merge failed. No changes may have been applied.");
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div
+        className="mt-3 flex items-center justify-center rounded-lg border border-dashed py-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="mt-3 space-y-3 rounded-lg border bg-muted/30 p-3"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {(newUnavailable || existingUnavailable) && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          {newUnavailable && existingUnavailable
+            ? "Neither record is available any more — you can still keep both or mark this a false positive."
+            : `The ${newUnavailable ? "new" : "existing"} record is no longer available. Merge is disabled; you can still keep both or mark this a false positive.`}
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <LeadTile
+          heading="New lead"
+          lead={newLead}
+          score={newScore}
+          otherScore={existingScore}
+          unavailable={newUnavailable}
+        />
+        <LeadTile
+          heading="Existing lead"
+          lead={existingLead}
+          score={existingScore}
+          otherScore={newScore}
+          unavailable={existingUnavailable}
+        />
+        <AfterMergeTile
+          survivor={survivor}
+          setSurvivor={setSurvivor}
+          survivorLead={survivorLead}
+          otherLead={otherLead}
+          canChoose={!!newLead && !!existingLead}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+        <p className="mr-auto text-[11px] text-muted-foreground">
+          Merging retires the non-survivor as Disqualified — nothing is deleted.
+        </p>
+        <Button
+          size="sm"
+          onClick={handleMerge}
+          disabled={busy || !newLead || !existingLead || !survivorLead}
+        >
+          {busy ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <GitMerge className="mr-2 h-4 w-4" />
+          )}
+          {survivorLead
+            ? `Merge — keep ${leadDisplayName(survivorLead)}`
+            : "Merge"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CompletenessBadge({
+  score,
+  otherScore,
+}: {
+  score: number;
+  otherScore: number;
+}) {
+  if (score === otherScore) return null;
+  const isMost = score > otherScore;
+  return (
+    <Badge
+      variant="outline"
+      className={
+        isMost
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300"
+          : "bg-muted text-muted-foreground"
+      }
+    >
+      {isMost ? "Most complete" : "Least complete"}
+    </Badge>
+  );
+}
+
+function DetailRow({
+  icon: Icon,
+  children,
+}: {
+  icon: typeof MapPin;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+      <Icon className="mt-0.5 h-3 w-3 shrink-0" />
+      <span className="min-w-0 break-words text-foreground">{children}</span>
+    </div>
+  );
+}
+
+function LeadTile({
+  heading,
+  lead,
+  score,
+  otherScore,
+  unavailable,
+}: {
+  heading: string;
+  lead: Lead | null;
+  score: number;
+  otherScore: number;
+  unavailable: boolean;
+}) {
+  if (!lead) {
+    return (
+      <div className="rounded-lg border bg-background p-3">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {heading}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {unavailable
+            ? "Record no longer available."
+            : "Could not load this record."}
+        </p>
+      </div>
+    );
+  }
+
+  const location = [lead.school?.city, lead.school?.district, lead.school?.province]
+    .map((v) => v?.trim())
+    .filter(Boolean)
+    .join(", ");
+  const contactName = [lead.primary_contact?.first_name, lead.primary_contact?.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const rep = [lead.assignee?.first_name, lead.assignee?.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const value = Number(lead.estimated_value) || 0;
+
+  return (
+    <div className="rounded-lg border bg-background p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {heading}
+        </p>
+        <CompletenessBadge score={score} otherScore={otherScore} />
+      </div>
+
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <Link
+          to={`/leads/${lead.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          {leadDisplayName(lead)}
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+        <Badge className={statusColors[lead.status] || "bg-muted text-foreground"}>
+          {lead.status}
+        </Badge>
+      </div>
+
+      <div className="mt-2 space-y-1.5">
+        {lead.school?.name && (
+          <DetailRow icon={MapPin}>
+            {lead.school.name}
+            {location ? ` · ${location}` : ""}
+          </DetailRow>
+        )}
+        {contactName && <DetailRow icon={UserIcon}>{contactName}</DetailRow>}
+        {lead.primary_contact?.phone && (
+          <DetailRow icon={Phone}>{lead.primary_contact.phone}</DetailRow>
+        )}
+        {lead.primary_contact?.email && (
+          <DetailRow icon={Mail}>{lead.primary_contact.email}</DetailRow>
+        )}
+        {lead.primary_contact?.whatsapp_number && (
+          <DetailRow icon={MessageCircle}>
+            {lead.primary_contact.whatsapp_number}
+          </DetailRow>
+        )}
+        <DetailRow icon={DollarSign}>
+          {value > 0 ? value.toLocaleString() : "No estimated value"}
+        </DetailRow>
+        {rep && <DetailRow icon={UserIcon}>Rep: {rep}</DetailRow>}
+        {lead.source && <DetailRow icon={Tag}>{lead.source}</DetailRow>}
+        <DetailRow icon={Calendar}>
+          {lead.created_at
+            ? format(new Date(lead.created_at), "MMM d, yyyy")
+            : "—"}
+        </DetailRow>
+      </div>
+
+      {lead.notes?.trim() && (
+        <p className="mt-2 line-clamp-3 whitespace-pre-wrap border-t pt-2 text-xs text-muted-foreground">
+          {lead.notes.trim()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AfterMergeTile({
+  survivor,
+  setSurvivor,
+  survivorLead,
+  otherLead,
+  canChoose,
+}: {
+  survivor: Survivor | null;
+  setSurvivor: (s: Survivor) => void;
+  survivorLead: Lead | null;
+  otherLead: Lead | null;
+  canChoose: boolean;
+}) {
+  const survivorName = leadDisplayName(survivorLead, "the survivor");
+  const otherName = leadDisplayName(otherLead, "the other lead");
+
+  return (
+    <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
+      <div className="flex items-center gap-1.5">
+        <ArrowRight className="h-3.5 w-3.5 text-primary" />
+        <p className="text-[11px] uppercase tracking-wide text-primary">
+          After merge
+        </p>
+      </div>
+
+      {/* Survivor chooser — segmented control; defaults to most complete. */}
+      <div className="mt-2 inline-flex rounded-md border p-0.5">
+        <button
+          type="button"
+          disabled={!canChoose}
+          onClick={() => setSurvivor("new")}
+          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+            survivor === "new"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Keep New
+        </button>
+        <button
+          type="button"
+          disabled={!canChoose}
+          onClick={() => setSurvivor("existing")}
+          className={`rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+            survivor === "existing"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Keep Existing
+        </button>
+      </div>
+
+      {survivorLead ? (
+        <>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium">{survivorName}</span>
+            <Badge
+              className={
+                statusColors[survivorLead.status] || "bg-muted text-foreground"
+              }
+            >
+              {survivorLead.status}
+            </Badge>
+          </div>
+
+          <ul className="mt-2 space-y-1.5 text-xs">
+            <li className="flex gap-1.5">
+              <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+              <span>
+                <span className="font-medium">{survivorName}</span> stays active
+                — the record everyone keeps working.
+              </span>
+            </li>
+            <li className="flex gap-1.5">
+              <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
+              <span>
+                <span className="font-medium">{otherName}</span> becomes
+                Disqualified (reason: Duplicate entry) with a note pointing to{" "}
+                <span className="font-medium">{survivorName}</span> — kept for
+                history, not deleted.
+              </span>
+            </li>
+          </ul>
+
+          <p className="mt-2 border-t pt-2 text-[11px] italic text-muted-foreground">
+            Soft merge — field values are not auto-combined. Copy anything you
+            still need from the retired lead first.
+          </p>
+        </>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Both records must be available to preview the merge.
+        </p>
+      )}
+    </div>
   );
 }
