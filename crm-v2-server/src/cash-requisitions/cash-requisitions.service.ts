@@ -30,8 +30,15 @@ import {
   CreateRequisitionLineItemDto,
 } from './dto/cash-requisition.dto';
 
-/** Roles allowed to see every requisition (not just their own). */
-const OVERSEER_ROLES = ['admin', 'manager', 'sales_manager', 'finance'];
+/** Roles allowed to see every requisition (not just their own).
+ * admin_support is an elevated oversight role and sees all requisitions. */
+const OVERSEER_ROLES = [
+  'admin',
+  'admin_support',
+  'manager',
+  'sales_manager',
+  'finance',
+];
 
 export interface RequestingUser {
   id: string;
@@ -45,8 +52,14 @@ export interface DealCostSummaryRow {
   total: string; // in_approval + paid (never mixes currencies)
 }
 
-/** Roles that action the manager stage. */
-const MANAGER_APPROVER_ROLES = ['admin', 'manager', 'sales_manager'];
+/** Roles that action the manager stage. admin_support has full oversight
+ * and shares the manager-stage approval authority of admin / sales_manager. */
+const MANAGER_APPROVER_ROLES = [
+  'admin',
+  'admin_support',
+  'manager',
+  'sales_manager',
+];
 /** Roles that action the finance stage (admin is fallback until finance users exist). */
 const FINANCE_APPROVER_ROLES = ['admin', 'finance'];
 
@@ -507,10 +520,10 @@ export class CashRequisitionsService {
     if (query.awaiting === 'true') {
       const roles = this.roleNames(user);
       const awaiting: RequisitionStatus[] = [];
-      if (roles.some((r) => ['admin', 'manager', 'sales_manager'].includes(r))) {
+      if (roles.some((r) => MANAGER_APPROVER_ROLES.includes(r))) {
         awaiting.push(RequisitionStatus.SUBMITTED);
       }
-      if (roles.some((r) => ['admin', 'finance'].includes(r))) {
+      if (roles.some((r) => FINANCE_APPROVER_ROLES.includes(r))) {
         awaiting.push(
           RequisitionStatus.MANAGER_APPROVED,
           RequisitionStatus.FINANCE_APPROVED, // awaiting mark-paid

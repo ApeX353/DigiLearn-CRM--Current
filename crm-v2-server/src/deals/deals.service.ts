@@ -109,7 +109,9 @@ export class DealsService {
     userRoles: string[],
   ): Promise<void> {
     const isManagerOrAdmin =
-      userRoles.includes('admin') || userRoles.includes('sales_manager');
+      userRoles.includes('admin') ||
+      userRoles.includes('sales_manager') ||
+      userRoles.includes('admin_support');
     if (isManagerOrAdmin) return;
     const enforce = await this.complianceSettings.getBoolean(
       'enforce_commercial_intent_for_deal',
@@ -970,13 +972,16 @@ export class DealsService {
     const isSalesManager =
       roleNames.includes('sales_manager') ||
       roleNames.includes('sales-manager');
+    // admin_support is an elevated/oversight role — it bypasses per-deal
+    // ownership the same way admin / sales_manager do.
+    const isAdminSupport = roleNames.includes('admin_support');
     // DEAL-1: owning ONE deal in the batch used to unlock the WHOLE
     // batch (.some). A rep must own every deal they bulk-update.
     const isAssigned = dealsToUpdate.every(
       (deal) => deal.assigned_to === actorId,
     );
 
-    if (!isAdmin && !isSalesManager && !isAssigned) {
+    if (!isAdmin && !isSalesManager && !isAdminSupport && !isAssigned) {
       throw new ForbiddenException('Not authorized to update this deal');
     }
 

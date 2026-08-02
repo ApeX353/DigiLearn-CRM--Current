@@ -137,7 +137,9 @@ export class ActivitiesService {
     if (!ACTIONABLE.includes(activity.type)) return; // notes are exempt
 
     const isManagerOrAdmin =
-      userRoles.includes('admin') || userRoles.includes('sales_manager');
+      userRoles.includes('admin') ||
+      userRoles.includes('sales_manager') ||
+      userRoles.includes('admin_support');
     if (isManagerOrAdmin) return;
 
     const enforce = await this.complianceSettings.getBoolean(

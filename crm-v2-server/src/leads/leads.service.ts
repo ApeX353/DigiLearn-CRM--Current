@@ -931,7 +931,9 @@ export class LeadsService {
     const wantsDisqualify =
       requestedStatus === 'Disqualified' || !!disqualify_reason;
     const isManagerOrAdmin =
-      userRoles.includes('admin') || userRoles.includes('sales_manager');
+      userRoles.includes('admin') ||
+      userRoles.includes('sales_manager') ||
+      userRoles.includes('admin_support');
 
     if (
       wantsDisqualify &&
