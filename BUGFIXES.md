@@ -6,6 +6,81 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-02 — Autonomous batch 2 (IDOR + settings wiring + school flow + audit)
+
+### C-02 (activities): activity write paths were not owner-scoped
+**Symptom.** A sales_rep with any activity/lead/deal UUID could edit,
+complete, cancel or bulk-update another rep's activity, or file a new
+activity onto someone else's lead/deal.
+**Root cause.** Read paths, comments and attachments were rep-scoped, but
+`create`/`update`/`updateStatus`/`bulkUpdateStatus` called `findOne(id)` (or
+`findByIds`) with no scope — the remaining half of C-02 after the lead half
+was fixed. Silent corruption of SLA, contact timestamps, temperature and
+discipline metrics.
+**Fix.** `create` calls `assertParentInScope` (a rep's new activity must
+attach to a lead/deal assigned to them); `update`/`updateStatus` pass
+`scopeUserId` to `findOne` (foreign id → 404 before any write);
+`bulkUpdateStatus` checks every id up front via `assertActivitiesInScope`
+(one query, no relations on saved rows → no cascade writes). Controllers set
+`scopeUserId = role==='sales_rep' ? userId : undefined`; elevated roles
+bypass. Files: `activities.service.ts`, `activities.controller.ts`.
+
+### H-05 (cash-req): per-deal / per-lead cost summaries were unscoped
+**Symptom.** Any rep could read total committed + paid spend on any deal or
+lead. **Fix.** `assertRecordVisibleForCost` — overseers see any record; a rep
+only a deal/lead assigned to them (foreign/unknown → 404). Files:
+`cash-requisitions.service.ts`, `cash-requisitions.controller.ts`.
+
+### H-05 (email merge-context): buildScope loaded any lead/deal/contact by id
+**Symptom.** A rep could render or render+send a template against another
+rep's lead/deal and read that record's pipeline data back (via
+`GET :id/render` and `POST send/template`). **Fix.** `scopeUserId` on the
+scope input — a rep's foreign/unknown lead or deal 404s before any data is
+returned or rendered; elevated roles unaffected. Files:
+`merge-var-context.service.ts`, `email-templates.service.ts`,
+`email-templates.controller.ts`, `user-email-accounts.controller.ts`.
+
+### QDL1: quote PDF downloads left no audit trail
+**Fix.** Widened the audit action union to include `download` (action is
+`varchar(20)` — no migration), imported `AuditModule` into `QuotesModule`,
+and record a best-effort audit row on `downloadPdf` (caller id; IP from the
+audit-context middleware). Fire-and-forget so a failed log never blocks the
+download. Files: `audit-log.entity.ts`, `audit.service.ts`, `quotes.module.ts`,
+`quotes.controller.ts`.
+
+### SET-MGR1: manager daily-contacts target had no admin form field
+**Symptom.** DISC2 added `compliance.targets.daily_contacts_per_manager`
+(default 10) and the dashboard uses it, but the Compliance & Controls admin
+form was never given a field — so the manager target was stuck at 10 with no
+way to change it (the rep target had a field; the manager one didn't).
+**Fix.** Added the key to `COMPLIANCE_KEYS` + `DEFAULTS`, a state hook,
+load/reset/save handling, and an input beside the rep target. Client-only.
+File: `crm-v2-client/.../admin/compliance-controls-content.tsx`.
+**Note (open, needs owner input):** the *rep* target has a precedence quirk —
+the dashboard reads the legacy `defaults.daily_leads_target` key first and
+only falls back to `compliance.targets.daily_contacts_per_rep`. Flagged, not
+changed.
+
+### SCHLEAD1 + SCHLEAD2: no way to create a lead from a school
+**Symptom.** A school's Related Leads card had no create action (empty state
+was a dead end). **Fix.** SCHLEAD1: "New lead" header action + "Create the
+first lead" empty-state button, both → `/leads/new?school_id=<id>`. SCHLEAD2:
+the create-lead page reads `?school_id=` on mount, locks the lead to that
+school and fills its details once loaded (primary contact inherited by the
+existing hydration effect); one-shot so the user can still change the school.
+Client-only. Files: `related-leads.tsx`, `create-new-lead.tsx`.
+
+### Reclassified this session (NOT fixed — need owner input or invalid)
+- **N3-proposals** — the "proposals sent" counter deliberately ILIKEs
+  activity subjects; its own comment says to switch to real quote data once
+  quotes have reliable timestamps. Changing it redefines a displayed metric.
+- **CSV4-cleanup** — invalid: `leads-csv-import-modal.tsx` is live (imported +
+  rendered in `leads-management-page.tsx`), not dead. Nothing to delete.
+- **CON1/CSV6** (second phone column) — schema migration + UI + dedup
+  decision, not a clean autonomous fix.
+
+---
+
 ## 2026-08-02 — DUP1: duplicate review queue is now populated (+ backfill)
 
 **Symptom.** The manager duplicate-review queue was permanently empty even
