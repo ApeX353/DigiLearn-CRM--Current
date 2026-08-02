@@ -3,6 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
@@ -34,7 +35,19 @@ export class ApiKeyGuard implements CanActivate {
     const validKey = this.configService.get<string>('CRM_API_KEY');
     if (!validKey) return true; // No API key configured, skip
 
-    if (apiKey === validKey) {
+    // M-09: constant-time comparison so an attacker can't recover the key
+    // byte-by-byte from response timing. timingSafeEqual requires equal
+    // lengths, so gate on length first (a length mismatch is an instant
+    // non-match anyway). `x-api-key` may arrive as string | string[].
+    const presented = Buffer.from(
+      Array.isArray(apiKey) ? apiKey.join(',') : String(apiKey),
+    );
+    const expected = Buffer.from(validKey);
+    const keyMatches =
+      presented.length === expected.length &&
+      timingSafeEqual(presented, expected);
+
+    if (keyMatches) {
       // Set a system user on the request so downstream code works
       request.user = {
         id: 'system',
