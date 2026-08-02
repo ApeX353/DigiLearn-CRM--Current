@@ -9,6 +9,7 @@ import { Repository, DataSource } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { LeadsService } from '../leads.service';
 import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
+import { canonName } from '../utils/record-normalization';
 import { PROVINCES } from '../../schools/constants/provinces';
 import type { LeadSource } from '../constants/lead-source';
 import type { ContactRole } from '../../contacts/constants';
@@ -261,8 +262,11 @@ export class LeadsXlsxImportService {
    * case/punctuation). An existing match wins over a within-batch one.
    */
   private async flagDuplicates(rows: PendingImportRow[]): Promise<void> {
-    const norm = (s: string): string =>
-      s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // CSV2: use the shared canonical-name normaliser so the import flagger
+    // agrees with the create-path school matching (SCH1) instead of rolling
+    // its own. (Post-create, DUP1 also records any near-duplicate that still
+    // slips through into the manager review queue.)
+    const norm = (s: string): string => canonName(s);
 
     const schoolRows: { id: string; name: string }[] =
       await this.dataSource.query(
