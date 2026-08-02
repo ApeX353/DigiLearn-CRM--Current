@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Campaign } from './entities/campaign.entity';
 import { Lead } from '../leads/entities/lead.entity';
 import { Deal } from '../deals/entities/deal.entity';
@@ -109,24 +109,39 @@ export class CampaignsService {
     await this.campaignRepo.delete(id);
   }
 
-  /** Leads sourced from this campaign (tag survives conversion). */
-  async findLeads(id: string): Promise<Lead[]> {
+  /**
+   * Leads sourced from this campaign (tag survives conversion). When
+   * `scopeUserId` is supplied (a sales_rep), only the leads assigned to
+   * that rep are returned; elevated roles pass undefined and see all.
+   */
+  async findLeads(id: string, scopeUserId?: string): Promise<Lead[]> {
     await this.findOne(id);
     return this.leadRepo.find({
-      where: { source_campaign_id: id },
+      where: {
+        source_campaign_id: id,
+        ...(scopeUserId ? { assigned_to: scopeUserId } : {}),
+      },
       relations: ['school', 'assignee'],
       order: { created_at: 'DESC' },
     });
   }
 
-  /** Campaign-level spend, one bucket per currency — never merged. */
-  async getSpend(id: string): Promise<CurrencyBucket[]> {
+  /**
+   * Campaign spend, one bucket per currency — never merged.
+   *
+   * Elevated roles (scopeUserId undefined) see campaign-level spend:
+   * requisitions raised directly against the campaign.
+   *
+   * A sales_rep (scopeUserId set) sees only spend DERIVED FROM their own
+   * campaign records — requisitions attached to a lead/deal that is both
+   * sourced from this campaign and assigned to them. Campaign-level
+   * requisitions are org costs not attributable to a single rep, so they
+   * are not surfaced in the scoped view.
+   */
+  async getSpend(id: string, scopeUserId?: string): Promise<CurrencyBucket[]> {
     await this.findOne(id);
-    const rows: Array<{
-      currency: string;
-      in_approval: string | null;
-      paid: string | null;
-    }> = await this.requisitionRepo
+
+    const qb = this.requisitionRepo
       .createQueryBuilder('req')
       .select('req.currency', 'currency')
       .addSelect(
@@ -136,8 +151,43 @@ export class CampaignsService {
       .addSelect(
         `COALESCE(SUM(CASE WHEN req.status = 'PAID' THEN req.total_amount ELSE 0 END), 0)`,
         'paid',
-      )
-      .where('req.campaign_id = :id', { id })
+      );
+
+    if (scopeUserId) {
+      const [leadRows, dealRows] = await Promise.all([
+        this.leadRepo.find({
+          where: { source_campaign_id: id, assigned_to: scopeUserId },
+          select: ['id'],
+        }),
+        this.dealRepo.find({
+          where: { source_campaign_id: id, assigned_to: scopeUserId } as never,
+          select: ['id'],
+        }),
+      ]);
+      const leadIds = leadRows.map((l) => l.id);
+      const dealIds = dealRows.map((d) => d.id);
+      if (leadIds.length === 0 && dealIds.length === 0) {
+        return [];
+      }
+      qb.where(
+        new Brackets((b) => {
+          if (leadIds.length) {
+            b.orWhere('req.lead_id IN (:...leadIds)', { leadIds });
+          }
+          if (dealIds.length) {
+            b.orWhere('req.deal_id IN (:...dealIds)', { dealIds });
+          }
+        }),
+      );
+    } else {
+      qb.where('req.campaign_id = :id', { id });
+    }
+
+    const rows: Array<{
+      currency: string;
+      in_approval: string | null;
+      paid: string | null;
+    }> = await qb
       .andWhere(`req.status NOT IN ('DRAFT','REJECTED')`)
       .groupBy('req.currency')
       .getRawMany();

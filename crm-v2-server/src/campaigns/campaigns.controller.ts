@@ -79,16 +79,30 @@ export class CampaignsController {
   @Get(':id/leads')
   @Roles(...ALL_OPERATORS)
   @ApiOperation({ summary: 'Leads sourced from this campaign' })
-  async leads(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.service.findLeads(id);
+  async leads(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // A sales_rep only sees the campaign leads assigned to them; managers /
+    // admin / admin_support (elevated `role`) pass undefined and see all.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.service.findLeads(id, scopeUserId);
     return { success: true, data };
   }
 
   @Get(':id/spend')
   @Roles(...ALL_OPERATORS)
   @ApiOperation({ summary: 'Campaign spend per currency' })
-  async spend(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.service.getSpend(id);
+  async spend(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // A sales_rep only sees spend derived from their own campaign
+    // leads/deals; elevated roles see full campaign-level spend.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const data = await this.service.getSpend(id, scopeUserId);
     return { success: true, data };
   }
 
