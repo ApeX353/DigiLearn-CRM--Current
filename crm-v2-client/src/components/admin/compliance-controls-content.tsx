@@ -51,6 +51,7 @@ import { FeatureGuard } from "~/guards/feature-guard";
 // Canonical key list — order is the visual order on the page.
 const COMPLIANCE_KEYS = [
   "compliance.targets.daily_contacts_per_rep",
+  "compliance.targets.daily_contacts_per_manager",
   "compliance.thresholds.stale_lead_days",
   "compliance.thresholds.stale_deal_days",
   "compliance.targets.monthly_revenue",
@@ -75,6 +76,7 @@ type ComplianceKey = (typeof COMPLIANCE_KEYS)[number];
 
 const DEFAULTS: Record<ComplianceKey, number | boolean> = {
   "compliance.targets.daily_contacts_per_rep": 40,
+  "compliance.targets.daily_contacts_per_manager": 10,
   "compliance.thresholds.stale_lead_days": 14,
   "compliance.thresholds.stale_deal_days": 21,
   "compliance.targets.monthly_revenue": 100000,
@@ -122,6 +124,9 @@ const ComplianceControlsContent = () => {
   // -------- Targets & thresholds (numeric) ----------------------
   const [dailyContacts, setDailyContacts] = useState<number>(
     DEFAULTS["compliance.targets.daily_contacts_per_rep"] as number,
+  );
+  const [dailyContactsManager, setDailyContactsManager] = useState<number>(
+    DEFAULTS["compliance.targets.daily_contacts_per_manager"] as number,
   );
   const [staleLeadDays, setStaleLeadDays] = useState<number>(
     DEFAULTS["compliance.thresholds.stale_lead_days"] as number,
@@ -199,6 +204,12 @@ const ComplianceControlsContent = () => {
       toNumber(
         settings["compliance.targets.daily_contacts_per_rep"],
         DEFAULTS["compliance.targets.daily_contacts_per_rep"] as number,
+      ),
+    );
+    setDailyContactsManager(
+      toNumber(
+        settings["compliance.targets.daily_contacts_per_manager"],
+        DEFAULTS["compliance.targets.daily_contacts_per_manager"] as number,
       ),
     );
     setStaleLeadDays(
@@ -355,6 +366,14 @@ const ComplianceControlsContent = () => {
             value: dailyContacts,
             data_type: "number",
             description: "Daily contacts target per rep",
+            category: "compliance",
+            is_public: false,
+          },
+          {
+            key: "compliance.targets.daily_contacts_per_manager",
+            value: dailyContactsManager,
+            data_type: "number",
+            description: "Daily contacts target per sales manager",
             category: "compliance",
             is_public: false,
           },
@@ -536,6 +555,12 @@ const ComplianceControlsContent = () => {
         toNumber(
           settings["compliance.targets.daily_contacts_per_rep"],
           DEFAULTS["compliance.targets.daily_contacts_per_rep"] as number,
+        ),
+      );
+      setDailyContactsManager(
+        toNumber(
+          settings["compliance.targets.daily_contacts_per_manager"],
+          DEFAULTS["compliance.targets.daily_contacts_per_manager"] as number,
         ),
       );
       setStaleLeadDays(
@@ -727,6 +752,35 @@ const ComplianceControlsContent = () => {
               How many first-time lead contacts each rep should make per day.
               The dashboard's "Leads Contacted vs Target" card uses this,
               multiplying by your active headcount for the team view.
+            </p>
+          </div>
+
+          {/* Daily contacts per manager (DISC2 — managers carry a lower target) */}
+          <div className="space-y-2">
+            <Label
+              htmlFor="cc-daily-contacts-manager"
+              className="flex items-center gap-2"
+            >
+              <Target className="h-4 w-4 text-muted-foreground" />
+              Daily contacts goal per manager
+            </Label>
+            <Input
+              id="cc-daily-contacts-manager"
+              data-testid="cc-daily-contacts-manager"
+              type="number"
+              min={0}
+              value={dailyContactsManager}
+              onChange={(e) =>
+                handleNumberChange(setDailyContactsManager, e.target.value, {
+                  min: 0,
+                })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Sales managers sell part-time, so they carry a lower daily
+              target than reps (default 10 vs 40). The discipline board and
+              the team "Contacted vs Target" view use this figure for anyone
+              on a manager role.
             </p>
           </div>
 
