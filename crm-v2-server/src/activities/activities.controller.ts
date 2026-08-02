@@ -59,8 +59,15 @@ export class ActivitiesController {
   async create(
     @Body() createActivityDto: CreateActivityDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const activity = await this.activitiesService.create(createActivityDto, userId);
+    // C-02: a rep can only file an activity onto their own lead/deal.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const activity = await this.activitiesService.create(
+      createActivityDto,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Activity created successfully',
@@ -207,8 +214,16 @@ export class ActivitiesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateActivityDto: UpdateActivityDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
-    const activity = await this.activitiesService.update(id, updateActivityDto, userId);
+    // C-02: a rep can only edit an activity in their own scope.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const activity = await this.activitiesService.update(
+      id,
+      updateActivityDto,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       message: 'Activity updated successfully',
@@ -246,6 +261,8 @@ export class ActivitiesController {
     @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
     const userRoles = (currentUser?.roles || []).map((r) => r.name);
+    // C-02: a rep can only transition an activity in their own scope.
+    const scopeUserId = userRoles.includes('sales_rep') ? userId : undefined;
     const activity = await this.activitiesService.updateStatus(
       id,
       body.status,
@@ -254,6 +271,7 @@ export class ActivitiesController {
       body.completion_note,
       body.next_step,
       userRoles,
+      scopeUserId,
     );
     return {
       success: true,
@@ -282,7 +300,10 @@ export class ActivitiesController {
   async bulkUpdateStatus(
     @Body() body: BulkStatusDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
+    // C-02: a rep can only bulk-update activities in their own scope.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const { updated, followUpCandidates } =
       await this.activitiesService.bulkUpdateStatus(
         body.ids,
@@ -290,6 +311,7 @@ export class ActivitiesController {
         userId,
         body.outcome,
         body.completion_note,
+        scopeUserId,
       );
     return {
       success: true,

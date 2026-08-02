@@ -10,6 +10,7 @@ import {
   Repository,
   DataSource,
   Between,
+  In,
   LessThanOrEqual,
   MoreThanOrEqual,
   EntityManager,
@@ -32,6 +33,7 @@ import { Demo } from './entities/demos.entity';
 import { ActivityAttachment } from './entities/activity-attachments.entity';
 import { ActivityComment } from './entities/activity-comments.entity';
 import { Lead } from '../leads/entities/lead.entity';
+import { Deal } from '../deals/entities/deal.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
@@ -393,7 +395,80 @@ export class ActivitiesService {
     );
   }
 
-  async create(dto: CreateActivityDto, userId: string): Promise<Activity> {
+  /**
+   * C-02 (write paths): a sales_rep may only attach an activity to a
+   * lead or deal that is currently assigned to them. Elevated roles
+   * (scopeUserId undefined) bypass. A foreign / unknown parent reads as
+   * 404 so ids can't be probed — mirrors the read-scope in findOne and
+   * the finance `assertDealAttachable` pattern.
+   */
+  private async assertParentInScope(
+    manager: EntityManager,
+    leadId: string | null | undefined,
+    dealId: string | null | undefined,
+    scopeUserId?: string,
+  ): Promise<void> {
+    if (!scopeUserId) return;
+    if (leadId) {
+      const lead = await manager
+        .getRepository(Lead)
+        .findOne({ where: { id: leadId } });
+      if (!lead || lead.assigned_to !== scopeUserId) {
+        throw new NotFoundException(`Lead ${leadId} not found`);
+      }
+    }
+    if (dealId) {
+      const deal = await manager
+        .getRepository(Deal)
+        .findOne({ where: { id: dealId } });
+      if (!deal || deal.assigned_to !== scopeUserId) {
+        throw new NotFoundException(`Deal ${dealId} not found`);
+      }
+    }
+  }
+
+  /**
+   * C-02 (bulk): confirm every id in a bulk operation is in the rep's
+   * scope (own work, or on a lead/deal assigned to them) BEFORE any row
+   * is mutated. Runs one query and never attaches relations to the
+   * entities the caller saves, so it can't trigger cascade writes. Any
+   * id outside scope reads as 404, same as the single path.
+   */
+  private async assertActivitiesInScope(
+    manager: EntityManager,
+    ids: string[],
+    scopeUserId: string,
+  ): Promise<void> {
+    const rows = await manager
+      .getRepository(Activity)
+      .createQueryBuilder('a')
+      .leftJoin('a.lead', 'lead')
+      .leftJoin('a.deal', 'deal')
+      .select('a.id', 'id')
+      .where('a.id IN (:...ids)', { ids })
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where('a.created_by_id = :uid', { uid: scopeUserId })
+            .orWhere('a.assigned_to_id = :uid', { uid: scopeUserId })
+            .orWhere('lead.assigned_to = :uid', { uid: scopeUserId })
+            .orWhere('deal.assigned_to = :uid', { uid: scopeUserId });
+        }),
+      )
+      .getRawMany<{ id: string }>();
+    const allowed = new Set(rows.map((r) => r.id));
+    const foreign = ids.filter((id) => !allowed.has(id));
+    if (foreign.length) {
+      throw new NotFoundException(
+        `Activities not found: ${foreign.join(', ')}`,
+      );
+    }
+  }
+
+  async create(
+    dto: CreateActivityDto,
+    userId: string,
+    scopeUserId?: string,
+  ): Promise<Activity> {
     await this.assertOpenActivityHasDate(
       dto.type,
       dto.status,
@@ -401,6 +476,13 @@ export class ActivitiesService {
       dto.scheduled_at,
     );
     return this.dataSource.transaction(async (manager) => {
+      // C-02: a rep cannot file an activity onto someone else's record.
+      await this.assertParentInScope(
+        manager,
+        dto.lead_id,
+        dto.deal_id,
+        scopeUserId,
+      );
       const {
         task,
         note,
@@ -1031,9 +1113,12 @@ export class ActivitiesService {
     id: string,
     dto: UpdateActivityDto,
     userId: string,
+    scopeUserId?: string,
   ): Promise<Activity> {
     return this.dataSource.transaction(async (manager) => {
-      const activity = await this.findOne(id);
+      // C-02: a rep can only edit an activity in their own scope. A
+      // foreign id 404s here, before any write.
+      const activity = await this.findOne(id, scopeUserId);
       const oldValues = { ...activity };
 
       const { task, note, call, email, meeting, whatsapp, ...activityData } =
@@ -1122,8 +1207,10 @@ export class ActivitiesService {
       description?: string;
     },
     userRoles: string[] = [],
+    scopeUserId?: string,
   ): Promise<Activity> {
-    const activity = await this.findOne(id);
+    // C-02: a rep can only transition an activity in their own scope.
+    const activity = await this.findOne(id, scopeUserId);
     const oldStatus = activity.status;
 
     // CRM discipline rule — server-side enforcement. A transition to
@@ -1261,6 +1348,7 @@ export class ActivitiesService {
     userId: string,
     outcome?: ActivityOutcome,
     completionNote?: string,
+    scopeUserId?: string,
   ): Promise<{
     updated: Activity[];
     followUpCandidates: Activity[];
@@ -1293,6 +1381,13 @@ export class ActivitiesService {
         throw new NotFoundException(
           `Activities not found: ${missing.join(', ')}`,
         );
+      }
+
+      // C-02: a rep can only bulk-update activities in their own scope.
+      // Check every id up front (foreign ids 404) so no partial batch
+      // mutates another rep's work.
+      if (scopeUserId) {
+        await this.assertActivitiesInScope(manager, ids, scopeUserId);
       }
 
       const now = new Date();
