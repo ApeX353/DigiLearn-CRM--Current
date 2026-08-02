@@ -44,6 +44,11 @@ const quotesApi = {
       .patch(`/quotes/${id}/status`, { status })
       .then((res) => res.data),
 
+  // QUOTE6: re-issue an (expired) quote — server clones it into a fresh
+  // Draft with a new validity window and returns the new quote.
+  reissue: (id: string): Promise<ApiResponse<Quote>> =>
+    apiClientAuth.post(`/quotes/${id}/reissue`).then((res) => res.data),
+
   addItem: (quoteId: string, data: CreateQuoteItemDto): Promise<Quote> =>
     apiClientAuth
       .post(`/quotes/${quoteId}/items`, data)
@@ -165,6 +170,19 @@ export function useUpdateQuoteStatus() {
     },
     onError: (error) => {
       console.error("Update quote status error:", handleApiError(error));
+    },
+  });
+}
+
+export function useReissueQuote() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => quotesApi.reissue(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quoteKeys.all });
+    },
+    onError: (error) => {
+      console.error("Re-issue quote error:", handleApiError(error));
     },
   });
 }

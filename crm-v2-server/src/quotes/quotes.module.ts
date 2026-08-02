@@ -13,6 +13,7 @@ import { AuthModule } from '../auth/auth.module';
 import { CanAccessQuoteGuard } from './guards/can-access-quote.guard';
 import { SettingsModule } from '../settings/settings.module';
 import { AuditModule } from '../audit/audit.module';
+import { DealsModule } from '../deals/deals.module';
 
 @Module({
   imports: [
@@ -24,6 +25,8 @@ import { AuditModule } from '../audit/audit.module';
     SettingsModule,
     AuditModule,
     forwardRef(() => AuthModule),
+    // QUOTE6: issuing a quote advances its linked deal — cycle with DealsModule.
+    forwardRef(() => DealsModule),
   ],
   controllers: [QuotesController],
   providers: [QuotesService, CanAccessQuoteGuard],

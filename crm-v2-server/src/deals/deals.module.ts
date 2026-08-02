@@ -35,7 +35,7 @@ import { SettingsModule } from '../settings/settings.module';
       User,
     ]),
     ActivityLogsModule,
-    QuotesModule,
+    forwardRef(() => QuotesModule),
     forwardRef(() => LeadsModule),
     forwardRef(() => AuthModule),
     SettingsModule,

@@ -229,6 +229,31 @@ export class QuotesController {
     };
   }
 
+  @Post(':id/reissue')
+  @Roles('admin', 'sales_manager', 'sales_rep')
+  @ApiOperation({
+    summary:
+      'QUOTE6: re-issue a quote — clone it into a fresh Draft with a new validity window',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Quote re-issued successfully',
+  })
+  async reissue(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // A rep may only re-issue their own quote; the service enforces it.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const quote = await this.quotesService.reissue(id, userId, scopeUserId);
+    return {
+      success: true,
+      message: 'Quote re-issued successfully',
+      data: quote,
+    };
+  }
+
   // ========================
   // Item Management
   // ========================

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   QUOTE_STATUSES,
   useQuote,
   useUpdateQuote,
   useDownloadQuotePdf,
+  useReissueQuote,
   type Quote,
   type QuoteStatus,
 } from "~/api/quotes";
@@ -105,6 +106,7 @@ export function QuotePreviewModal({
   );
 
   const downloadPdf = useDownloadQuotePdf();
+  const reissueQuote = useReissueQuote();
   const [nextStatus, setNextStatus] = useState<QuoteStatus | "">("");
   const [poReceived, setPoReceived] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -118,6 +120,24 @@ export function QuotePreviewModal({
       });
     } catch {
       toast.error("Could not generate the PDF. Please try again.");
+    }
+  };
+
+  // QUOTE6: re-issue an expired quote as a fresh Draft with a new validity
+  // window. The deal is never auto-marked Lost — this is the manual path back.
+  const handleReissue = async () => {
+    if (!quote) return;
+    try {
+      const res = await reissueQuote.mutateAsync(quote.id);
+      const newNumber = res?.data?.quote_number;
+      toast.success(
+        newNumber
+          ? `Re-issued as ${newNumber}`
+          : "Quote re-issued successfully",
+      );
+      onOpenChange(false);
+    } catch {
+      toast.error("Could not re-issue the quote. Please try again.");
     }
   };
 
@@ -375,18 +395,34 @@ export function QuotePreviewModal({
                   )}
                   Update Quote Status
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleDownload}
-                  disabled={!quote || downloadPdf.isPending}
-                >
-                  {downloadPdf.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  {quote?.status === "Expired" && (
+                    <Button
+                      variant="outline"
+                      onClick={handleReissue}
+                      disabled={reissueQuote.isPending}
+                    >
+                      {reissueQuote.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                      )}
+                      Re-issue Quote
+                    </Button>
                   )}
-                  Download PDF
-                </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleDownload}
+                    disabled={!quote || downloadPdf.isPending}
+                  >
+                    {downloadPdf.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Download PDF
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

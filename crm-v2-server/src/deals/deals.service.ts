@@ -4,6 +4,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, EntityManager, In, ILike, Brackets } from 'typeorm';
@@ -70,6 +72,9 @@ export class DealsService {
     private userRepository: Repository<User>,
     private dataSource: DataSource,
     private activityLogsService: ActivityLogsService,
+    // QUOTE6: QuotesService now also depends on DealsService (to advance
+    // a deal on quote issue), so this edge is a forwardRef cycle.
+    @Inject(forwardRef(() => QuotesService))
     private quotesService: QuotesService,
     private dealHealthCalculationService: DealHealthCalculationService,
     private notificationsGateway: NotificationsGateway,
@@ -1150,6 +1155,82 @@ export class DealsService {
     );
 
     return this.findDealDetails(dealId);
+  }
+
+  /**
+   * QUOTE6(a): issuing a quote advances its linked deal into the
+   * "quoting" stage of the deal's own pipeline.
+   *
+   * Forward-only and idempotent:
+   *   - no quote/quotation/proposal stage in the pipeline  → no-op
+   *   - deal already sits AT or PAST the quoting stage      → no-op
+   * so it never moves a deal backward and never re-enters the same stage.
+   *
+   * The stage-evidence gate (`assertStageGateEvidence`) is deliberately
+   * NOT run here: the quote being issued IS the evidence, and the gate
+   * would otherwise block the move (a freshly-created Draft quote is not
+   * yet "Sent"/"Accepted" evidence). We reuse the same transition builder
+   * the manual stage move uses — `buildStageTransitionUpdatePayload` —
+   * so stage history, SLA reset, "Advance …" task auto-completion and
+   * terminal handling all stay consistent with a normal move.
+   *
+   * Runs inside the caller's transaction (`manager`) so the advance and
+   * the quote commit atomically; a genuine DB failure rolls both back.
+   * Returns true when the deal was advanced.
+   *
+   * TODO(QUOTE6): the sibling case — a quote issued for a lead that has
+   * NO deal yet — is intentionally left to the deal-creation flow
+   * (`createDeal` with items) rather than auto-created here. A standalone
+   * quote (POST /quotes) carries only person_id + school_id and no
+   * lead_id, so reliably identifying "the lead", picking a pipeline and
+   * initial stage, and flipping the lead to Converted needs a product
+   * decision. Until then, issue such quotes from the deal-creation path.
+   */
+  async advanceDealToQuotingStage(
+    manager: EntityManager,
+    dealId: string,
+    actorId: string,
+  ): Promise<boolean> {
+    const deal = await manager.findOne(Deal, {
+      where: { id: dealId },
+      relations: ['current_stage'],
+    });
+    if (!deal) return false;
+
+    const stages = await manager.find(Stage, {
+      where: { pipeline_id: deal.pipeline_id },
+      order: { order: 'ASC' },
+    });
+    const quotingStage = stages.find((s) =>
+      /\b(quote|quotation|proposal)\b/.test(this.normalizeStageName(s.name)),
+    );
+    if (!quotingStage) return false;
+
+    // Idempotent + forward-only.
+    if (deal.current_stage_id === quotingStage.id) return false;
+    if (
+      deal.current_stage &&
+      Number(quotingStage.order) <= Number(deal.current_stage.order)
+    ) {
+      return false;
+    }
+
+    const transitionUpdate = await this.buildStageTransitionUpdatePayload(
+      manager,
+      { deal, targetStage: quotingStage, actorId },
+    );
+    await manager.update(Deal, dealId, transitionUpdate);
+
+    await this.activityLogsService.logUpdate(
+      'deal',
+      dealId,
+      { stage: deal.currentStatus },
+      { stage: quotingStage.name },
+      actorId,
+      `Advanced deal "${deal.title}" from "${deal.currentStatus}" to "${quotingStage.name}" on quote issue (QUOTE6)`,
+    );
+
+    return true;
   }
 
   /* ========================================

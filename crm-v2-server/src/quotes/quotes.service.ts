@@ -3,6 +3,8 @@ import {
   NotFoundException,
   Logger,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -30,6 +32,7 @@ import type { AppAbility } from '../auth/casl/casl-ability.factory';
 import { AbilityScopeService } from '../auth/casl/ability-scope.service';
 import { Action } from '../auth/constants/permissions';
 import { Deal } from '../deals/entities/deal.entity';
+import { DealsService } from '../deals/deals.service';
 
 @Injectable()
 export class QuotesService {
@@ -65,6 +68,10 @@ export class QuotesService {
     private readonly notificationsService: NotificationsService,
     private readonly appSettingsService: SettingsService,
     private readonly abilityScopeService: AbilityScopeService,
+    // QUOTE6(a): issuing a quote advances its linked deal into the quoting
+    // stage. forwardRef breaks the DealsService <-> QuotesService cycle.
+    @Inject(forwardRef(() => DealsService))
+    private readonly dealsService: DealsService,
   ) {}
 
   /**
@@ -198,6 +205,17 @@ export class QuotesService {
           deal.value = Number(savedQuote.total);
           await transactionManager.save(Deal, deal);
         }
+
+        // QUOTE6(a): issuing a quote advances the linked deal into the
+        // pipeline's quoting stage (forward-only, idempotent — a no-op when
+        // the deal is already at/past quoting or the pipeline has no such
+        // stage). Runs in this transaction so quote + advance commit
+        // together.
+        await this.dealsService.advanceDealToQuotingStage(
+          transactionManager,
+          savedQuote.deal_id,
+          userId,
+        );
       }
 
       await this.activityLogsService.logCreate(
@@ -227,6 +245,83 @@ export class QuotesService {
     return this.dataSource.transaction((transactionManager) =>
       run(transactionManager),
     );
+  }
+
+  /**
+   * QUOTE6(b): re-issue a quote. Produces a FRESH quote (new quote number,
+   * new validity window, status Draft) copied from an existing one —
+   * line items, client snapshot, notes/terms and payment term are all
+   * carried over. Nothing about the source quote or its deal changes; an
+   * expired quote simply gets a clean successor to send again.
+   *
+   * This is the deliberate alternative to auto-marking a deal Lost on
+   * expiry: expiry only flips the quote to Expired (see
+   * `expireOverdueQuotes`), and a human re-issues when they want to.
+   *
+   * Any status can be re-issued (the UI surfaces it for Expired quotes),
+   * so a lapsed quote is never a dead end. Reuses `create()`, so the new
+   * quote also advances the linked deal via QUOTE6(a).
+   */
+  async reissue(
+    sourceId: string,
+    userId: string,
+    scopeUserId?: string,
+  ): Promise<Quote> {
+    const source = await this.quoteRepository.findOne({
+      where: { id: sourceId },
+    });
+    if (!source) {
+      throw new NotFoundException(`Quote with ID ${sourceId} not found`);
+    }
+
+    // A rep may only re-issue their own quote; a foreign id answers 404 so
+    // ids cannot be probed (mirrors assertDealAttachable).
+    if (scopeUserId && source.owner_id !== scopeUserId) {
+      throw new NotFoundException(`Quote with ID ${sourceId} not found`);
+    }
+
+    const sourceItems = await this.documentItemRepository.find({
+      where: { document_type: 'Quote', document_id: sourceId },
+      order: { created_at: 'ASC' },
+    });
+
+    const items: CreateQuoteItemDto[] = sourceItems.map((item) => ({
+      product_id: item.product_id ?? undefined,
+      description: item.description,
+      quantity: Number(item.quantity),
+      unit_price: Number(item.unit_price),
+      discount: item.discount != null ? Number(item.discount) : undefined,
+      tax_rate: item.tax_rate != null ? Number(item.tax_rate) : undefined,
+    }));
+
+    const dto: CreateQuoteDto = {
+      person_id: source.person_id ?? undefined,
+      deal_id: source.deal_id ?? undefined,
+      school_id: source.school_id,
+      client_name: source.client_name,
+      client_email: source.client_email ?? undefined,
+      client_address: source.client_address ?? undefined,
+      status: 'Draft',
+      // Omit valid_until so create() stamps a fresh QUOTE_VALIDITY_DAYS
+      // window from today — the whole point of a re-issue.
+      valid_until: undefined,
+      notes: source.notes ?? undefined,
+      po_received: false,
+      payment_term_id: source.payment_term_id ?? undefined,
+      items,
+    };
+
+    const newQuote = await this.create(dto, userId, undefined, scopeUserId);
+
+    await this.activityLogsService.logCreate(
+      'Quote',
+      newQuote.id,
+      newQuote,
+      userId,
+      `Re-issued quote ${newQuote.quote_number} from ${source.quote_number}`,
+    );
+
+    return newQuote;
   }
 
   async findAll(
