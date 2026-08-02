@@ -593,11 +593,45 @@ export class CashRequisitionsService {
     });
   }
 
-  async getDealCostSummary(dealId: string): Promise<DealCostSummaryRow[]> {
+  /**
+   * H-05: a per-deal / per-lead spend rollup exposes commercially
+   * sensitive totals, so a sales_rep may only pull the summary for a
+   * record assigned to them. Overseers (admin / finance / managers) see
+   * any record. A foreign or unknown id reads as 404 so spend can't be
+   * probed by id.
+   */
+  private async assertRecordVisibleForCost(
+    kind: 'deal' | 'lead',
+    id: string,
+    user: RequestingUser,
+  ): Promise<void> {
+    if (this.isOverseer(user)) return;
+    const assignedTo =
+      kind === 'deal'
+        ? (await this.dataSource.getRepository(Deal).findOne({ where: { id } }))
+            ?.assigned_to
+        : (await this.dataSource.getRepository(Lead).findOne({ where: { id } }))
+            ?.assigned_to;
+    if (assignedTo !== user.id) {
+      throw new NotFoundException(
+        `${kind === 'deal' ? 'Deal' : 'Lead'} ${id} not found`,
+      );
+    }
+  }
+
+  async getDealCostSummary(
+    dealId: string,
+    user: RequestingUser,
+  ): Promise<DealCostSummaryRow[]> {
+    await this.assertRecordVisibleForCost('deal', dealId, user);
     return this.getCostSummaryFor('deal_id', dealId);
   }
 
-  async getLeadCostSummary(leadId: string): Promise<DealCostSummaryRow[]> {
+  async getLeadCostSummary(
+    leadId: string,
+    user: RequestingUser,
+  ): Promise<DealCostSummaryRow[]> {
+    await this.assertRecordVisibleForCost('lead', leadId, user);
     return this.getCostSummaryFor('lead_id', leadId);
   }
 

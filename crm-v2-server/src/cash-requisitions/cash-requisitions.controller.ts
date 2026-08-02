@@ -76,16 +76,22 @@ export class CashRequisitionsController {
   @Get('deals/:dealId/summary')
   @Roles(...ALL_OPERATORS)
   @ApiOperation({ summary: 'Per-currency cost rollup for a deal' })
-  async dealSummary(@Param('dealId', ParseUUIDPipe) dealId: string) {
-    const data = await this.service.getDealCostSummary(dealId);
+  async dealSummary(
+    @Param('dealId', ParseUUIDPipe) dealId: string,
+    @CurrentUser() user: RequestingUser,
+  ) {
+    const data = await this.service.getDealCostSummary(dealId, user);
     return { success: true, data };
   }
 
   @Get('leads/:leadId/summary')
   @Roles(...ALL_OPERATORS)
   @ApiOperation({ summary: 'Per-currency cost rollup for a lead' })
-  async leadSummary(@Param('leadId', ParseUUIDPipe) leadId: string) {
-    const data = await this.service.getLeadCostSummary(leadId);
+  async leadSummary(
+    @Param('leadId', ParseUUIDPipe) leadId: string,
+    @CurrentUser() user: RequestingUser,
+  ) {
+    const data = await this.service.getLeadCostSummary(leadId, user);
     return { success: true, data };
   }
 
