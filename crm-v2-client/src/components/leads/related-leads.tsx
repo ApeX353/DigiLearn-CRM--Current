@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Link } from "react-router";
-import { Calendar, Check, ExternalLink, GitMerge, MapPin, Phone, Users } from "lucide-react";
+import { Calendar, Check, ExternalLink, GitMerge, MapPin, Phone, Plus, Users } from "lucide-react";
 import { useLeads, type Lead } from "~/api/leads";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -89,13 +89,23 @@ export function RelatedLeadsSection({
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Related Leads
-          </CardTitle>
-          <CardDescription>
-            All leads linked to {schoolName} ({schoolLeads.length})
-          </CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1.5">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Related Leads
+              </CardTitle>
+              <CardDescription>
+                All leads linked to {schoolName} ({schoolLeads.length})
+              </CardDescription>
+            </div>
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link to={`/leads/new?school_id=${schoolId}`}>
+                <Plus className="h-4 w-4" />
+                New lead
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -105,8 +115,14 @@ export function RelatedLeadsSection({
               ))}
             </div>
           ) : schoolLeads.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-              No leads are linked to this school yet.
+            <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+              <span>No leads are linked to this school yet.</span>
+              <Button asChild size="sm">
+                <Link to={`/leads/new?school_id=${schoolId}`}>
+                  <Plus className="h-4 w-4" />
+                  Create the first lead for {schoolName}
+                </Link>
+              </Button>
             </div>
           ) : (
             <div className="space-y-3">

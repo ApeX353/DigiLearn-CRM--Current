@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Container from "~/components/container";
@@ -61,6 +61,9 @@ import { DuplicateWarningBanner } from "~/components/duplicates/duplicate-warnin
 
 export default function CreateNewLeadPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const prefillSchoolId = searchParams.get("school_id");
+  const [prefillApplied, setPrefillApplied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [schoolSearchTerm, setSchoolSearchTerm] = useState("");
   const [hydratedSchoolId, setHydratedSchoolId] = useState<string | null>(null);
@@ -173,6 +176,41 @@ export default function CreateNewLeadPage() {
     form.setValue("contacts.0.is_primary", true);
     setHydratedSchoolId(selectedSchoolId);
   }, [form, hydratedSchoolId, selectedSchool, selectedSchoolId]);
+
+  // SCHLEAD2: when the page is opened from a school's "Create lead" button
+  // (?school_id=<id>), lock the new lead to that school and fill its
+  // details once the record loads. Contacts are inherited by the
+  // hydration effect above; here we fill the school-level fields, mirroring
+  // what picking a school from the search list does. One-shot so the user
+  // can still clear and change the school afterwards.
+  useEffect(() => {
+    if (!prefillSchoolId || prefillApplied) return;
+    if (selectedSchoolId !== prefillSchoolId) {
+      form.setValue("lead.school_id", prefillSchoolId);
+      return;
+    }
+    const school = selectedSchoolData?.data;
+    if (!school || school.id !== prefillSchoolId) return;
+    form.setValue("lead.school_name", school.name);
+    form.setValue("lead.city", school.city || undefined);
+    form.setValue("lead.province", school.province || undefined);
+    form.setValue("lead.region", school.region || undefined);
+    form.setValue("lead.school_type", school.school_type || undefined);
+    form.setValue("lead.ownership_type", school.ownership_type || undefined);
+    form.setValue(
+      "lead.church_denomination",
+      school.church_denomination || undefined,
+    );
+    form.setValue("lead.district", school.district || undefined);
+    setSchoolSearchTerm(school.name);
+    setPrefillApplied(true);
+  }, [
+    prefillSchoolId,
+    prefillApplied,
+    selectedSchoolId,
+    selectedSchoolData?.data,
+    form,
+  ]);
 
   const clearInheritedContactIfEditing = (index: number) => {
     const currentContactId = form.getValues(`contacts.${index}.contact_id`);
