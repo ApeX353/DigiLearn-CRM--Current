@@ -6,6 +6,32 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-02 — DUP1: duplicate review queue is now populated (+ backfill)
+
+**Symptom.** The manager duplicate-review queue was permanently empty even
+though the live book holds many duplicate leads, so managers had nothing to
+review and duplicates piled up unseen.
+**Root cause.** `recordSuspicion` (the only writer) was never called by any
+create path — the client hook existed but was unused, and no server path
+invoked it. Only the peek/warning banner ran; nothing was ever persisted.
+**Fix.**
+- **Going forward:** `createWithSchoolAndContacts` now records a pending
+  suspicion for the strongest near-duplicate after each lead is committed
+  (post-commit, best-effort — a detection hiccup never fails a create).
+- **Backfill:** new `POST /duplicates/rebuild` (admin/sales_manager, runs in
+  the background) scans every active lead and records suspicions for existing
+  near-duplicates, so the queue reflects the CURRENT book — not just new
+  leads. Each pair recorded once; `recordSuspicion` de-dupes pending pairs so
+  re-running is safe/idempotent.
+**Verified locally:** queue 0 → **480 pending suspicions** after the rebuild.
+**Data impact.** Additive — creates `duplicate_suspicions` rows (a review
+queue), moves no lead/contact data. Merges remain a separate manual decision
+(DUP2, Ms Mpofu). Files: `crm-v2-server/src/leads/leads.service.ts`,
+`crm-v2-server/src/leads/services/duplicate-detection.service.ts`,
+`crm-v2-server/src/leads/duplicates.controller.ts`.
+
+---
+
 ## 2026-08-02 — Security batch + DISC3 (autonomous, no-input fixes)
 
 ### DISC3 (+AUD-H05): admin_support saw an empty discipline board; non-managers could read peers

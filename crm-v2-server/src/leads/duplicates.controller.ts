@@ -106,6 +106,24 @@ export class DuplicatesController {
     return { success: true, data: row };
   }
 
+  @Post('rebuild')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary:
+      'DUP1: backfill the manager queue from existing leads (runs in the background)',
+  })
+  async rebuild(@Req() req: any) {
+    const userId = req?.user?.id ?? req?.user?.sub;
+    // Fire-and-forget: scanning the whole book takes a while, so return
+    // immediately and let suspicions appear in the queue as the sweep runs.
+    void this.service.rebuildLeadSuspicions(userId);
+    return {
+      success: true,
+      message:
+        'Duplicate queue rebuild started — suspected duplicates will appear in the queue shortly.',
+    };
+  }
+
   @Get()
   @Roles('admin', 'sales_manager')
   @ApiOperation({ summary: 'Manager queue of pending duplicate suspicions' })

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Lead } from '../entities/lead.entity';
@@ -81,6 +81,8 @@ function nameSimilarity(a: string, b: string): number {
 
 @Injectable()
 export class DuplicateDetectionService {
+  private readonly logger = new Logger(DuplicateDetectionService.name);
+
   constructor(
     @InjectRepository(Lead) private readonly leadRepo: Repository<Lead>,
     @InjectRepository(School) private readonly schoolRepo: Repository<School>,
@@ -377,6 +379,60 @@ export class DuplicateDetectionService {
       status: 'pending',
     });
     return this.dupRepo.save(row);
+  }
+
+  /**
+   * DUP1 backfill. Suspicions were only ever meant to be written on create,
+   * and that path was itself unwired — so the manager queue was empty even
+   * though the live book already holds many duplicates. This scans every
+   * active lead and records a pending suspicion for its strongest
+   * near-duplicate, so the queue reflects the CURRENT book, not just leads
+   * created after the fix. Each pair is recorded once (the higher id is
+   * treated as the "new" duplicate); recordSuspicion de-dupes pending pairs,
+   * so re-running is safe and idempotent. Best-effort per lead — a single
+   * failure never aborts the sweep.
+   */
+  async rebuildLeadSuspicions(
+    raisedById?: string | null,
+  ): Promise<{ scanned: number; recorded: number }> {
+    const leads = await this.leadRepo
+      .createQueryBuilder('l')
+      .leftJoinAndSelect('l.primary_contact', 'pc')
+      .where('l.deleted_at IS NULL')
+      .getMany();
+    let recorded = 0;
+    for (const lead of leads) {
+      try {
+        const pc = (
+          lead as { primary_contact?: { phone?: string; email?: string } }
+        ).primary_contact;
+        const candidates = await this.peekLead({
+          lead_name: lead.lead_name,
+          school_id: lead.school_id,
+          primary_contact_id: lead.primary_contact_id,
+          phone: pc?.phone ?? null,
+          email: pc?.email ?? null,
+        });
+        const top = candidates.find((c) => c.record.id !== lead.id);
+        if (top && lead.id > top.record.id) {
+          await this.recordSuspicion({
+            record_type: 'lead',
+            new_record_id: lead.id,
+            existing_record_id: top.record.id,
+            score: top.score,
+            signals: top.signals,
+            raised_by_id: raisedById ?? null,
+          });
+          recorded += 1;
+        }
+      } catch {
+        // skip this lead; a single failure must not abort the backfill
+      }
+    }
+    this.logger.log(
+      `[DUP1 backfill] scanned ${leads.length} leads, recorded ${recorded} pending suspicions`,
+    );
+    return { scanned: leads.length, recorded };
   }
 
   async list(params: {

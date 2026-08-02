@@ -58,6 +58,7 @@ import { ComplianceSettingsService } from '../settings/compliance-settings.servi
 import { isTacticalDisqualifyReason } from './constants/reasons';
 import { LEAD_STATUSES } from './constants/lead-statuses';
 import { canonName, canonCity, canonPhone } from './utils/record-normalization';
+import { DuplicateDetectionService } from './services/duplicate-detection.service';
 
 @Injectable()
 export class LeadsService {
@@ -101,6 +102,7 @@ export class LeadsService {
     @InjectRepository(LeadReversalRequest)
     private readonly leadReversalRequestRepository: Repository<LeadReversalRequest>,
     private readonly complianceSettings: ComplianceSettingsService,
+    private readonly duplicateDetection: DuplicateDetectionService,
     @Optional()
     @Inject(EmailSequenceService)
     private readonly emailSequenceService?: EmailSequenceService,
@@ -151,7 +153,7 @@ export class LeadsService {
       return trimmed ? trimmed : null;
     };
 
-    return await this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       // ===== STEP 1: Handle School (create or use existing) =====
       let school: School;
 
@@ -496,6 +498,58 @@ export class LeadsService {
         stakeholders: allStakeholders,
       };
     });
+
+    // DUP1: after the lead is committed, surface any near-duplicate to the
+    // manager review queue. Nothing ever wrote suspicions, so the queue was
+    // permanently empty. Best-effort and non-fatal — a detection hiccup must
+    // never fail a legitimate create.
+    void this.recordLeadDuplicateSuspicion(result.lead, userId);
+
+    return result;
+  }
+
+  /**
+   * DUP1: peek for near-duplicate leads and record the top match as a
+   * pending suspicion for the manager review queue. Swallows all errors so
+   * it can be called fire-and-forget after a create.
+   */
+  private async recordLeadDuplicateSuspicion(
+    lead: Lead,
+    userId: string,
+  ): Promise<void> {
+    try {
+      const primaryContact = lead.primary_contact_id
+        ? await this.contactRepository.findOne({
+            where: { id: lead.primary_contact_id },
+          })
+        : null;
+      const candidates = await this.duplicateDetection.peekLead({
+        lead_name: lead.lead_name,
+        school_id: lead.school_id,
+        primary_contact_id: lead.primary_contact_id,
+        phone: primaryContact?.phone ?? null,
+        email: primaryContact?.email ?? null,
+      });
+      // peekLead already filters to score >= threshold; exclude the lead
+      // itself and record the strongest remaining match.
+      const top = candidates.find((c) => c.record.id !== lead.id);
+      if (top) {
+        await this.duplicateDetection.recordSuspicion({
+          record_type: 'lead',
+          new_record_id: lead.id,
+          existing_record_id: top.record.id,
+          score: top.score,
+          signals: top.signals,
+          raised_by_id: userId,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `[DUP1] duplicate suspicion recording failed for lead ${lead.id}: ${
+          (err as Error)?.message
+        }`,
+      );
+    }
   }
 
   async findAll(

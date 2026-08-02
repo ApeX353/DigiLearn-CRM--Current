@@ -67,6 +67,11 @@ describe('LeadsService', () => {
         getNumber: async () => 0,
         getBoolean: async () => false,
       } as any,
+      // DUP1 — DuplicateDetectionService mock (fire-and-forget on create).
+      {
+        peekLead: async () => [],
+        recordSuspicion: async () => ({}),
+      } as any,
     );
   });
 
