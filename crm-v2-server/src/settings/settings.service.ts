@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, EntityManager } from 'typeorm';
 import { Settings, SettingDataType } from './entities/settings.entity';
 
 export interface SetSettingDto {
@@ -98,12 +98,15 @@ export class SettingsService {
   }
 
   /**
-   * Set a single setting (create or update)
+   * Core create-or-update for one setting, bound to a specific
+   * EntityManager so it can run standalone or inside a batch transaction.
    */
-  async setSetting(dto: SetSettingDto): Promise<Settings> {
-    const existing = await this.settingsRepository.findOne({
-      where: { key: dto.key },
-    });
+  private async upsertSetting(
+    manager: EntityManager,
+    dto: SetSettingDto,
+  ): Promise<Settings> {
+    const repo = manager.getRepository(Settings);
+    const existing = await repo.findOne({ where: { key: dto.key } });
 
     if (existing) {
       // Update existing setting
@@ -113,35 +116,47 @@ export class SettingsService {
       if (dto.category) existing.category = dto.category;
       if (dto.is_public !== undefined) existing.is_public = dto.is_public;
 
-      return this.settingsRepository.save(existing);
-    } else {
-      // Create new setting
-      const newSetting = this.settingsRepository.create({
-        key: dto.key,
-        value: dto.value,
-        data_type: dto.data_type || this.inferDataType(dto.value),
-        description: dto.description || null,
-        category: dto.category || null,
-        is_public: dto.is_public || false,
-        is_active: true,
-      });
-
-      return this.settingsRepository.save(newSetting);
+      return repo.save(existing);
     }
+
+    // Create new setting
+    const newSetting = repo.create({
+      key: dto.key,
+      value: dto.value,
+      data_type: dto.data_type || this.inferDataType(dto.value),
+      description: dto.description || null,
+      category: dto.category || null,
+      is_public: dto.is_public || false,
+      is_active: true,
+    });
+
+    return repo.save(newSetting);
   }
 
   /**
-   * Set multiple settings at once
+   * Set a single setting (create or update)
+   */
+  async setSetting(dto: SetSettingDto): Promise<Settings> {
+    return this.settingsRepository.manager.transaction((manager) =>
+      this.upsertSetting(manager, dto),
+    );
+  }
+
+  /**
+   * Set multiple settings at once.
+   *
+   * M-04: run the whole batch in ONE transaction so a failure partway
+   * through can't leave settings half-applied (e.g. a compliance form
+   * save that wrote 5 of 19 knobs and then errored). All-or-nothing.
    */
   async setSettings(settings: SetSettingDto[]): Promise<Settings[]> {
-    const results: Settings[] = [];
-
-    for (const dto of settings) {
-      const setting = await this.setSetting(dto);
-      results.push(setting);
-    }
-
-    return results;
+    return this.settingsRepository.manager.transaction(async (manager) => {
+      const results: Settings[] = [];
+      for (const dto of settings) {
+        results.push(await this.upsertSetting(manager, dto));
+      }
+      return results;
+    });
   }
 
   /**
