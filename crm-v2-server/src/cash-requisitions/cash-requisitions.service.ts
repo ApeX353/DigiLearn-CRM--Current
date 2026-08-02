@@ -605,7 +605,12 @@ export class CashRequisitionsService {
     id: string,
     user: RequestingUser,
   ): Promise<void> {
-    if (this.isOverseer(user)) return;
+    // admin_support is an oversight role (jwt.strategy maps it to an
+    // effective admin for read guards) and could read cost summaries
+    // before scoping existed — keep that, don't regress it. Approval
+    // authority is unchanged (isOverseer still gates those).
+    if (this.isOverseer(user) || this.roleNames(user).includes('admin_support'))
+      return;
     const assignedTo =
       kind === 'deal'
         ? (await this.dataSource.getRepository(Deal).findOne({ where: { id } }))
