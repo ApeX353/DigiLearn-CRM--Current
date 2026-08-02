@@ -141,12 +141,17 @@ const api = {
     status: ActivityStatus,
     outcome?: import("./types").ActivityOutcome,
     completionNote?: string,
+    nextStep?: NextStepInput,
   ): Promise<Activity> =>
     apiClientAuth
       .patch(`/activities/${id}/status`, {
         status,
         outcome,
         completion_note: completionNote,
+        // NEXT2: when the caller collects the next step up-front, send it in
+        // the SAME request so the server's next-step-on-completion gate is
+        // satisfied atomically (the gate runs before persistence).
+        next_step: nextStep,
       })
       .then((r) => unwrapData<Activity>(r.data)),
 
@@ -173,6 +178,18 @@ const api = {
       .get(`/activities/leads/${leadId}/stats`)
       .then((r) => unwrapData<LeadActivityStats>(r.data)),
 };
+
+/**
+ * NEXT2 — atomic follow-up payload sent alongside a completion. Mirrors
+ * the server `NextStepPayloadDto`. When provided, the server schedules the
+ * follow-up in the same call and its next-step-compliance gate passes.
+ */
+export interface NextStepInput {
+  type: ActivityType;
+  subject: string;
+  due_at: string;
+  description?: string;
+}
 
 export interface BulkStatusResult {
   updated: Activity[];
@@ -317,17 +334,25 @@ export function useUpdateActivityStatus() {
       status,
       outcome,
       completionNote,
+      nextStep,
     }: {
       id: string;
       status: ActivityStatus;
       outcome?: import("./types").ActivityOutcome;
       completionNote?: string;
-    }) => api.updateStatus(id, status, outcome, completionNote),
-    onSuccess: (updated) => {
+      nextStep?: NextStepInput;
+    }) => api.updateStatus(id, status, outcome, completionNote, nextStep),
+    onSuccess: (updated, variables) => {
       qc.setQueryData(activitiesKeys.byId(updated.id), updated);
       qc.invalidateQueries({ queryKey: activitiesKeys.lists() });
       qc.invalidateQueries({ queryKey: activitiesKeys.leadStatsRoot() });
-      if (updated.status === "completed" || updated.completed_at) {
+      // NEXT2: if the caller already captured the next step and sent it in
+      // this same request, the follow-up is scheduled server-side — don't
+      // re-prompt for one.
+      if (
+        !variables.nextStep &&
+        (updated.status === "completed" || updated.completed_at)
+      ) {
         enqueue(updated, { required: shouldRequireFollowUp(updated) });
       }
     },
