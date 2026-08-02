@@ -492,10 +492,40 @@ export class LeadsXlsxImportService {
       const key = String(c.value ?? '')
         .toLowerCase()
         .replace(/[^a-z]/g, '');
-      if (key === 'school') idx.school = i;
-      else if (key === 'contact') idx.contact = i;
-      else if (key === 'position') idx.position = i;
-      else if (key === 'phone') idx.phone = i;
+      // IMPORT2: accept common header variants so real spreadsheets
+      // ("Phone Number", "Cell", "Contact Person"…) don't silently drop the
+      // value. Exact-match on 'phone'/'contact' alone lost most of them.
+      if (key === 'school' || key === 'schoolname') idx.school = i;
+      else if (
+        [
+          'contact',
+          'contactname',
+          'contactperson',
+          'headteacher',
+          'head',
+          'principal',
+        ].includes(key)
+      )
+        idx.contact = i;
+      else if (['position', 'role', 'title', 'designation'].includes(key))
+        idx.position = i;
+      else if (
+        [
+          'phone',
+          'phonenumber',
+          'phoneno',
+          'cell',
+          'cellphone',
+          'cellnumber',
+          'mobile',
+          'mobilenumber',
+          'mobileno',
+          'tel',
+          'telephone',
+          'contactnumber',
+        ].includes(key)
+      )
+        idx.phone = i;
       else if (key === 'provinceweb') idx.provinceWeb = i;
       else if (key === 'provincefile') idx.provinceFile = i;
       else if (key === 'areafile' || key === 'area') idx.area = i;

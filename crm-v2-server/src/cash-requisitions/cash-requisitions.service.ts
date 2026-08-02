@@ -318,12 +318,31 @@ export class CashRequisitionsService {
     }
   }
 
+  // N2: segregation of duties — the person who raised a requisition may not
+  // approve or release it themselves, even if their role otherwise allows.
+  // Previously an admin (in both approver sets) could submit → manager-approve
+  // → finance-approve → mark-paid their own requisition end to end.
+  // (Edge: in a one-approver org this blocks the sole approver; a deliberate
+  // override would be a separate policy decision.)
+  private assertNotSubmitter(
+    req: CashRequisition,
+    user: RequestingUser,
+    action: string,
+  ) {
+    if (req.requested_by_id === user.id) {
+      throw new ForbiddenException(
+        `You cannot ${action} your own requisition — it needs a different approver`,
+      );
+    }
+  }
+
   async managerApprove(
     id: string,
     user: RequestingUser,
   ): Promise<CashRequisition> {
     this.assertRole(user, MANAGER_APPROVER_ROLES, 'manager-approve');
     const req = await this.findOne(id, user);
+    this.assertNotSubmitter(req, user, 'manager-approve');
     this.assertStatus(req, RequisitionStatus.SUBMITTED, 'manager-approve');
 
     req.status = RequisitionStatus.MANAGER_APPROVED;
@@ -374,6 +393,7 @@ export class CashRequisitionsService {
   ): Promise<CashRequisition> {
     this.assertRole(user, FINANCE_APPROVER_ROLES, 'finance-approve');
     const req = await this.findOne(id, user);
+    this.assertNotSubmitter(req, user, 'finance-approve');
     this.assertStatus(
       req,
       RequisitionStatus.MANAGER_APPROVED,
@@ -428,6 +448,7 @@ export class CashRequisitionsService {
   async markPaid(id: string, user: RequestingUser): Promise<CashRequisition> {
     this.assertRole(user, FINANCE_APPROVER_ROLES, 'mark as paid');
     const req = await this.findOne(id, user);
+    this.assertNotSubmitter(req, user, 'mark as paid');
     this.assertStatus(req, RequisitionStatus.FINANCE_APPROVED, 'mark as paid');
 
     req.status = RequisitionStatus.PAID;
