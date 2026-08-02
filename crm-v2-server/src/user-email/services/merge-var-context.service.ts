@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { format } from 'date-fns';
@@ -40,6 +40,11 @@ interface BuildScopeInput {
   leadId?: string;
   dealId?: string;
   contactId?: string;
+  // H-05: when set (sender is a sales_rep), the merge context may only
+  // pull a lead / deal assigned to this user. Undefined for elevated
+  // roles, which see any record. A foreign/unknown id 404s so pipeline
+  // data can't be harvested by rendering a template against it.
+  scopeUserId?: string;
 }
 
 @Injectable()
@@ -71,6 +76,18 @@ export class MergeVarContextService {
         ? this.contactRepo.findOne({ where: { id: input.contactId } })
         : Promise.resolve(null),
     ]);
+
+    // H-05: a rep may only merge a record assigned to them. Loaded above
+    // (one round-trip either way); reject here before any data is
+    // returned or rendered into an email.
+    if (input.scopeUserId) {
+      if (input.leadId && lead?.assigned_to !== input.scopeUserId) {
+        throw new NotFoundException(`Lead ${input.leadId} not found`);
+      }
+      if (input.dealId && deal?.assigned_to !== input.scopeUserId) {
+        throw new NotFoundException(`Deal ${input.dealId} not found`);
+      }
+    }
 
     const now = new Date();
 

@@ -181,12 +181,16 @@ export class UserEmailAccountsController {
   async sendTemplate(
     @Body() dto: SendWithTemplateDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
   ) {
+    // H-05: a rep can only render+send against their own lead/deal.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const rendered = await this.templates.render(dto.template_id, userId, {
       senderUserId: userId,
       leadId: dto.lead_id,
       dealId: dto.deal_id,
       contactId: dto.contact_id,
+      scopeUserId,
     });
 
     const data = await this.sender.send({

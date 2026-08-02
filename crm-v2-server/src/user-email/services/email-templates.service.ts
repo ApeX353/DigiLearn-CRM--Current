@@ -163,6 +163,7 @@ export class EmailTemplatesService {
       leadId?: string;
       dealId?: string;
       contactId?: string;
+      scopeUserId?: string;
     },
   ): Promise<RenderedEmail> {
     const tpl = await this.findOne(id, userId);

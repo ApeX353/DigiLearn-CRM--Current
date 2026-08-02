@@ -130,15 +130,19 @@ export class EmailTemplatesController {
   async render(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
     @Query('lead_id') leadId?: string,
     @Query('deal_id') dealId?: string,
     @Query('contact_id') contactId?: string,
   ) {
+    // H-05: a rep can only render against their own lead/deal.
+    const scopeUserId = role === 'sales_rep' ? userId : undefined;
     const data = await this.templatesService.render(id, userId, {
       senderUserId: userId,
       leadId,
       dealId,
       contactId,
+      scopeUserId,
     });
     return { success: true, data };
   }
