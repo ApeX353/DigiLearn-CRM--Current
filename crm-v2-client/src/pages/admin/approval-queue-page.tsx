@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
+  ArrowRightLeft,
   CheckCircle2,
   Clock,
   Loader2,
@@ -53,11 +54,13 @@ import {
   useRejectAssignmentProposal,
   useApproveAssignmentProposalBatch,
   useRunAutoAssign,
+  useRebalanceLeads,
   DISTRIBUTION_BATCH_SIZES,
 } from "~/api/assignment-proposals";
 import type {
   AssignmentProposal,
   DistributionPreviewRow,
+  RebalanceResult,
 } from "~/api/assignment-proposals";
 import { ImportApprovalsQueue } from "~/components/admin/import-approvals-queue";
 import { useImportBatches } from "~/api/leads/import-batches";
@@ -432,9 +435,15 @@ function AutoAssignQueue() {
   const reject = useRejectAssignmentProposal();
   const approveBatch = useApproveAssignmentProposalBatch();
   const runAutoAssign = useRunAutoAssign();
+  const rebalance = useRebalanceLeads();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const [batchSize, setBatchSize] = useState<number | null>(50);
   const [repFilter, setRepFilter] = useState<string | null>(null);
+  // Rebalance panel state.
+  const [rbFrom, setRbFrom] = useState<string>("");
+  const [rbTo, setRbTo] = useState<string>("");
+  const [rbCount, setRbCount] = useState<string>("");
+  const [rbResult, setRbResult] = useState<RebalanceResult | null>(null);
   const staffQuery = useStaff({ status: "active", page: 1, limit: 100 });
   const allStaff: Array<{
     id: string;
@@ -513,6 +522,43 @@ function AutoAssignQueue() {
         onSuccess: () => toast.success("Lead redirected and assigned"),
         onError: (err: any) =>
           toast.error(err?.response?.data?.message || "Could not redirect"),
+      },
+    );
+  };
+
+  const runRebalance = (isPreview: boolean) => {
+    if (!rbFrom || !rbTo || rbFrom === rbTo) {
+      toast.error("Pick two different reps to move leads between");
+      return;
+    }
+    const n = rbCount.trim() === "" ? null : Number(rbCount);
+    rebalance.mutate(
+      {
+        from_rep_id: rbFrom,
+        to_rep_id: rbTo,
+        count: n && n > 0 ? Math.floor(n) : null,
+        preview: isPreview,
+      },
+      {
+        onSuccess: (r) => {
+          setRbResult(r);
+          if (r.preview) {
+            toast.info(
+              r.moved > 0
+                ? `Would move ${r.moved} lead(s)`
+                : r.note || "Nothing to move",
+            );
+          } else {
+            toast.success(
+              r.moved > 0
+                ? `Moved ${r.moved} lead(s): ${r.from.name} → ${r.to.name}`
+                : r.note || "Nothing to move",
+            );
+            refetch();
+          }
+        },
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message || "Rebalance failed"),
       },
     );
   };
@@ -607,6 +653,122 @@ function AutoAssignQueue() {
           </div>
         </div>
       )}
+      {/* Rebalance — move a batch of leads between two reps to even out load.
+          Cross-territory allowed (a deliberate hand move). Preview first,
+          then commit. */}
+      <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <ArrowRightLeft className="h-4 w-4" />
+          Rebalance load
+          <span className="text-xs font-normal text-muted-foreground">
+            move a batch between two reps (cross-territory allowed) — keeps the
+            50-lead fairness gap, unworked leads move first
+          </span>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">From</label>
+            <select
+              className="h-9 w-40 rounded-md border border-input bg-transparent px-2 text-sm"
+              value={rbFrom}
+              onChange={(e) => {
+                setRbFrom(e.target.value);
+                setRbResult(null);
+              }}
+              data-testid="rebalance-from"
+            >
+              <option value="">Select rep…</option>
+              {reps.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {[r.first_name, r.last_name].filter(Boolean).join(" ") ||
+                    "rep"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <ArrowRightLeft className="mb-2 h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">To</label>
+            <select
+              className="h-9 w-40 rounded-md border border-input bg-transparent px-2 text-sm"
+              value={rbTo}
+              onChange={(e) => {
+                setRbTo(e.target.value);
+                setRbResult(null);
+              }}
+              data-testid="rebalance-to"
+            >
+              <option value="">Select rep…</option>
+              {reps
+                .filter((r) => r.id !== rbFrom)
+                .map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {[r.first_name, r.last_name].filter(Boolean).join(" ") ||
+                      "rep"}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">How many</label>
+            <input
+              type="number"
+              min={1}
+              placeholder="auto"
+              className="h-9 w-24 rounded-md border border-input bg-transparent px-2 text-sm"
+              value={rbCount}
+              onChange={(e) => {
+                setRbCount(e.target.value);
+                setRbResult(null);
+              }}
+              data-testid="rebalance-count"
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => runRebalance(true)}
+            disabled={rebalance.isPending || !rbFrom || !rbTo}
+            data-testid="rebalance-preview"
+          >
+            {rebalance.isPending && (
+              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+            )}
+            Preview
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => runRebalance(false)}
+            disabled={
+              rebalance.isPending ||
+              !rbResult ||
+              rbResult.preview !== true ||
+              rbResult.moved === 0
+            }
+            data-testid="rebalance-move"
+          >
+            <ArrowRightLeft className="mr-1.5 h-3 w-3" />
+            Move
+            {rbResult && rbResult.preview && rbResult.moved > 0
+              ? ` ${rbResult.moved}`
+              : ""}
+          </Button>
+        </div>
+        {rbResult && (
+          <div className="text-xs text-muted-foreground" data-testid="rebalance-result">
+            {rbResult.moved > 0 ? (
+              <span>
+                {rbResult.preview ? "Would move" : "Moved"}{" "}
+                <strong>{rbResult.moved}</strong> lead(s): {rbResult.from.name}{" "}
+                {rbResult.from.before}→{rbResult.from.after}, {rbResult.to.name}{" "}
+                {rbResult.to.before}→{rbResult.to.after}
+              </span>
+            ) : (
+              <span>{rbResult.note || "Nothing to move"}</span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 

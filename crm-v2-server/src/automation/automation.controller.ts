@@ -117,6 +117,35 @@ export class AutomationController {
     return { success: true, data };
   }
 
+  // Rebalance — a manager evens out load by moving a batch of leads from one
+  // rep to another. CROSS-TERRITORY allowed (owner, 3 Aug): a deliberate hand
+  // move is not bound by the territory filter. `preview: true` returns the
+  // "will move X" figures without writing.
+  @Post('rebalance')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'Rebalance load — move a batch of leads between two reps',
+  })
+  async rebalance(
+    @CurrentUser('id') userId: string,
+    @Body()
+    body: {
+      from_rep_id?: string;
+      to_rep_id?: string;
+      count?: number | null;
+      preview?: boolean;
+    },
+  ) {
+    const data = await this.autoRouter.rebalance({
+      fromRepId: body?.from_rep_id ?? '',
+      toRepId: body?.to_rep_id ?? '',
+      count: body?.count ?? null,
+      deciderId: userId,
+      preview: !!body?.preview,
+    });
+    return { success: true, data };
+  }
+
   // #5 — WhatsApp ingestion landing zone (called by the external connector).
   @Post('ingest/whatsapp')
   @Roles('admin', 'sales_manager')

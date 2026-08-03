@@ -22,6 +22,7 @@ import {
   ROUTABLE_ROLES,
   DEFAULT_BATCH_LIMIT,
   TERMINAL_LEAD_STATUSES,
+  FAIRNESS_GAP,
 } from '../automation.constants';
 
 /** A person the engine may propose leads to. */
@@ -48,6 +49,26 @@ export interface DistributionResult {
   /** Leads that had no eligible recipient (e.g. everyone at the cap). */
   skipped: number;
   preview: DistributionPreviewRow[];
+}
+
+/** One side of a rebalance, before/after the move. */
+export interface RebalanceSide {
+  id: string;
+  name: string;
+  before: number;
+  after: number;
+}
+
+/** Outcome of a manager rebalance (or its preview). */
+export interface RebalanceResult {
+  /** true = "will move X" preview, nothing written. */
+  preview: boolean;
+  moved: number;
+  from: RebalanceSide;
+  to: RebalanceSide;
+  lead_ids: string[];
+  /** Set when moved = 0, explaining why (already even, or gap cap). */
+  note?: string;
 }
 
 /**
@@ -352,6 +373,189 @@ export class LeadAutoRouterService {
       }
     }
     return { approved, skipped };
+  }
+
+  // --------------------------- rebalance ---------------------------
+
+  /**
+   * Manager rebalance (Kim, 30 July): even out load by moving a batch of
+   * leads from one rep to another. Unlike auto-assign this is a DELIBERATE
+   * manual action and is CROSS-TERRITORY ALLOWED (owner decision, 3 Aug):
+   * a manager may move leads between ANY two reps — the territory hard
+   * filter that governs auto-distribution does not bind a hand-driven move.
+   *
+   * Guardrails that stay:
+   *  - Never moves terminal (Disqualified/Converted) or deleted leads.
+   *  - Prefers UNWORKED leads first (no activity), so a rep never loses a
+   *    lead they have already started a relationship with unless the chosen
+   *    count needs them.
+   *  - Respects the fairness gap: caps the move so `to` never ends up more
+   *    than FAIRNESS_GAP leads ahead of `from`.
+   *  - preview:true computes the move without writing (the "will move X" check).
+   *
+   * The receiving rep's first-touch SLA clock starts on a moved lead only if
+   * one is not already running (never extends an existing deadline), mirroring
+   * proposal approval.
+   */
+  async rebalance(opts: {
+    fromRepId: string;
+    toRepId: string;
+    count?: number | null;
+    deciderId: string;
+    preview?: boolean;
+  }): Promise<RebalanceResult> {
+    const { fromRepId, toRepId, deciderId } = opts;
+    if (!fromRepId || !toRepId || fromRepId === toRepId) {
+      throw new BadRequestException(
+        'Pick two different reps to rebalance between',
+      );
+    }
+    const names = await this.getUserNames([fromRepId, toRepId]);
+    if (!names.has(fromRepId) || !names.has(toRepId)) {
+      throw new NotFoundException('One of the selected reps was not found');
+    }
+
+    const loads = await this.getOpenLeadCounts([fromRepId, toRepId]);
+    const fromLoad = loads.get(fromRepId) ?? 0;
+    const toLoad = loads.get(toRepId) ?? 0;
+
+    // How many to move. An explicit count wins; otherwise even the two to the
+    // middle so the gap between them closes.
+    let want =
+      typeof opts.count === 'number' && opts.count > 0
+        ? Math.floor(opts.count)
+        : Math.max(0, Math.floor((fromLoad - toLoad) / 2));
+
+    // Never leave `to` more than the fairness gap ahead of `from` after moving:
+    //   (toLoad + n) - (fromLoad - n) <= FAIRNESS_GAP
+    const maxByGap = Math.floor((FAIRNESS_GAP + fromLoad - toLoad) / 2);
+    want = Math.min(want, Math.max(0, maxByGap), fromLoad);
+
+    const leads = want > 0 ? await this.pickRebalanceLeads(fromRepId, want) : [];
+    const leadIds = leads.map((l) => l.id);
+    const moved = leadIds.length;
+
+    const result: RebalanceResult = {
+      preview: !!opts.preview,
+      moved,
+      from: {
+        id: fromRepId,
+        name: names.get(fromRepId)!,
+        before: fromLoad,
+        after: fromLoad - moved,
+      },
+      to: {
+        id: toRepId,
+        name: names.get(toRepId)!,
+        before: toLoad,
+        after: toLoad + moved,
+      },
+      lead_ids: leadIds,
+    };
+
+    if (opts.preview || moved === 0) {
+      if (moved === 0) {
+        result.note =
+          fromLoad <= toLoad
+            ? `${names.get(fromRepId)} is not carrying more than ${names.get(toRepId)} — nothing to move`
+            : 'Moving any leads would push the pair past the fairness gap';
+      }
+      return result;
+    }
+
+    // Commit. Per-lead so the SLA clock is handled correctly (only started
+    // when one isn't already running).
+    const slaByStatus = await this.getActiveSlaHoursByStatus();
+    await this.dataSource.transaction(async (mgr) => {
+      const repo = mgr.getRepository(Lead);
+      for (const lead of leads) {
+        const patch: Partial<Lead> = { assigned_to: toRepId };
+        if (!lead.current_sla_due_date) {
+          const slaHours = slaByStatus.get(lead.status as unknown as string);
+          if (slaHours && slaHours > 0) {
+            patch.current_sla_due_date = addBusinessHours(new Date(), slaHours);
+            patch.sla_breached = false;
+          }
+        }
+        await repo.update(lead.id, patch);
+      }
+    });
+
+    // Audit each move (before/after owner), then tell the receiving rep.
+    for (const lead of leads) {
+      try {
+        await this.activityLogsService.logUpdate(
+          'Lead',
+          lead.id,
+          { assigned_to: fromRepId },
+          { assigned_to: toRepId },
+          deciderId,
+          `Rebalanced ${names.get(fromRepId)} → ${names.get(toRepId)} (manager workload move)`,
+        );
+      } catch {
+        // Audit failure never unwinds a completed move.
+      }
+    }
+    try {
+      await this.userNotificationsService.sendToUsers({
+        title: 'Leads moved to you',
+        message: `${moved} lead(s) were moved to you in a workload rebalance by a manager. Pick them up before their SLA expires.`,
+        severity: 'info',
+        entity: 'Lead',
+        entityId: 'rebalance',
+        dedupeKey: `lead-rebalance-${toRepId}-${new Date().getTime()}`,
+        actionUrl: '/leads',
+        userIds: [toRepId],
+      });
+    } catch {
+      // Notification failure never unwinds a completed move.
+    }
+
+    this.logger.log(
+      `Rebalance: moved ${moved} lead(s) ${names.get(fromRepId)} → ${names.get(toRepId)} by ${deciderId}`,
+    );
+    return result;
+  }
+
+  /** Display names for a set of user ids. */
+  private async getUserNames(ids: string[]): Promise<Map<string, string>> {
+    const rows = await this.dataSource
+      .createQueryBuilder()
+      .select('user.id', 'id')
+      .addSelect('user.first_name', 'first_name')
+      .addSelect('user.last_name', 'last_name')
+      .from('users', 'user')
+      .where('user.id IN (:...ids)', { ids })
+      .getRawMany<{ id: string; first_name: string; last_name: string }>();
+    return new Map(
+      rows.map((r) => [r.id, `${r.first_name} ${r.last_name}`.trim()]),
+    );
+  }
+
+  /**
+   * The leads a rebalance may move from a rep: open (non-terminal, not
+   * deleted), unworked first (no activity), then most-recently created —
+   * so the rep keeps the leads they have held longest / already worked.
+   */
+  private async pickRebalanceLeads(
+    fromRepId: string,
+    limit: number,
+  ): Promise<Lead[]> {
+    return this.leadRepository
+      .createQueryBuilder('lead')
+      .where('lead.assigned_to = :fromRepId', { fromRepId })
+      .andWhere('lead.deleted_at IS NULL')
+      .andWhere('lead.status NOT IN (:...terminal)', {
+        terminal: [...TERMINAL_LEAD_STATUSES],
+      })
+      // Unworked (no activity) sorts first — Postgres orders false before true.
+      .orderBy(
+        '(EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = lead.id))',
+        'ASC',
+      )
+      .addOrderBy('lead.created_at', 'DESC')
+      .limit(limit)
+      .getMany();
   }
 
   // ---------------------------- routing ----------------------------

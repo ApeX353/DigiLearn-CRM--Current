@@ -144,6 +144,54 @@ export function useRunAutoAssign() {
   });
 }
 
+export interface RebalanceSide {
+  id: string;
+  name: string;
+  before: number;
+  after: number;
+}
+
+export interface RebalanceResult {
+  preview: boolean;
+  moved: number;
+  from: RebalanceSide;
+  to: RebalanceSide;
+  lead_ids: string[];
+  note?: string;
+}
+
+export interface RebalanceInput {
+  from_rep_id: string;
+  to_rep_id: string;
+  /** null/omitted = auto-even the two to the middle. */
+  count?: number | null;
+  /** true = "will move X" figures without writing. */
+  preview?: boolean;
+}
+
+/**
+ * Rebalance — a manager moves a batch of leads from one rep to another to
+ * even out load. Cross-territory is allowed (a deliberate hand move). Call
+ * with preview:true first to show the "will move X" figures, then again
+ * without it to commit.
+ */
+export function useRebalanceLeads() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: RebalanceInput): Promise<RebalanceResult> => {
+      const res = await apiClientAuth.post(`/automation/rebalance`, input);
+      return res.data?.data ?? res.data;
+    },
+    onSuccess: (data) => {
+      // Only a committed move (not a preview) changes ownership.
+      if (!data?.preview) {
+        queryClient.invalidateQueries({ queryKey: ["leads"] });
+        queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+      }
+    },
+  });
+}
+
 export function useApproveAssignmentProposalBatch() {
   const queryClient = useQueryClient();
   return useMutation({
