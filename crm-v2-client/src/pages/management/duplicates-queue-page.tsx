@@ -346,8 +346,6 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
 
 type Survivor = "new" | "existing";
 
-const COMPLETENESS_MAX = 8;
-
 /** Count populated key fields — used to badge the more/less complete lead. */
 function completenessScore(lead?: Lead | null): number {
   if (!lead) return 0;

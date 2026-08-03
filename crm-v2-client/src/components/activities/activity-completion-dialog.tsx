@@ -108,7 +108,7 @@ export function ActivityCompletionDialog() {
     : (sourceActivity?.deal_id ?? undefined);
   const hasParentRecord = Boolean(parentLeadId || parentDealId);
 
-  const { data: openSiblings, isLoading: siblingsLoading } = useActivityList({
+  const { data: openSiblings } = useActivityList({
     lead_id: parentLeadId,
     deal_id: parentDealId,
     open_only: true,
