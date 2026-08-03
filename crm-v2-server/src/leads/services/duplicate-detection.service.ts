@@ -55,6 +55,22 @@ function normPhone(s?: string | null): string {
   return (s ?? '').replace(/\D+/g, '');
 }
 
+// DUP-EMAIL1: reps/managers put their OWN company address in the contact
+// email when they don't have the client's, so every lead they touch
+// collides on the same @company email and gets falsely flagged. A shared
+// STAFF email is not a client identifier — exclude these domains from the
+// email-match signal. (Kept as a constant for now; move to a compliance
+// setting if more internal domains appear.)
+const INTERNAL_EMAIL_DOMAINS = ['clearhue.co.zw'];
+function isInternalEmail(e?: string | null): boolean {
+  const domain = norm(e).split('@')[1];
+  return !!domain && INTERNAL_EMAIL_DOMAINS.includes(domain);
+}
+/** A client email worth matching on — non-empty and not a staff domain. */
+function clientEmail(e?: string | null): string | null {
+  return e && !isInternalEmail(e) ? norm(e) : null;
+}
+
 /**
  * Cheap Jaccard-on-tokens similarity. Good enough for catching
  * "Springfield HS" vs "Springfield High School" without pulling in a
@@ -129,9 +145,10 @@ export class DuplicateDetectionService {
       where.push("REGEXP_REPLACE(COALESCE(contact.phone, ''), '\\D+', '', 'g') = :ph");
       params.ph = normPhone(input.phone);
     }
-    if (input.email) {
+    const inputClientEmail = clientEmail(input.email);
+    if (inputClientEmail) {
       where.push('LOWER(contact.email) = :em');
-      params.em = norm(input.email);
+      params.em = inputClientEmail;
     }
 
     if (where.length === 0) return [];
@@ -152,9 +169,10 @@ export class DuplicateDetectionService {
           score += 60;
         }
         if (
-          input.email &&
+          inputClientEmail &&
           row.primary_contact?.email &&
-          norm(row.primary_contact.email) === norm(input.email)
+          !isInternalEmail(row.primary_contact.email) &&
+          norm(row.primary_contact.email) === inputClientEmail
         ) {
           signals.push({ kind: 'email_exact', weight: 55 });
           score += 55;
@@ -289,9 +307,10 @@ export class DuplicateDetectionService {
       where.push("REGEXP_REPLACE(COALESCE(c.phone, ''), '\\D+', '', 'g') = :ph");
       params.ph = normPhone(input.phone);
     }
-    if (input.email) {
+    const inputClientEmail = clientEmail(input.email);
+    if (inputClientEmail) {
       where.push('LOWER(c.email) = :em');
-      params.em = norm(input.email);
+      params.em = inputClientEmail;
     }
     if (input.first_name && input.last_name) {
       where.push(
@@ -317,7 +336,12 @@ export class DuplicateDetectionService {
           signals.push({ kind: 'phone_exact', weight: 60 });
           score += 60;
         }
-        if (input.email && row.email && norm(row.email) === norm(input.email)) {
+        if (
+          inputClientEmail &&
+          row.email &&
+          !isInternalEmail(row.email) &&
+          norm(row.email) === inputClientEmail
+        ) {
           signals.push({ kind: 'email_exact', weight: 55 });
           score += 55;
         }
@@ -394,7 +418,16 @@ export class DuplicateDetectionService {
    */
   async rebuildLeadSuspicions(
     raisedById?: string | null,
-  ): Promise<{ scanned: number; recorded: number }> {
+  ): Promise<{ scanned: number; recorded: number; purged: number }> {
+    // True rebuild: clear existing PENDING lead suspicions first so stale
+    // or now-invalid pairs (e.g. the old staff-@company-email false matches)
+    // are cleared rather than lingering. Reviewed rows (merged /
+    // kept_separate / false_positive) are preserved — only pending is wiped.
+    const purgeResult = await this.dupRepo.delete({
+      record_type: 'lead',
+      status: 'pending',
+    });
+    const purged = purgeResult.affected ?? 0;
     const leads = await this.leadRepo
       .createQueryBuilder('l')
       .leftJoinAndSelect('l.primary_contact', 'pc')
@@ -430,9 +463,9 @@ export class DuplicateDetectionService {
       }
     }
     this.logger.log(
-      `[DUP1 backfill] scanned ${leads.length} leads, recorded ${recorded} pending suspicions`,
+      `[DUP1 backfill] purged ${purged} stale pending, scanned ${leads.length} leads, recorded ${recorded} pending suspicions`,
     );
-    return { scanned: leads.length, recorded };
+    return { scanned: leads.length, recorded, purged };
   }
 
   async list(params: {
