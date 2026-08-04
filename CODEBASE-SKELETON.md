@@ -528,6 +528,42 @@ Auto-routing is gated by `compliance.policy.auto_assign_enabled`
 **proposals** for manager approval; it does not directly reassign leads.
 Operational incident history records one SLA idle pass emitting 800 alerts.
 
+### 9.1 Auto-assign suite (manager Approval Queue → Auto-assign tab)
+
+`automation/services/lead-auto-router.service.ts` + `automation.controller.ts`
+(`/automation/assignment-proposals/*`, `/automation/rebalance`) back the manager
+Auto-assign workspace. Built + verified on the staging line (`dube-upgrades`);
+**held off production until Kim signs off** (the whole suite, not just the
+engine). The engine PROPOSES — a manager decides:
+
+- **Distribution** (`runDistribution` / the "Run auto-assign" button + the
+  `auto_assign_enabled` cron): the distributable pool = unassigned + never-worked
+  (no activity) + non-terminal + not already proposed. Each lead goes only to a
+  rep whose **territory** (`users.territory_provinces`, a HARD filter) covers its
+  school province; among those, the **lightest-loaded** wins, capped by the
+  `FAIRNESS_GAP = 50` (no rep >50 ahead). No covering rep / blank province →
+  skipped, left for manual placement. Recipients = active `sales_rep`s with a
+  territory; managers only if `auto_assign_include_managers` (capped by
+  `manager_lead_cap`). Approval — not proposal — is when the lead gets its owner
+  and the first-touch SLA clock starts.
+- **Decisions:** approve (single / batch / **Approve-all** with a chunked
+  progress bar), **reject** (proposal → the top-level *Rejected* tab, lead stays
+  unassigned), **redirect** a rejected proposal to any rep/manager, **send to New
+  Leads** (lead → New/unassigned + re-run duplicate detection). Bulk redirect /
+  bulk send-to-New-Leads on the rejected list.
+- **Undo** (`undoApprovals`, `POST …/assignment-proposals/undo`): reverses an
+  approval — lead → unassigned, proposal → PENDING, the approval's SLA clock
+  cleared. **Blocked** if the lead has since been worked (any activity) or was
+  hand-reassigned, so it never strips a lead a rep is on. Surfaced as an "Undo"
+  action on the approve toast.
+- **Rebalance** (`rebalance`, `/automation/rebalance`, REBAL1): a manager moves a
+  batch of leads between two reps — preview then commit, keeps the ≤50 gap, moves
+  unworked leads first, and is **cross-territory allowed** (a deliberate hand move
+  is not bound by the territory filter that governs auto-distribution).
+
+Entity: `LeadAssignmentProposal` (status `pending·approved·rejected·superseded`).
+Deleting a lead supersedes its pending proposals so none dangle as orphan rows.
+
 ---
 
 ## 10. Domain rules that govern behaviour
