@@ -473,7 +473,6 @@ function AutoAssignQueue() {
   const rejectBatch = useRejectAssignmentProposalBatch();
   const runAutoAssign = useRunAutoAssign();
   const rebalance = useRebalanceLeads();
-  const undoApproval = useUndoAssignmentApproval();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const [batchSize, setBatchSize] = useState<number | null>(50);
   const [repFilter, setRepFilter] = useState<string | null>(null);
@@ -512,36 +511,13 @@ function AutoAssignQueue() {
     });
   };
 
-  // Undo — reverse a just-made approval (unassign + clear the SLA the
-  // approval started). The undone proposals reappear as pending. Leads a rep
-  // has already worked (or reassigned by hand) are kept, never stripped.
-  const undo = (ids: string[]) => {
-    if (ids.length === 0) return;
-    undoApproval.mutate(ids, {
-      onSuccess: (r) => {
-        toast.success(
-          `${r.undone} assignment(s) undone${
-            r.skipped.length
-              ? `, ${r.skipped.length} kept (already worked)`
-              : ""
-          }`,
-        );
-        refetch();
-      },
-      onError: (err: any) =>
-        toast.error(err?.response?.data?.message || "Could not undo"),
-    });
-  };
-
   const decide = (p: AssignmentProposal, action: "approve" | "reject") => {
     const m = action === "approve" ? approve : reject;
     m.mutate(p.id, {
       onSuccess: () => {
         if (action === "approve") {
-          // Offer an immediate Undo — Kim's "reverse the one I just made".
-          toast.success(`Lead assigned to ${repName(p)}`, {
-            action: { label: "Undo", onClick: () => undo([p.id]) },
-          });
+          // Undo now lives in the Approved-tab workflow (AutoAssignApprovedList).
+          toast.success(`Lead assigned to ${repName(p)}`);
         } else {
           toast.success("Suggestion rejected — lead stays unassigned");
         }
@@ -572,7 +548,6 @@ function AutoAssignQueue() {
       }
       toast.success(
         `${approved} assigned${skipped ? `, ${skipped} skipped` : ""}`,
-        { action: { label: "Undo", onClick: () => undo(ids) } },
       );
       refetch();
     } catch (err: any) {
@@ -613,7 +588,6 @@ function AutoAssignQueue() {
       onSuccess: (r) => {
         toast.success(
           `${r.approved} assigned${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`,
-          { action: { label: "Undo", onClick: () => undo(ids) } },
         );
         setSelected(new Set());
         refetch();
@@ -1434,6 +1408,226 @@ function AutoAssignRejectedList() {
   );
 }
 
+/**
+ * Undo WORKFLOW — the auto-assign APPROVED assignments, surfaced under the
+ * top-level "Approved" tab as a persistent, browsable list (replacing the
+ * fleeting toast-undo). Each row is a lead an approval put with a rep; a
+ * manager can Undo it — reverting the lead to unassigned and returning the
+ * proposal to pending. A lead a rep has already worked (or that was
+ * hand-reassigned) is kept, never stripped. Mirrors AutoAssignRejectedList:
+ * per-row action + multi-select + a sticky bulk bar.
+ */
+function decidedByName(p: AssignmentProposal): string {
+  const u = p.decided_by;
+  if (!u) return "";
+  return (
+    `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() || u.email || ""
+  );
+}
+
+function AutoAssignApprovedList() {
+  const { data: approved = [], refetch: refetchApproved } =
+    useAssignmentProposals("approved");
+  const undoApproval = useUndoAssignmentApproval();
+
+  // Multi-select + a client-side "busy" flag while a bulk undo is in flight.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Most-recent first — the assignment a manager just made sits at the top.
+  const rows = useMemo(
+    () =>
+      [...approved].sort(
+        (a, b) =>
+          new Date(b.decided_at ?? b.created_at).getTime() -
+          new Date(a.decided_at ?? a.created_at).getTime(),
+      ),
+    [approved],
+  );
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(rows.map((p) => p.id)) : new Set());
+  };
+  const allSelected = rows.length > 0 && rows.every((p) => selected.has(p.id));
+
+  // Single-row undo.
+  const undoRow = (p: AssignmentProposal) => {
+    undoApproval.mutate([p.id], {
+      onSuccess: (r) => {
+        if (r.undone > 0) {
+          toast.success("Reverted — lead is unassigned again");
+        } else {
+          toast.success("Kept — lead already worked");
+        }
+        refetchApproved();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Could not undo"),
+    });
+  };
+
+  // Bulk undo — one server call for the whole selection.
+  const undoSelected = () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    undoApproval.mutate(ids, {
+      onSuccess: (r) => {
+        toast.success(
+          `${r.undone} reverted${
+            r.skipped.length
+              ? `, ${r.skipped.length} kept (already worked)`
+              : ""
+          }`,
+        );
+        setSelected(new Set());
+        refetchApproved();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Could not undo"),
+    });
+  };
+
+  return (
+    <div className="space-y-3" data-testid="auto-assign-approved-section">
+      <div className="flex items-center gap-2">
+        <Undo2 className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">
+          Auto-assign — undo an assignment
+          {rows.length > 0 ? ` (${rows.length})` : ""}
+        </h3>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Auto-assign — approved (assign made). Undo reverts a lead to unassigned;
+        a lead that's already been worked is kept.
+      </p>
+      {rows.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          No approved assignments to undo. When you approve an auto-assign
+          suggestion the lead lands here so you can reverse it — until a rep
+          starts working it.
+        </div>
+      ) : (
+        <>
+          {/* Bulk bar — shown when ≥1 row is selected. */}
+          {selected.size > 0 && (
+            <div
+              className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-2 shadow-sm"
+              data-testid="auto-assign-approved-bulk-bar"
+            >
+              <span className="text-sm font-medium">
+                {selected.size} selected
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={undoSelected}
+                disabled={undoApproval.isPending}
+                data-testid="auto-assign-approved-bulk-undo"
+              >
+                {undoApproval.isPending ? (
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                ) : (
+                  <Undo2 className="mr-1.5 h-3 w-3" />
+                )}
+                Undo selected ({selected.size})
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full" data-testid="auto-assign-approved-queue">
+              <thead className="bg-muted/50">
+                <tr className="text-left text-xs font-medium uppercase tracking-wide">
+                  <th className="p-3 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all"
+                      checked={allSelected}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      data-testid="auto-assign-approved-select-all"
+                    />
+                  </th>
+                  <th className="p-3">Lead</th>
+                  <th className="p-3 w-44">Assigned to</th>
+                  <th className="p-3 w-44">Approved by</th>
+                  <th className="p-3 w-36">When</th>
+                  <th className="p-3 w-40">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((p) => (
+                  <tr key={p.id} className="border-t hover:bg-muted/30">
+                    <td className="p-3 align-top">
+                      <input
+                        type="checkbox"
+                        aria-label="Select row"
+                        checked={selected.has(p.id)}
+                        onChange={() => toggleOne(p.id)}
+                        data-testid={`auto-assign-approved-select-${p.id}`}
+                      />
+                    </td>
+                    <td className="p-3 align-top">
+                      <Link
+                        to={`/leads/${p.lead_id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {p.lead?.lead_name || p.lead_id.slice(0, 8)}
+                      </Link>
+                      {p.lead?.school?.name && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {p.lead.school.name}
+                          {p.lead.school.province
+                            ? ` — ${p.lead.school.province}`
+                            : ""}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3 align-top text-sm font-medium">
+                      {repName(p)}
+                    </td>
+                    <td className="p-3 align-top text-sm text-muted-foreground">
+                      {decidedByName(p) || "—"}
+                    </td>
+                    <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
+                      {ago(p.decided_at || p.created_at)}
+                    </td>
+                    <td className="p-3 align-top whitespace-nowrap">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => undoRow(p)}
+                        disabled={undoApproval.isPending}
+                        data-testid={`auto-assign-undo-${p.id}`}
+                        title="Revert this assignment — lead goes back to unassigned"
+                      >
+                        <Undo2 className="mr-1.5 h-3 w-3" />
+                        Undo
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ApprovalQueuePage() {
   const [kind, setKind] = useState<LeadReversalRequestKind | "all">("all");
 
@@ -1549,7 +1743,10 @@ export default function ApprovalQueuePage() {
                 <QueueTable status="pending" kind={kind} />
               </TabsContent>
               <TabsContent value="approved">
-                <QueueTable status="approved" kind={kind} />
+                <div className="space-y-6">
+                  <QueueTable status="approved" kind={kind} />
+                  <AutoAssignApprovedList />
+                </div>
               </TabsContent>
               <TabsContent value="rejected">
                 <div className="space-y-6">
