@@ -16,6 +16,7 @@ import {
 import { UserNotificationsService } from '../../notifications/user-notifications.service';
 import { ComplianceSettingsService } from '../../settings/compliance-settings.service';
 import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
+import { DuplicateDetectionService } from '../../leads/services/duplicate-detection.service';
 import { addBusinessHours } from '../../common/utils/business-hours';
 import {
   AUTOMATION_CRON,
@@ -104,6 +105,7 @@ export class LeadAutoRouterService {
     private readonly userNotificationsService: UserNotificationsService,
     private readonly complianceSettings: ComplianceSettingsService,
     private readonly activityLogsService: ActivityLogsService,
+    private readonly duplicateDetection: DuplicateDetectionService,
   ) {}
 
   /**
@@ -265,6 +267,58 @@ export class LeadAutoRouterService {
   }
 
   /**
+   * R2 — the per-rep current→projected strip that sits above the queue.
+   * For every rep who has a pending proposal (whose lead still exists /
+   * isn't soft-deleted), report their current open load, how many pending
+   * proposals point at them, and the projected total if all were approved.
+   * Reuses getOpenLeadCounts + a group-by on pending proposals joined to
+   * non-deleted leads. Sorted by projected desc.
+   */
+  async getQueueProjection(): Promise<
+    Array<{
+      rep_id: string;
+      name: string;
+      current: number;
+      pending: number;
+      projected: number;
+    }>
+  > {
+    const pendingRows = await this.proposalRepository
+      .createQueryBuilder('p')
+      .innerJoin('p.lead', 'lead')
+      .select('p.proposed_rep_id', 'rep')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('p.status = :status', {
+        status: AssignmentProposalStatus.PENDING,
+      })
+      .andWhere('lead.deleted_at IS NULL')
+      .groupBy('p.proposed_rep_id')
+      .getRawMany<{ rep: string; cnt: string }>();
+
+    const repIds = pendingRows.map((r) => r.rep);
+    if (repIds.length === 0) return [];
+
+    const [names, current] = await Promise.all([
+      this.getUserNames(repIds),
+      this.getOpenLeadCounts(repIds),
+    ]);
+
+    return pendingRows
+      .map((r) => {
+        const pending = Number(r.cnt);
+        const cur = current.get(r.rep) ?? 0;
+        return {
+          rep_id: r.rep,
+          name: names.get(r.rep) || r.rep.slice(0, 8),
+          current: cur,
+          pending,
+          projected: cur + pending,
+        };
+      })
+      .sort((a, b) => b.projected - a.projected);
+  }
+
+  /**
    * AUTO1: approval is the moment the assignment becomes real — the
    * lead gets its owner, the first-touch SLA clock starts, and the rep
    * is told. Skips (with SUPERSEDED) when someone assigned the lead by
@@ -383,6 +437,192 @@ export class LeadAutoRouterService {
       }
     }
     return { approved, skipped };
+  }
+
+  /**
+   * R4/R8 — reject a batch in one call, mirroring approveProposals: per-id
+   * try/catch so one already-decided (or missing) proposal never aborts the
+   * rest. Returns how many were rejected and which were skipped and why.
+   */
+  async rejectProposals(
+    ids: string[],
+    deciderId: string,
+  ): Promise<{ rejected: number; skipped: Array<{ id: string; why: string }> }> {
+    let rejected = 0;
+    const skipped: Array<{ id: string; why: string }> = [];
+    for (const id of ids) {
+      try {
+        await this.rejectProposal(id, deciderId);
+        rejected++;
+      } catch (e: any) {
+        skipped.push({ id, why: e?.message ?? 'failed' });
+      }
+    }
+    return { rejected, skipped };
+  }
+
+  /**
+   * R5 — redirect a REJECTED suggestion to a manager-chosen rep/manager,
+   * turning the reject into an approval. Assigns the lead, starts the
+   * first-touch SLA clock only if one isn't already running (mirrors
+   * approveProposal), marks the proposal approved with a "redirected after
+   * reject" reason and audit-logs. Unlike approveProposal this deliberately
+   * works from a non-pending (rejected) status.
+   */
+  async redirectProposal(
+    id: string,
+    repId: string,
+    deciderId: string,
+  ): Promise<LeadAssignmentProposal> {
+    if (!repId) {
+      throw new BadRequestException('Pick a rep to redirect this lead to');
+    }
+    const proposal = await this.proposalRepository.findOne({ where: { id } });
+    if (!proposal) throw new NotFoundException('Proposal not found');
+
+    const lead = await this.leadRepository.findOne({
+      where: { id: proposal.lead_id },
+    });
+    if (!lead) throw new NotFoundException('Lead no longer exists');
+    if (lead.assigned_to) {
+      throw new BadRequestException(
+        'Lead is already assigned by hand — nothing to redirect',
+      );
+    }
+
+    const patch: Partial<Lead> = { assigned_to: repId };
+    // First-touch SLA start: only set the clock if one isn't already running.
+    if (!lead.current_sla_due_date) {
+      const slaByStatus = await this.getActiveSlaHoursByStatus();
+      const slaHours = slaByStatus.get(lead.status as unknown as string);
+      if (slaHours && slaHours > 0) {
+        patch.current_sla_due_date = addBusinessHours(new Date(), slaHours);
+        patch.sla_breached = false;
+      }
+    }
+    await this.leadRepository.update(lead.id, patch);
+
+    proposal.status = AssignmentProposalStatus.APPROVED;
+    proposal.proposed_rep_id = repId;
+    proposal.reason = `Redirected after reject to a manager-chosen rep. Original: ${proposal.reason}`;
+    proposal.decided_by_id = deciderId;
+    proposal.decided_at = new Date();
+    await this.proposalRepository.save(proposal);
+
+    await this.activityLogsService.logUpdate(
+      'Lead',
+      lead.id,
+      { assigned_to: null },
+      { assigned_to: repId },
+      deciderId,
+      'Auto-assign suggestion redirected after reject',
+    );
+
+    try {
+      await this.userNotificationsService.sendToUsers({
+        title: 'New lead assigned to you',
+        message: `Lead "${lead.lead_name}" was redirected to you by a manager. Make first contact before the SLA expires.`,
+        severity: 'info',
+        entity: 'Lead',
+        entityId: lead.id,
+        dedupeKey: `lead-autoassign-${lead.id}`,
+        actionUrl: `/leads/${lead.id}`,
+        userIds: [repId],
+      });
+    } catch {
+      // Notification failure never unwinds a redirect.
+    }
+
+    return proposal;
+  }
+
+  /**
+   * R5 — send a rejected suggestion's lead back to the New Leads pool: clear
+   * its owner, reset its status to 'New', mark the proposal superseded, and
+   * re-run duplicate detection now the lead is unowned again. The dup call is
+   * best-effort (wrapped in try/catch) so it never unwinds the status change.
+   */
+  async sendProposalToNewLeads(
+    id: string,
+    deciderId: string,
+  ): Promise<LeadAssignmentProposal> {
+    const proposal = await this.proposalRepository.findOne({ where: { id } });
+    if (!proposal) throw new NotFoundException('Proposal not found');
+
+    const lead = await this.leadRepository.findOne({
+      where: { id: proposal.lead_id },
+    });
+    if (!lead) throw new NotFoundException('Lead no longer exists');
+
+    const before = { status: lead.status, assigned_to: lead.assigned_to };
+    const patch: Partial<Lead> = { status: 'New', assigned_to: null };
+    await this.leadRepository.update(lead.id, patch);
+
+    proposal.status = AssignmentProposalStatus.SUPERSEDED;
+    proposal.reason = `Sent back to New Leads after reject. Original: ${proposal.reason}`;
+    proposal.decided_by_id = deciderId;
+    proposal.decided_at = new Date();
+    await this.proposalRepository.save(proposal);
+
+    // Re-scan for duplicates now the lead is back in the New pool. Best-effort:
+    // a detection failure must never unwind the status change above.
+    try {
+      await this.runDuplicateDetectionForLead(lead.id, deciderId);
+    } catch (error: any) {
+      this.logger.warn(
+        `Duplicate detection failed for lead ${lead.id} after send-to-new-leads: ${error?.message}`,
+      );
+    }
+
+    await this.activityLogsService.logUpdate(
+      'Lead',
+      lead.id,
+      before,
+      { status: 'New', assigned_to: null },
+      deciderId,
+      'Auto-assign suggestion rejected → lead sent back to New Leads',
+    );
+
+    return proposal;
+  }
+
+  /**
+   * Per-lead duplicate re-scan, mirroring the inner loop of
+   * DuplicateDetectionService.rebuildLeadSuspicions: peek the lead against
+   * the book and, if a strong-enough candidate exists, record a pending
+   * suspicion for a manager to review. recordSuspicion de-dupes pending
+   * pairs, so re-running is safe.
+   */
+  private async runDuplicateDetectionForLead(
+    leadId: string,
+    raisedById?: string | null,
+  ): Promise<void> {
+    const lead = await this.leadRepository.findOne({
+      where: { id: leadId },
+      relations: ['primary_contact'],
+    });
+    if (!lead) return;
+    const pc = (
+      lead as { primary_contact?: { phone?: string; email?: string } }
+    ).primary_contact;
+    const candidates = await this.duplicateDetection.peekLead({
+      lead_name: lead.lead_name,
+      school_id: lead.school_id,
+      primary_contact_id: lead.primary_contact_id,
+      phone: pc?.phone ?? null,
+      email: pc?.email ?? null,
+    });
+    const top = candidates.find((c) => c.record.id !== lead.id);
+    if (top) {
+      await this.duplicateDetection.recordSuspicion({
+        record_type: 'lead',
+        new_record_id: lead.id,
+        existing_record_id: top.record.id,
+        score: top.score,
+        signals: top.signals,
+        raised_by_id: raisedById ?? null,
+      });
+    }
   }
 
   // --------------------------- rebalance ---------------------------

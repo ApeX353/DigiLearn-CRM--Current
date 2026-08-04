@@ -56,3 +56,14 @@ export class UpdateImportDecisionsDto {
   @Type(() => RowDecisionDto)
   decisions: RowDecisionDto[];
 }
+
+/**
+ * R3: the manager's urban/rural choice for a peri-urban (region-unmapped)
+ * staged row. The system's school region enum is urban|rural only, so a
+ * "PERI URBAN" source row can't be admitted until it's classified.
+ */
+export class SetImportRowRegionDto {
+  @ApiProperty({ enum: ['urban', 'rural'] })
+  @IsIn(['urban', 'rural'])
+  region: 'urban' | 'rural';
+}

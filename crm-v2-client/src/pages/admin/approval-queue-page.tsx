@@ -53,6 +53,10 @@ import {
   useApproveAssignmentProposal,
   useRejectAssignmentProposal,
   useApproveAssignmentProposalBatch,
+  useRejectAssignmentProposalBatch,
+  useAssignmentProjection,
+  useRedirectRejectedProposal,
+  useSendProposalToNewLeads,
   useRunAutoAssign,
   useRebalanceLeads,
   DISTRIBUTION_BATCH_SIZES,
@@ -431,14 +435,24 @@ function repName(p: AssignmentProposal): string {
 function AutoAssignQueue() {
   const { data: pending = [], isLoading, refetch } =
     useAssignmentProposals("pending");
+  const { data: rejected = [], refetch: refetchRejected } =
+    useAssignmentProposals("rejected");
+  const { data: projection = [] } = useAssignmentProjection();
   const approve = useApproveAssignmentProposal();
   const reject = useRejectAssignmentProposal();
   const approveBatch = useApproveAssignmentProposalBatch();
+  const rejectBatch = useRejectAssignmentProposalBatch();
+  const redirectRejected = useRedirectRejectedProposal();
+  const sendToNewLeads = useSendProposalToNewLeads();
   const runAutoAssign = useRunAutoAssign();
   const rebalance = useRebalanceLeads();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const [batchSize, setBatchSize] = useState<number | null>(50);
   const [repFilter, setRepFilter] = useState<string | null>(null);
+  // R4/R8 — bulk multi-select on the pending list.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // R5 — which sub-view of the auto-assign tab is showing.
+  const [view, setView] = useState<"pending" | "rejected">("pending");
   // Rebalance panel state.
   const [rbFrom, setRbFrom] = useState<string>("");
   const [rbTo, setRbTo] = useState<string>("");
@@ -466,7 +480,12 @@ function AutoAssignQueue() {
     );
   });
   const busy =
-    approve.isPending || reject.isPending || approveBatch.isPending;
+    approve.isPending ||
+    reject.isPending ||
+    approveBatch.isPending ||
+    rejectBatch.isPending;
+  const rejectedBusy =
+    redirectRejected.isPending || sendToNewLeads.isPending;
 
   const runDistribution = (limit: number | null) => {
     runAutoAssign.mutate(limit, {
@@ -524,6 +543,76 @@ function AutoAssignQueue() {
           toast.error(err?.response?.data?.message || "Could not redirect"),
       },
     );
+  };
+
+  // R4/R8 — bulk multi-select helpers.
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = (checked: boolean, rows: AssignmentProposal[]) => {
+    setSelected(checked ? new Set(rows.map((p) => p.id)) : new Set());
+  };
+
+  const approveSelected = () => {
+    approveBatch.mutate([...selected], {
+      onSuccess: (r) => {
+        toast.success(
+          `${r.approved} assigned${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`,
+        );
+        setSelected(new Set());
+        refetch();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Batch approve failed"),
+    });
+  };
+
+  const rejectSelected = () => {
+    rejectBatch.mutate([...selected], {
+      onSuccess: (r) => {
+        toast.success(
+          `${r.rejected} rejected${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`,
+        );
+        setSelected(new Set());
+        refetch();
+        refetchRejected();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Batch reject failed"),
+    });
+  };
+
+  // R5 — rejected-row actions.
+  const redirectRejectedRow = (p: AssignmentProposal, repId: string) => {
+    if (!repId) return;
+    redirectRejected.mutate(
+      { id: p.id, repId },
+      {
+        onSuccess: () => {
+          toast.success("Lead redirected and assigned");
+          refetchRejected();
+          refetch();
+        },
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message || "Could not redirect"),
+      },
+    );
+  };
+
+  const sendRejectedToNewLeads = (p: AssignmentProposal) => {
+    sendToNewLeads.mutate(p.id, {
+      onSuccess: () => {
+        toast.success("Lead sent back to New Leads");
+        refetchRejected();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Could not send to New Leads"),
+    });
   };
 
   const runRebalance = (isPreview: boolean) => {
@@ -588,6 +677,34 @@ function AutoAssignQueue() {
   // not there are pending proposals, so a manager can trigger a run.
   const toolbar = (
     <div className="space-y-3">
+      {/* R2 — persistent current→projected strip. Shows, per rep with a
+          pending suggestion, their current open load and where it lands if
+          every pending suggestion is approved. Sorted by projected desc. */}
+      {projection.length > 0 && (
+        <div
+          className="rounded-lg border bg-muted/20 p-3"
+          data-testid="auto-assign-projection"
+        >
+          <div className="text-xs font-medium text-muted-foreground mb-2">
+            Projected load if every pending suggestion is approved
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {projection.map((row) => (
+              <Badge
+                key={row.rep_id}
+                variant="secondary"
+                className="text-xs"
+                data-testid={`projection-${row.rep_id}`}
+              >
+                {row.name} <span className="font-semibold">{row.projected}</span>
+                <span className="ml-1 text-muted-foreground">
+                  ({row.current} → +{row.pending})
+                </span>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Distribute</span>
@@ -772,140 +889,324 @@ function AutoAssignQueue() {
     </div>
   );
 
-  if (pending.length === 0) {
-    return (
-      <div className="space-y-4">
-        {toolbar}
-        <div className="p-12 text-center text-sm text-muted-foreground">
-          No assignment suggestions waiting. Tap <strong>Run auto-assign</strong>{" "}
-          to distribute unworked, unassigned leads by territory and workload —
-          the suggestions land here for you to approve. Nothing is assigned to
-          anyone until you approve it.
-        </div>
-      </div>
-    );
-  }
+  const allSelected =
+    filteredPending.length > 0 &&
+    filteredPending.every((p) => selected.has(p.id));
+
+  // R5 — a small Pending / Rejected toggle inside the auto-assign tab. The
+  // Rejected view is where a rejected suggestion gets redirected or sent back
+  // to New Leads, rather than just discarded.
+  const viewToggle = (
+    <div
+      className="flex items-center gap-2"
+      data-testid="auto-assign-view-toggle"
+    >
+      <Button
+        size="sm"
+        variant={view === "pending" ? "default" : "outline"}
+        onClick={() => setView("pending")}
+        data-testid="auto-assign-view-pending"
+      >
+        Pending{pending.length > 0 ? ` (${pending.length})` : ""}
+      </Button>
+      <Button
+        size="sm"
+        variant={view === "rejected" ? "default" : "outline"}
+        onClick={() => setView("rejected")}
+        data-testid="auto-assign-view-rejected"
+      >
+        Rejected{rejected.length > 0 ? ` (${rejected.length})` : ""}
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-3">
       {toolbar}
-      {perRep.size > 0 && (
-        <div className="flex flex-wrap gap-2" data-testid="rep-tiles">
-          <button
-            onClick={() => setRepFilter(null)}
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              !repFilter ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-            }`}
-          >
-            All{" "}
-            <span className="text-muted-foreground">({pending.length})</span>
-          </button>
-          {[...perRep.entries()].map(([repId, info]) => (
-            <button
-              key={repId}
-              onClick={() =>
-                setRepFilter(repFilter === repId ? null : repId)
-              }
-              className={`rounded-lg border px-3 py-2 text-sm ${
-                repFilter === repId
-                  ? "border-primary bg-primary/10"
-                  : "hover:bg-muted/40"
-              }`}
-              data-testid={`rep-tile-${repId}`}
-            >
-              {info.name} <span className="font-semibold">{info.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full" data-testid="auto-assign-queue">
-          <thead className="bg-muted/50">
-            <tr className="text-left text-xs font-medium uppercase tracking-wide">
-              <th className="p-3">Lead</th>
-              <th className="p-3 w-44">Suggested rep</th>
-              <th className="p-3">Why this rep</th>
-              <th className="p-3 w-36">Suggested</th>
-              <th className="p-3 w-60">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {filteredPending.map((p) => (
-              <tr key={p.id} className="border-t hover:bg-muted/30">
-                <td className="p-3 align-top">
-                  <Link
-                    to={`/leads/${p.lead_id}`}
-                    className="font-medium text-primary hover:underline"
+      {viewToggle}
+      {view === "pending" ? (
+        pending.length === 0 ? (
+          <div className="p-12 text-center text-sm text-muted-foreground">
+            No assignment suggestions waiting. Tap{" "}
+            <strong>Run auto-assign</strong> to distribute unworked, unassigned
+            leads by territory and workload — the suggestions land here for you
+            to approve. Nothing is assigned to anyone until you approve it.
+          </div>
+        ) : (
+          <>
+            {perRep.size > 0 && (
+              <div className="flex flex-wrap gap-2" data-testid="rep-tiles">
+                <button
+                  onClick={() => setRepFilter(null)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    !repFilter
+                      ? "border-primary bg-primary/10"
+                      : "hover:bg-muted/40"
+                  }`}
+                >
+                  All{" "}
+                  <span className="text-muted-foreground">
+                    ({pending.length})
+                  </span>
+                </button>
+                {[...perRep.entries()].map(([repId, info]) => (
+                  <button
+                    key={repId}
+                    onClick={() =>
+                      setRepFilter(repFilter === repId ? null : repId)
+                    }
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      repFilter === repId
+                        ? "border-primary bg-primary/10"
+                        : "hover:bg-muted/40"
+                    }`}
+                    data-testid={`rep-tile-${repId}`}
                   >
-                    {p.lead?.lead_name || p.lead_id.slice(0, 8)}
-                  </Link>
-                  {p.lead?.school?.name && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {p.lead.school.name}
-                      {p.lead.school.province
-                        ? ` — ${p.lead.school.province}`
-                        : ""}
-                    </div>
+                    {info.name}{" "}
+                    <span className="font-semibold">{info.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* R4/R8 — sticky bulk bar, shown when ≥1 row is selected. */}
+            {selected.size > 0 && (
+              <div
+                className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-2 shadow-sm"
+                data-testid="auto-assign-bulk-bar"
+              >
+                <span className="text-sm font-medium">
+                  {selected.size} selected
+                </span>
+                <Button
+                  size="sm"
+                  onClick={approveSelected}
+                  disabled={busy}
+                  data-testid="auto-assign-approve-selected"
+                >
+                  {busy ? (
+                    <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="mr-1.5 h-3 w-3" />
                   )}
-                </td>
-                <td className="p-3 align-top text-sm font-medium">
-                  {repName(p)}
-                </td>
-                <td className="p-3 align-top text-sm max-w-[40ch]">
-                  <div className="line-clamp-2 break-words" title={p.reason}>
-                    {p.reason}
-                  </div>
-                </td>
-                <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
-                  {ago(p.created_at)}
-                </td>
-                <td className="p-3 align-top whitespace-nowrap">
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => decide(p, "approve")}
-                      disabled={busy}
-                      data-testid={`auto-assign-approve-${p.id}`}
+                  Approve selected ({selected.size})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={rejectSelected}
+                  disabled={busy}
+                  data-testid="auto-assign-reject-selected"
+                >
+                  <XCircle className="mr-1.5 h-3 w-3" />
+                  Reject selected ({selected.size})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelected(new Set())}
+                >
+                  Clear
+                </Button>
+              </div>
+            )}
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full" data-testid="auto-assign-queue">
+                <thead className="bg-muted/50">
+                  <tr className="text-left text-xs font-medium uppercase tracking-wide">
+                    <th className="p-3 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all"
+                        checked={allSelected}
+                        onChange={(e) =>
+                          toggleAll(e.target.checked, filteredPending)
+                        }
+                        data-testid="auto-assign-select-all"
+                      />
+                    </th>
+                    <th className="p-3">Lead</th>
+                    <th className="p-3 w-44">Suggested rep</th>
+                    <th className="p-3">Why this rep</th>
+                    <th className="p-3 w-36">Suggested</th>
+                    <th className="p-3 w-60">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredPending.map((p) => (
+                    <tr key={p.id} className="border-t hover:bg-muted/30">
+                      <td className="p-3 align-top">
+                        <input
+                          type="checkbox"
+                          aria-label="Select row"
+                          checked={selected.has(p.id)}
+                          onChange={() => toggleOne(p.id)}
+                          data-testid={`auto-assign-select-${p.id}`}
+                        />
+                      </td>
+                      <td className="p-3 align-top">
+                        <Link
+                          to={`/leads/${p.lead_id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {p.lead?.lead_name || p.lead_id.slice(0, 8)}
+                        </Link>
+                        {p.lead?.school?.name && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {p.lead.school.name}
+                            {p.lead.school.province
+                              ? ` — ${p.lead.school.province}`
+                              : ""}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 align-top text-sm font-medium">
+                        {repName(p)}
+                      </td>
+                      <td className="p-3 align-top text-sm max-w-[40ch]">
+                        <div
+                          className="line-clamp-2 break-words"
+                          title={p.reason}
+                        >
+                          {p.reason}
+                        </div>
+                      </td>
+                      <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
+                        {ago(p.created_at)}
+                      </td>
+                      <td className="p-3 align-top whitespace-nowrap">
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => decide(p, "approve")}
+                            disabled={busy}
+                            data-testid={`auto-assign-approve-${p.id}`}
+                          >
+                            <CheckCircle2 className="mr-1.5 h-3 w-3" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => decide(p, "reject")}
+                            disabled={busy}
+                            data-testid={`auto-assign-reject-${p.id}`}
+                          >
+                            <XCircle className="mr-1.5 h-3 w-3" />
+                            Reject
+                          </Button>
+                          <select
+                            className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                            value=""
+                            disabled={busy || reps.length === 0}
+                            onChange={(e) => redirect(p, e.target.value)}
+                            data-testid={`auto-assign-redirect-${p.id}`}
+                            title="Reassign this lead to a different rep"
+                          >
+                            <option value="">Redirect…</option>
+                            {reps
+                              .filter((r) => r.id !== p.proposed_rep_id)
+                              .map((r) => (
+                                <option key={r.id} value={r.id}>
+                                  {[r.first_name, r.last_name]
+                                    .filter(Boolean)
+                                    .join(" ") || "rep"}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
+      ) : rejected.length === 0 ? (
+        <div className="p-12 text-center text-sm text-muted-foreground">
+          No rejected suggestions. When you reject a suggestion it lands here so
+          you can redirect it to another rep/manager or send it back to New
+          Leads — a reject is never just discarded.
+        </div>
+      ) : (
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full" data-testid="auto-assign-rejected-queue">
+            <thead className="bg-muted/50">
+              <tr className="text-left text-xs font-medium uppercase tracking-wide">
+                <th className="p-3">Lead</th>
+                <th className="p-3 w-44">Was suggested to</th>
+                <th className="p-3">Why this rep</th>
+                <th className="p-3 w-36">Rejected</th>
+                <th className="p-3 w-80">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {rejected.map((p) => (
+                <tr key={p.id} className="border-t hover:bg-muted/30">
+                  <td className="p-3 align-top">
+                    <Link
+                      to={`/leads/${p.lead_id}`}
+                      className="font-medium text-primary hover:underline"
                     >
-                      <CheckCircle2 className="mr-1.5 h-3 w-3" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => decide(p, "reject")}
-                      disabled={busy}
-                      data-testid={`auto-assign-reject-${p.id}`}
-                    >
-                      <XCircle className="mr-1.5 h-3 w-3" />
-                      Reject
-                    </Button>
-                    <select
-                      className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
-                      value=""
-                      disabled={busy || reps.length === 0}
-                      onChange={(e) => redirect(p, e.target.value)}
-                      data-testid={`auto-assign-redirect-${p.id}`}
-                      title="Reassign this lead to a different rep"
-                    >
-                      <option value="">Redirect…</option>
-                      {reps
-                        .filter((r) => r.id !== p.proposed_rep_id)
-                        .map((r) => (
+                      {p.lead?.lead_name || p.lead_id.slice(0, 8)}
+                    </Link>
+                    {p.lead?.school?.name && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {p.lead.school.name}
+                        {p.lead.school.province
+                          ? ` — ${p.lead.school.province}`
+                          : ""}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 align-top text-sm font-medium">
+                    {repName(p)}
+                  </td>
+                  <td className="p-3 align-top text-sm max-w-[40ch]">
+                    <div className="line-clamp-2 break-words" title={p.reason}>
+                      {p.reason}
+                    </div>
+                  </td>
+                  <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
+                    {ago(p.decided_at || p.created_at)}
+                  </td>
+                  <td className="p-3 align-top whitespace-nowrap">
+                    <div className="flex gap-2">
+                      <select
+                        className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                        value=""
+                        disabled={rejectedBusy || reps.length === 0}
+                        onChange={(e) => redirectRejectedRow(p, e.target.value)}
+                        data-testid={`auto-assign-redirect-rejected-${p.id}`}
+                        title="Assign this lead to a rep or manager"
+                      >
+                        <option value="">Redirect to…</option>
+                        {reps.map((r) => (
                           <option key={r.id} value={r.id}>
                             {[r.first_name, r.last_name]
                               .filter(Boolean)
                               .join(" ") || "rep"}
                           </option>
                         ))}
-                    </select>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                      </select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => sendRejectedToNewLeads(p)}
+                        disabled={rejectedBusy}
+                        data-testid={`auto-assign-to-new-leads-${p.id}`}
+                      >
+                        <Undo2 className="mr-1.5 h-3 w-3" />
+                        Send to New Leads
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

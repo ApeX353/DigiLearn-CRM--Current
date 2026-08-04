@@ -179,12 +179,17 @@ export class LeadsXlsxImportService {
 
       let status: 'importable' | 'invalid' = 'importable';
       let invalidReason: string | undefined;
+      // R3: when province + contact are present and region is the only thing
+      // we couldn't map (e.g. a "PERI URBAN" area — the enum is urban|rural
+      // only), the row is rescuable: a manager picks urban/rural on approval.
+      let needsRegion = false;
       if (!province) {
         status = 'invalid';
         invalidReason = `province "${provinceRaw}" not recognised`;
       } else if (!region) {
         status = 'invalid';
         invalidReason = `area "${cell(row, cols.area)}" is not urban/rural`;
+        needsRegion = !!contact; // rescuable only if the contact is also present
       } else if (!contact) {
         status = 'invalid';
         invalidReason = 'no contact name';
@@ -204,6 +209,7 @@ export class LeadsXlsxImportService {
         role: this.toRole(cell(row, cols.position)),
         status,
         invalidReason,
+        needsRegion,
         decision: 'approve', // provisional; finalised below
       });
     }
@@ -341,6 +347,45 @@ export class LeadsXlsxImportService {
       // An invalid row can never be approved — missing fields to make a lead.
       row.decision = d === 'approve' && row.status === 'invalid' ? 'skip' : d;
     }
+    batch.importable_count = batch.rows.filter(
+      (r) => r.decision === 'approve',
+    ).length;
+    return this.batches.save(batch);
+  }
+
+  /**
+   * R3: classify a peri-urban (region-unmapped) row as urban or rural. The
+   * chosen region is written onto the staged row; on approval the school is
+   * created with it (see createApprovedRows → createWithSchoolAndContacts).
+   * Region was the row's only blocker, so this flips it back to importable
+   * (and defaults it to include, unless it's a duplicate). Idempotent-safe:
+   * only rows flagged `needsRegion` can be set this way.
+   */
+  async setRowRegion(
+    id: string,
+    rowNumber: number,
+    region: 'urban' | 'rural',
+  ): Promise<LeadImportBatch> {
+    const batch = await this.getBatch(id);
+    if (batch.status !== LeadImportBatchStatus.PENDING) {
+      throw new BadRequestException('This batch has already been decided');
+    }
+    const row = batch.rows.find((r) => r.rowNumber === rowNumber);
+    if (!row) {
+      throw new NotFoundException('Row not found in this batch');
+    }
+    if (!row.needsRegion) {
+      throw new BadRequestException(
+        'This row does not need a region to be chosen',
+      );
+    }
+    row.region = region;
+    row.needsRegion = false;
+    // Region was the only blocker (province + contact were already present),
+    // so the row can now create a lead. Restore the normal default decision.
+    row.status = 'importable';
+    row.invalidReason = undefined;
+    row.decision = row.duplicate ? 'skip' : 'approve';
     batch.importable_count = batch.rows.filter(
       (r) => r.decision === 'approve',
     ).length;

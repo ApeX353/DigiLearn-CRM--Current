@@ -31,6 +31,9 @@ export interface PendingImportRow {
   role: string;
   status: "importable" | "invalid";
   invalidReason?: string;
+  /** R3: region couldn't be mapped to urban|rural (e.g. "peri urban") but the
+   *  row is otherwise complete — a manager must pick a region to admit it. */
+  needsRegion?: boolean;
   duplicate?: ImportRowDuplicate;
   decision: "approve" | "skip";
 }
@@ -48,7 +51,8 @@ export interface ImportBatch {
   campaign_id: string | null;
   created_at: string;
   uploaded_by?: { first_name?: string; last_name?: string } | null;
-  campaign?: { id: string; name: string } | null;
+  /** R7: entry_date drives the campaign "folder" header on the approval queue. */
+  campaign?: { id: string; name: string; entry_date?: string | null } | null;
   rows?: PendingImportRow[];
 }
 
@@ -92,6 +96,28 @@ export function useUpdateImportDecisions() {
       const res = await apiClientAuth.patch(
         `/leads/import/batches/${vars.id}/decisions`,
         { decisions: vars.decisions },
+      );
+      return res.data?.data as ImportBatch;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: importBatchKeys.detail(vars.id) });
+      qc.invalidateQueries({ queryKey: importBatchKeys.all });
+    },
+  });
+}
+
+/** R3: classify a peri-urban staged row as urban or rural before approval. */
+export function useSetImportRowRegion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      id: string;
+      rowNumber: number;
+      region: "urban" | "rural";
+    }) => {
+      const res = await apiClientAuth.patch(
+        `/leads/import/batches/${vars.id}/rows/${vars.rowNumber}/region`,
+        { region: vars.region },
       );
       return res.data?.data as ImportBatch;
     },

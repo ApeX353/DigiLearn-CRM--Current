@@ -73,6 +73,17 @@ export class AutomationController {
     return { success: true, data };
   }
 
+  // R2 — per-rep current→projected strip shown above the auto-assign queue.
+  @Get('assignment-proposals/projection')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'Per-rep current vs projected load for pending proposals',
+  })
+  async assignmentProjection() {
+    const data = await this.autoRouter.getQueueProjection();
+    return { success: true, data };
+  }
+
   @Patch('assignment-proposals/:id/approve')
   @Roles('admin', 'sales_manager')
   @ApiOperation({
@@ -115,6 +126,52 @@ export class AutomationController {
       userId,
     );
     return { success: true, data };
+  }
+
+  // R4/R8 — reject a batch of proposals in one call (bulk multi-select).
+  @Post('assignment-proposals/reject-batch')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Reject a batch of proposals in one call' })
+  async rejectAssignmentProposalBatch(
+    @Body('ids') ids: string[],
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.autoRouter.rejectProposals(
+      Array.isArray(ids) ? ids : [],
+      userId,
+    );
+    return { success: true, data };
+  }
+
+  // R5 — redirect a REJECTED suggestion to a chosen rep/manager: turns the
+  // reject into an approval and assigns the lead.
+  @Post('assignment-proposals/:id/redirect')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'Redirect a rejected proposal to a chosen rep — assigns the lead',
+  })
+  async redirectAssignmentProposal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @Body('rep_id') repId: string,
+  ) {
+    const data = await this.autoRouter.redirectProposal(id, repId, userId);
+    return { success: true, data, message: 'Lead redirected and assigned' };
+  }
+
+  // R5 — send a rejected suggestion's lead back to the New Leads pool
+  // (clears owner, resets status to New, re-runs duplicate detection).
+  @Post('assignment-proposals/:id/to-new-leads')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'Send a rejected proposal back to New Leads (unassign + reset)',
+  })
+  async sendAssignmentProposalToNewLeads(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.autoRouter.sendProposalToNewLeads(id, userId);
+    return { success: true, data, message: 'Lead sent back to New Leads' };
   }
 
   // Rebalance — a manager evens out load by moving a batch of leads from one

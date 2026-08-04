@@ -25,6 +25,7 @@ export function CampaignEditDialog({ campaign, open, onOpenChange }: Props) {
   const [type, setType] = useState<CampaignType>(campaign.type);
   const [startDate, setStartDate] = useState(campaign.start_date?.slice(0, 10) ?? "");
   const [endDate, setEndDate] = useState(campaign.end_date?.slice(0, 10) ?? "");
+  const [entryDate, setEntryDate] = useState(campaign.entry_date?.slice(0, 10) ?? "");
   const [currency, setCurrency] = useState(campaign.currency ?? "USD");
 
   const save = () => {
@@ -40,6 +41,7 @@ export function CampaignEditDialog({ campaign, open, onOpenChange }: Props) {
           type,
           start_date: startDate,
           end_date: endDate || undefined,
+          entry_date: entryDate || undefined,
           currency,
         },
       },
@@ -97,6 +99,9 @@ export function CampaignEditDialog({ campaign, open, onOpenChange }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <DateField label="Start date" required value={startDate} onChange={setStartDate} />
           <DateField label="End date" value={endDate} onChange={setEndDate} min={startDate || undefined} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <DateField label="Date of entry" value={entryDate} onChange={setEntryDate} />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" disabled={update.isPending} onClick={() => onOpenChange(false)}>

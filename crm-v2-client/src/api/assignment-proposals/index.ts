@@ -44,6 +44,7 @@ export const assignmentProposalsKeys = {
   all: ["assignment-proposals"] as const,
   list: (status: AssignmentProposalStatus) =>
     [...assignmentProposalsKeys.all, "list", status] as const,
+  projection: () => [...assignmentProposalsKeys.all, "projection"] as const,
 };
 
 export function useAssignmentProposals(status: AssignmentProposalStatus) {
@@ -94,6 +95,94 @@ export function useRejectAssignmentProposal() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+    },
+  });
+}
+
+/** R2 — one row of the per-rep current→projected strip. */
+export interface AssignmentProjectionRow {
+  rep_id: string;
+  name: string;
+  current: number;
+  pending: number;
+  projected: number;
+}
+
+/**
+ * R2 — per-rep current vs projected load for the pending proposals. Powers
+ * the persistent strip above the auto-assign queue. Auto-refreshes like the
+ * pending list so it tracks a run landing.
+ */
+export function useAssignmentProjection() {
+  return useQuery({
+    queryKey: assignmentProposalsKeys.projection(),
+    queryFn: async (): Promise<AssignmentProjectionRow[]> => {
+      const res = await apiClientAuth.get(
+        `/automation/assignment-proposals/projection`,
+      );
+      const data = res.data?.data ?? res.data;
+      return Array.isArray(data) ? data : [];
+    },
+    refetchInterval: 8000,
+  });
+}
+
+/** R4/R8 — reject a batch of selected proposals in one call. */
+export function useRejectAssignmentProposalBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      ids: string[],
+    ): Promise<{ rejected: number; skipped: Array<{ id: string; why: string }> }> => {
+      const res = await apiClientAuth.post(
+        `/automation/assignment-proposals/reject-batch`,
+        { ids },
+      );
+      return res.data?.data ?? res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+    },
+  });
+}
+
+/**
+ * R5 — redirect a REJECTED suggestion to a chosen rep/manager. Turns the
+ * reject into an approval and assigns the lead.
+ */
+export function useRedirectRejectedProposal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: string; repId: string }) => {
+      const res = await apiClientAuth.post(
+        `/automation/assignment-proposals/${vars.id}/redirect`,
+        { rep_id: vars.repId },
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+/**
+ * R5 — send a rejected suggestion's lead back to the New Leads pool
+ * (unassign + reset status to New + re-run duplicate detection server-side).
+ */
+export function useSendProposalToNewLeads() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClientAuth.post(
+        `/automation/assignment-proposals/${id}/to-new-leads`,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
   });
 }

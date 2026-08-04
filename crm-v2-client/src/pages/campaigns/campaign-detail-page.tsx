@@ -118,6 +118,8 @@ export default function CampaignDetailPage() {
           {format(new Date(campaign.start_date), "MMM d, yyyy")}
           {campaign.end_date &&
             ` – ${format(new Date(campaign.end_date), "MMM d, yyyy")}`}
+          {campaign.entry_date &&
+            ` · entered ${format(new Date(campaign.entry_date), "MMM d, yyyy")}`}
           {" · created by "}
           {campaign.created_by
             ? `${campaign.created_by.first_name} ${campaign.created_by.last_name}`

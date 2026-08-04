@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -6,6 +7,10 @@ import {
   AlertTriangle,
   ArrowLeft,
   FileSpreadsheet,
+  ChevronRight,
+  ChevronDown,
+  Folder,
+  CalendarDays,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -15,8 +20,17 @@ import {
   useApproveImportBatch,
   useRejectImportBatch,
   useUpdateImportDecisions,
+  useSetImportRowRegion,
+  type ImportBatch,
   type PendingImportRow,
 } from "~/api/leads/import-batches";
+
+/** Best-effort date label; accepts an ISO datetime or a YYYY-MM-DD date. */
+function fmtDate(d?: string | null): string | null {
+  if (!d) return null;
+  const parsed = new Date(d);
+  return Number.isNaN(parsed.getTime()) ? null : format(parsed, "MMM d, yyyy");
+}
 
 function dupText(row: PendingImportRow): string | null {
   if (row.status === "invalid") return row.invalidReason ?? "invalid";
@@ -37,6 +51,7 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const approve = useApproveImportBatch();
   const reject = useRejectImportBatch();
   const setDecisions = useUpdateImportDecisions();
+  const setRegion = useSetImportRowRegion();
   // Local overrides keyed by rowNumber; falls back to the row's stored decision.
   const [overrides, setOverrides] = useState<Record<number, "approve" | "skip">>(
     {},
@@ -50,7 +65,16 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
     [rows, overrides],
   );
 
-  const busy = approve.isPending || reject.isPending || setDecisions.isPending;
+  const busy =
+    approve.isPending ||
+    reject.isPending ||
+    setDecisions.isPending ||
+    setRegion.isPending;
+
+  // R3: rows the source left as "peri urban" (or any un-mappable region) can't
+  // be admitted until a manager classifies them urban/rural. Block approval
+  // while any remain, so nothing is silently dropped.
+  const unresolvedRegion = rows.some((r) => r.needsRegion);
 
   const toggle = (r: PendingImportRow) => {
     if (r.status === "invalid") return; // can never be approved
@@ -58,6 +82,17 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
       ...o,
       [r.rowNumber]: decisionOf(r) === "approve" ? "skip" : "approve",
     }));
+  };
+
+  const chooseRegion = async (
+    r: PendingImportRow,
+    region: "urban" | "rural",
+  ) => {
+    try {
+      await setRegion.mutateAsync({ id, rowNumber: r.rowNumber, region });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? "Could not set the region");
+    }
   };
 
   const onApprove = async () => {
@@ -115,7 +150,12 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
           <Button
             size="sm"
             onClick={onApprove}
-            disabled={busy || approveCount === 0}
+            disabled={busy || approveCount === 0 || unresolvedRegion}
+            title={
+              unresolvedRegion
+                ? "Classify every peri-urban row (urban or rural) first"
+                : undefined
+            }
             data-testid="import-approve"
           >
             {busy ? (
@@ -127,6 +167,15 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
           </Button>
         </div>
       </div>
+
+      {unresolvedRegion && (
+        <div className="flex items-center gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Some rows arrived as <strong>peri-urban</strong>, which the system
+          can't store. Choose <strong>urban</strong> or <strong>rural</strong>{" "}
+          on each before approving.
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded border">
         <table className="w-full text-sm">
@@ -154,7 +203,15 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
                       "—"}
                   </td>
                   <td className="p-2">
-                    {flag ? (
+                    {r.needsRegion ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-amber-700"
+                        title={r.invalidReason}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5" /> peri-urban —
+                        classify to include
+                      </span>
+                    ) : flag ? (
                       <span className="inline-flex items-center gap-1 text-amber-700">
                         <AlertTriangle className="h-3.5 w-3.5" /> {flag}
                       </span>
@@ -163,18 +220,39 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
                     )}
                   </td>
                   <td className="p-2 text-right">
-                    <Button
-                      variant={decision === "approve" ? "default" : "outline"}
-                      size="sm"
-                      disabled={r.status === "invalid"}
-                      onClick={() => toggle(r)}
-                    >
-                      {r.status === "invalid"
-                        ? "Skip"
-                        : decision === "approve"
-                          ? "Include"
-                          : "Skip"}
-                    </Button>
+                    {r.needsRegion ? (
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => chooseRegion(r, "urban")}
+                        >
+                          Urban
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => chooseRegion(r, "rural")}
+                        >
+                          Rural
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant={decision === "approve" ? "default" : "outline"}
+                        size="sm"
+                        disabled={r.status === "invalid"}
+                        onClick={() => toggle(r)}
+                      >
+                        {r.status === "invalid"
+                          ? "Skip"
+                          : decision === "approve"
+                            ? "Include"
+                            : "Skip"}
+                      </Button>
+                    )}
                   </td>
                 </tr>
               );
@@ -191,10 +269,100 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
   );
 }
 
+/** One staged batch, as a clickable row that opens its detail. */
+function BatchRow({ b, onOpen }: { b: ImportBatch; onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center justify-between rounded border p-3 text-left hover:bg-muted/40"
+      data-testid="import-batch-row"
+    >
+      <div className="flex items-center gap-3">
+        <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+        <div>
+          <div className="font-medium">{b.filename ?? "Import"}</div>
+          <div className="text-xs text-muted-foreground">
+            by{" "}
+            {[b.uploaded_by?.first_name, b.uploaded_by?.last_name]
+              .filter(Boolean)
+              .join(" ") || "—"}
+            {fmtDate(b.created_at) ? ` · ${fmtDate(b.created_at)}` : ""}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge className="bg-green-100 text-green-800">
+          {b.importable_count} ready
+        </Badge>
+        {b.duplicate_count > 0 && (
+          <Badge className="bg-amber-100 text-amber-800">
+            {b.duplicate_count} dup
+          </Badge>
+        )}
+        <Badge variant="secondary">{b.total_rows} rows</Badge>
+      </div>
+    </button>
+  );
+}
+
+interface CampaignFolder {
+  key: string;
+  title: string;
+  /** Campaign entry date, else the (earliest) batch submission date. */
+  date: string | null;
+  batches: ImportBatch[];
+  leadCount: number;
+  readyCount: number;
+  dupCount: number;
+}
+
+const NO_CAMPAIGN_KEY = "__none__";
+
+/** R7: group staged batches into one folder per campaign so leads from
+ *  different campaigns/batches stay visually separate, not mixed. */
+function groupIntoFolders(batches: ImportBatch[]): CampaignFolder[] {
+  const byKey = new Map<string, CampaignFolder>();
+  for (const b of batches) {
+    const key = b.campaign?.id ?? NO_CAMPAIGN_KEY;
+    let folder = byKey.get(key);
+    if (!folder) {
+      folder = {
+        key,
+        title: b.campaign?.name ?? "No campaign / batch",
+        // A campaign folder carries the campaign's entry date; the loose
+        // "no campaign" folder shows each batch's own date on its row.
+        date: b.campaign?.entry_date ?? null,
+        batches: [],
+        leadCount: 0,
+        readyCount: 0,
+        dupCount: 0,
+      };
+      byKey.set(key, folder);
+    }
+    folder.batches.push(b);
+    folder.leadCount += b.total_rows ?? 0;
+    folder.readyCount += b.importable_count ?? 0;
+    folder.dupCount += b.duplicate_count ?? 0;
+    // Fall back to the earliest batch submission date when the campaign has
+    // no entry date (or there is no campaign).
+    if (!b.campaign?.entry_date && b.created_at) {
+      if (!folder.date || b.created_at < folder.date) folder.date = b.created_at;
+    }
+  }
+  // Real campaigns first, the loose folder last.
+  return [...byKey.values()].sort((a, b) =>
+    a.key === NO_CAMPAIGN_KEY ? 1 : b.key === NO_CAMPAIGN_KEY ? -1 : 0,
+  );
+}
+
 /** The "Import approvals" section of the manager Approval Queue. */
 export function ImportApprovalsQueue() {
   const { data: batches = [], isLoading } = useImportBatches();
   const [openId, setOpenId] = useState<string | null>(null);
+  // Folders are collapsed by default; expanding shows the batches inside.
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+
+  const folders = useMemo(() => groupIntoFolders(batches), [batches]);
 
   if (openId) return <BatchDetail id={openId} onBack={() => setOpenId(null)} />;
 
@@ -226,39 +394,57 @@ export function ImportApprovalsQueue() {
         <Badge className="bg-green-100 text-green-800">{totalReady} ready</Badge>
         <Badge className="bg-amber-100 text-amber-800">{totalDup} duplicate{totalDup === 1 ? "" : "s"}</Badge>
       </div>
-      {batches.map((b) => (
-        <button
-          key={b.id}
-          onClick={() => setOpenId(b.id)}
-          className="flex w-full items-center justify-between rounded border p-3 text-left hover:bg-muted/40"
-          data-testid="import-batch-row"
-        >
-          <div className="flex items-center gap-3">
-            <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <div className="font-medium">{b.filename ?? "Import"}</div>
-              <div className="text-xs text-muted-foreground">
-                by{" "}
-                {[b.uploaded_by?.first_name, b.uploaded_by?.last_name]
-                  .filter(Boolean)
-                  .join(" ") || "—"}
-                {b.campaign?.name ? ` · ${b.campaign.name}` : ""}
+      {folders.map((f) => {
+        const open = !!openFolders[f.key];
+        const date = fmtDate(f.date);
+        return (
+          <div key={f.key} className="rounded border">
+            <button
+              onClick={() =>
+                setOpenFolders((o) => ({ ...o, [f.key]: !o[f.key] }))
+              }
+              className="flex w-full items-center justify-between gap-2 p-3 text-left hover:bg-muted/40"
+              aria-expanded={open}
+              data-testid="import-campaign-folder"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                {open ? (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <Folder className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <span className="truncate font-medium">{f.title}</span>
+                {date && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <CalendarDays className="h-3.5 w-3.5" /> {date}
+                  </span>
+                )}
               </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className="bg-green-100 text-green-800">
-              {b.importable_count} ready
-            </Badge>
-            {b.duplicate_count > 0 && (
-              <Badge className="bg-amber-100 text-amber-800">
-                {b.duplicate_count} dup
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-green-100 text-green-800">
+                  {f.readyCount} ready
+                </Badge>
+                {f.dupCount > 0 && (
+                  <Badge className="bg-amber-100 text-amber-800">
+                    {f.dupCount} dup
+                  </Badge>
+                )}
+                <Badge variant="secondary">
+                  {f.leadCount} lead{f.leadCount === 1 ? "" : "s"}
+                </Badge>
+              </div>
+            </button>
+            {open && (
+              <div className="space-y-2 border-t p-2">
+                {f.batches.map((b) => (
+                  <BatchRow key={b.id} b={b} onOpen={() => setOpenId(b.id)} />
+                ))}
+              </div>
             )}
-            <Badge variant="secondary">{b.total_rows} rows</Badge>
           </div>
-        </button>
-      ))}
+        );
+      })}
     </div>
   );
 }

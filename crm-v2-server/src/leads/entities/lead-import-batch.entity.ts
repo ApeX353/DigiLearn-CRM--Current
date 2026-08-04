@@ -44,6 +44,14 @@ export interface PendingImportRow {
   /** importable = has the fields needed to create a lead; invalid = missing. */
   status: 'importable' | 'invalid';
   invalidReason?: string;
+  /**
+   * R3: the source row's region could not be mapped to the urban|rural enum
+   * (e.g. it said "PERI URBAN") but everything else is present — so a manager
+   * can rescue it by picking a region on the approval row. Region is the ONLY
+   * blocker; picking one flips the row back to importable. Left unset for rows
+   * that are invalid for other reasons (bad province, no contact).
+   */
+  needsRegion?: boolean;
   duplicate?: { kind: ImportRowDuplicateKind; name: string; id?: string };
   /** Reviewer intent. Defaults: skip if duplicate or invalid, else approve. */
   decision: 'approve' | 'skip';

@@ -19,6 +19,7 @@ import { LeadsXlsxImportService } from './services/leads-xlsx-import.service';
 import {
   ImportLeadsXlsxDto,
   UpdateImportDecisionsDto,
+  SetImportRowRegionDto,
 } from './dto/import-leads-xlsx.dto';
 import {
   CreateLeadDto,
@@ -153,6 +154,24 @@ export class LeadsController {
     @Body() dto: UpdateImportDecisionsDto,
   ) {
     const data = await this.leadsXlsxImport.updateDecisions(id, dto.decisions);
+    return { success: true, data };
+  }
+
+  @Patch('import/batches/:id/rows/:rowNumber/region')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary: 'Classify a peri-urban import row as urban or rural (R3)',
+  })
+  async setImportRowRegion(
+    @Param('id') id: string,
+    @Param('rowNumber') rowNumber: string,
+    @Body() dto: SetImportRowRegionDto,
+  ) {
+    const data = await this.leadsXlsxImport.setRowRegion(
+      id,
+      Number(rowNumber),
+      dto.region,
+    );
     return { success: true, data };
   }
 

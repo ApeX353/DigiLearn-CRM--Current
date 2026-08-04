@@ -13,6 +13,7 @@ export interface Campaign {
   type: CampaignType;
   start_date: string;
   end_date: string | null;
+  entry_date: string;
   currency: string;
   created_by_id: string;
   created_by?: {
@@ -29,6 +30,7 @@ export interface CreateCampaignDto {
   type: CampaignType;
   start_date: string;
   end_date?: string;
+  entry_date?: string;
   currency?: string;
 }
 

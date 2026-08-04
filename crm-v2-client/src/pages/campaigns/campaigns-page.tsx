@@ -37,6 +37,7 @@ export default function CampaignsPage() {
   const [type, setType] = useState<CampaignType>("CONFERENCE");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [entryDate, setEntryDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [currency, setCurrency] = useState("USD");
 
   const handleCreate = async () => {
@@ -50,6 +51,7 @@ export default function CampaignsPage() {
         type,
         start_date: startDate,
         end_date: endDate || undefined,
+        entry_date: entryDate || undefined,
         currency,
       });
       toast.success("Campaign created");
@@ -57,6 +59,7 @@ export default function CampaignsPage() {
       setName("");
       setStartDate("");
       setEndDate("");
+      setEntryDate(format(new Date(), "yyyy-MM-dd"));
     } catch (error) {
       toast.error("Could not create campaign", {
         description: handleApiError(error),
@@ -96,6 +99,7 @@ export default function CampaignsPage() {
                 <th className="px-3 py-2">Campaign</th>
                 <th className="px-3 py-2">Type</th>
                 <th className="px-3 py-2">Dates</th>
+                <th className="px-3 py-2">Date of entry</th>
                 <th className="px-3 py-2">Created by</th>
               </tr>
             </thead>
@@ -116,6 +120,11 @@ export default function CampaignsPage() {
                   <td className="px-3 py-2 whitespace-nowrap">
                     {format(new Date(c.start_date), "MMM d, yyyy")}
                     {c.end_date && ` – ${format(new Date(c.end_date), "MMM d, yyyy")}`}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {c.entry_date
+                      ? format(new Date(c.entry_date), "MMM d, yyyy")
+                      : "—"}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {c.created_by
@@ -190,6 +199,14 @@ export default function CampaignsPage() {
                 value={endDate}
                 onChange={setEndDate}
                 min={startDate || undefined}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <DateField
+                label="Date of entry"
+                value={entryDate}
+                onChange={setEntryDate}
+                data-testid="campaign-entry"
               />
             </div>
           </div>
