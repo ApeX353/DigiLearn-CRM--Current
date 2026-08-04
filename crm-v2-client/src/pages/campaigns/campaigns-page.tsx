@@ -30,7 +30,12 @@ import { handleApiError } from "~/api/axios";
 export default function CampaignsPage() {
   const { data: campaigns, isLoading } = useCampaigns();
   const createMutation = useCreateCampaign();
-  const canCreate = useAnyRole(["admin", "manager", "sales_manager"]);
+  const canCreate = useAnyRole([
+    "admin",
+    "admin_support",
+    "manager",
+    "sales_manager",
+  ]);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");

@@ -43,8 +43,14 @@ export default function CampaignDetailPage() {
   const navigate = useNavigate();
   const { data: campaign, isLoading } = useCampaign(id);
   const { data: leads } = useCampaignLeads(id);
-  const canSeeRoi = useAnyRole(["admin", "manager", "sales_manager", "finance"]);
-  const canImport = useAnyRole(["admin", "sales_manager"]);
+  const canSeeRoi = useAnyRole([
+    "admin",
+    "admin_support",
+    "manager",
+    "sales_manager",
+    "finance",
+  ]);
+  const canImport = useAnyRole(["admin", "admin_support", "sales_manager"]);
   const { data: roi } = useCampaignRoi(canSeeRoi ? id : "");
   const deleteCampaign = useDeleteCampaign();
   const [importOpen, setImportOpen] = useState(false);
