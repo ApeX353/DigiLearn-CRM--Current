@@ -49,11 +49,16 @@ export class CampaignsController {
     return { success: true, data };
   }
 
-  @Get(':id')
+  @Get(':idOrSlug')
   @Roles(...ALL_OPERATORS)
-  @ApiOperation({ summary: 'Campaign detail' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const data = await this.service.findOne(id);
+  @ApiOperation({
+    summary: 'Campaign detail — resolves by uuid OR human slug',
+  })
+  async findOne(@Param('idOrSlug') idOrSlug: string) {
+    // Accepts either the raw uuid (legacy links) or the human slug. The
+    // service branches on the identifier shape; no UUID pipe here so slugs
+    // pass through. Sub-resource routes below still require a uuid.
+    const data = await this.service.findOne(idOrSlug);
     return { success: true, data };
   }
 

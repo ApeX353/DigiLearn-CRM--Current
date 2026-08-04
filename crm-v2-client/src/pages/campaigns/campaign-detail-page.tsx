@@ -39,10 +39,14 @@ const money = (amount: string | number, currency: string) =>
   })}`;
 
 export default function CampaignDetailPage() {
-  const { id = "" } = useParams<{ id: string }>();
+  // The URL param is the human slug (falls back to the raw UUID for older
+  // links). The detail endpoint resolves either; sub-resource endpoints
+  // (leads/roi) still take the UUID, so we key those off the resolved id.
+  const { id: idOrSlug = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: campaign, isLoading } = useCampaign(id);
-  const { data: leads } = useCampaignLeads(id);
+  const { data: campaign, isLoading } = useCampaign(idOrSlug);
+  const campaignId = campaign?.id ?? "";
+  const { data: leads } = useCampaignLeads(campaignId);
   const canSeeRoi = useAnyRole([
     "admin",
     "admin_support",
@@ -51,7 +55,7 @@ export default function CampaignDetailPage() {
     "finance",
   ]);
   const canImport = useAnyRole(["admin", "admin_support", "sales_manager"]);
-  const { data: roi } = useCampaignRoi(canSeeRoi ? id : "");
+  const { data: roi } = useCampaignRoi(canSeeRoi ? campaignId : "");
   const deleteCampaign = useDeleteCampaign();
   const [importOpen, setImportOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -121,11 +125,11 @@ export default function CampaignDetailPage() {
           <Badge variant="outline">{CAMPAIGN_TYPE_LABELS[campaign.type]}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          {format(new Date(campaign.start_date), "MMM d, yyyy")}
+          {format(new Date(campaign.start_date), "dd/MM/yyyy")}
           {campaign.end_date &&
-            ` – ${format(new Date(campaign.end_date), "MMM d, yyyy")}`}
+            ` – ${format(new Date(campaign.end_date), "dd/MM/yyyy")}`}
           {campaign.entry_date &&
-            ` · entered ${format(new Date(campaign.entry_date), "MMM d, yyyy")}`}
+            ` · entered ${format(new Date(campaign.entry_date), "dd/MM/yyyy")}`}
           {" · created by "}
           {campaign.created_by
             ? `${campaign.created_by.first_name} ${campaign.created_by.last_name}`
@@ -301,7 +305,7 @@ export default function CampaignDetailPage() {
                           <Badge variant="outline">{l.status}</Badge>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          {format(new Date(l.created_at), "MMM d, yyyy")}
+                          {format(new Date(l.created_at), "dd/MM/yyyy")}
                         </td>
                       </tr>
                     ))}

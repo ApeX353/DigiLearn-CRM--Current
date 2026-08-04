@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import Modal from "~/components/ui/modal";
@@ -21,6 +22,7 @@ interface Props {
 /** Edit a campaign — fixes a wrong date/name/type after creation (#16/#17). */
 export function CampaignEditDialog({ campaign, open, onOpenChange }: Props) {
   const update = useUpdateCampaign();
+  const navigate = useNavigate();
   const [name, setName] = useState(campaign.name);
   const [type, setType] = useState<CampaignType>(campaign.type);
   const [startDate, setStartDate] = useState(campaign.start_date?.slice(0, 10) ?? "");
@@ -46,9 +48,14 @@ export function CampaignEditDialog({ campaign, open, onOpenChange }: Props) {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (updated) => {
           toast.success("Campaign updated");
           onOpenChange(false);
+          // Renaming refreshes the slug — keep the detail URL valid so the
+          // old (now stale) slug isn't left pointing at a 404.
+          if (updated?.slug && updated.slug !== campaign.slug) {
+            navigate(`/campaigns/${updated.slug}`, { replace: true });
+          }
         },
         onError: (e: any) =>
           toast.error(e?.response?.data?.message ?? "Could not update campaign"),

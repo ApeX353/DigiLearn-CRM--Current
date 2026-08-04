@@ -865,11 +865,15 @@ export class LeadAutoRouterService {
     const chosen = leastLoaded(eligible);
     if (!chosen) return null;
 
-    const count = load.get(chosen.id) ?? 0;
+    // Plain, non-confusing wording. The old `(N open)` exposed the rep's
+    // RUNNING load mid-distribution — a number that climbed lead-to-lead and
+    // confused managers — so it's dropped. The territory match is what
+    // actually justifies the pick; fairness is called out only when more than
+    // one rep covers the province.
     const reason =
       territorial.length > 1
-        ? `${chosen.name} covers ${schoolProvince} and is the lightest-loaded of the ${territorial.length} reps who cover it (${count} open)`
-        : `${chosen.name} covers ${schoolProvince} (${count} open)`;
+        ? `${chosen.name} covers ${schoolProvince} — lightest-loaded of the ${territorial.length} reps who cover it`
+        : `${schoolProvince} is in ${chosen.name}'s territory`;
     return { recipient: chosen, reason };
   }
 

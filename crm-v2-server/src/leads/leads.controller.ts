@@ -37,6 +37,7 @@ import { CheckPermission } from '../auth/decorators/permissions.decorator';
 import { CaslAbility } from '../auth/decorators/casl-ability.decorator';
 import type { AppAbility } from '../auth/casl/casl-ability.factory';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { LeadImportBatchStatus } from './entities/lead-import-batch.entity';
 
 @ApiTags('Leads')
 @Controller('leads')
@@ -134,9 +135,18 @@ export class LeadsController {
 
   @Get('import/batches')
   @Roles('admin', 'sales_manager')
-  @ApiOperation({ summary: 'Pending import batches awaiting approval' })
-  async listImportBatches() {
-    return { success: true, data: await this.leadsXlsxImport.listPending() };
+  @ApiOperation({ summary: 'Import batches by status (default: pending)' })
+  async listImportBatches(@Query('status') status?: string) {
+    const filter =
+      status === 'approved'
+        ? LeadImportBatchStatus.APPROVED
+        : status === 'rejected'
+          ? LeadImportBatchStatus.REJECTED
+          : LeadImportBatchStatus.PENDING;
+    return {
+      success: true,
+      data: await this.leadsXlsxImport.listPending(filter),
+    };
   }
 
   @Get('import/batches/:id')

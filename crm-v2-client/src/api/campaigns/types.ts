@@ -9,6 +9,8 @@ export const CAMPAIGN_TYPE_LABELS: Record<CampaignType, string> = {
 
 export interface Campaign {
   id: string;
+  /** Human URL slug derived from the name (unique). May be null on legacy rows. */
+  slug: string | null;
   name: string;
   type: CampaignType;
   start_date: string;

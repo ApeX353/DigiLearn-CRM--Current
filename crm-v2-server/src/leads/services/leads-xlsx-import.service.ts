@@ -312,10 +312,13 @@ export class LeadsXlsxImportService {
     }
   }
 
-  /** Pending batches for the approval queue (newest first), rows omitted. */
-  async listPending(): Promise<Partial<LeadImportBatch>[]> {
+  /** Batches for the approval queue (newest first), rows omitted. Defaults to
+   *  pending; pass 'approved' for the read-only approved view. */
+  async listPending(
+    status: LeadImportBatchStatus = LeadImportBatchStatus.PENDING,
+  ): Promise<Partial<LeadImportBatch>[]> {
     const batches = await this.batches.find({
-      where: { status: LeadImportBatchStatus.PENDING },
+      where: { status },
       order: { created_at: 'DESC' },
       relations: ['uploaded_by', 'campaign'],
     });

@@ -11,6 +11,10 @@ import { Deal } from '../deals/entities/deal.entity';
 import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
 
+/** Canonical UUID v1–v5 shape — used to tell a raw id from a slug. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface CurrencyBucket {
   currency: string;
   in_approval: string;
@@ -52,12 +56,13 @@ export class CampaignsService {
     private readonly requisitionRepo: Repository<CashRequisition>,
   ) {}
 
-  create(dto: CreateCampaignDto, userId: string): Promise<Campaign> {
+  async create(dto: CreateCampaignDto, userId: string): Promise<Campaign> {
     const campaign = this.campaignRepo.create({
       ...dto,
       currency: dto.currency ?? 'USD',
       // R6: default the entry date to today when not supplied.
       entry_date: dto.entry_date ?? new Date().toISOString().slice(0, 10),
+      slug: await this.uniqueSlug(dto.name),
       created_by_id: userId,
     });
     return this.campaignRepo.save(campaign);
@@ -70,19 +75,71 @@ export class CampaignsService {
     });
   }
 
-  async findOne(id: string): Promise<Campaign> {
+  /**
+   * Resolve a campaign by uuid OR slug. Postgres would raise a cast error if
+   * we passed a non-uuid string into the uuid `id` column, so we branch on
+   * the shape of the identifier: a canonical uuid looks up by id, anything
+   * else looks up by slug. Existing uuid links keep working unchanged.
+   */
+  async findOne(idOrSlug: string): Promise<Campaign> {
+    const where = UUID_RE.test(idOrSlug)
+      ? { id: idOrSlug }
+      : { slug: idOrSlug };
     const campaign = await this.campaignRepo.findOne({
-      where: { id },
+      where,
       relations: ['created_by'],
     });
-    if (!campaign) throw new NotFoundException(`Campaign ${id} not found`);
+    if (!campaign)
+      throw new NotFoundException(`Campaign ${idOrSlug} not found`);
     return campaign;
+  }
+
+  /**
+   * Slugify a name into a URL-safe token: lowercased, accents stripped,
+   * non-alphanumerics collapsed to single dashes, trimmed. Falls back to
+   * `campaign` if the name has no usable characters.
+   */
+  private slugify(name: string): string {
+    const base = name
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 180);
+    return base || 'campaign';
+  }
+
+  /**
+   * Produce a slug that is unique across campaigns. On collision, append
+   * `-2`, `-3`, … `excludeId` lets an update keep/refresh its own slug
+   * without colliding with itself.
+   */
+  private async uniqueSlug(name: string, excludeId?: string): Promise<string> {
+    const base = this.slugify(name);
+    let candidate = base;
+    let n = 2;
+    // Loop is bounded in practice — collisions are rare and each iteration
+    // narrows toward a free suffix.
+    for (;;) {
+      const existing = await this.campaignRepo.findOne({
+        where: { slug: candidate },
+        select: ['id'],
+      });
+      if (!existing || existing.id === excludeId) return candidate;
+      candidate = `${base}-${n++}`;
+    }
   }
 
   /** Edit a campaign — fixes a wrong date, name, type, etc. (TEST-BACKLOG #17). */
   async update(id: string, dto: UpdateCampaignDto): Promise<Campaign> {
     const campaign = await this.findOne(id);
-    if (dto.name !== undefined) campaign.name = dto.name;
+    if (dto.name !== undefined) {
+      campaign.name = dto.name;
+      // Refresh the slug from the new name, keeping it unique (and allowing
+      // this campaign to retain its own slug rather than colliding with it).
+      campaign.slug = await this.uniqueSlug(dto.name, campaign.id);
+    }
     if (dto.type !== undefined) campaign.type = dto.type;
     if (dto.start_date !== undefined) campaign.start_date = dto.start_date;
     if (dto.end_date !== undefined) campaign.end_date = dto.end_date ?? null;

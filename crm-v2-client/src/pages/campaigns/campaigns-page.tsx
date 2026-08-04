@@ -113,7 +113,7 @@ export default function CampaignsPage() {
                 <tr key={c.id} className="hover:bg-muted/30" data-testid="campaign-row">
                   <td className="px-3 py-2">
                     <Link
-                      to={`/campaigns/${c.id}`}
+                      to={`/campaigns/${c.slug ?? c.id}`}
                       className="font-medium text-primary underline-offset-2 hover:underline"
                     >
                       {c.name}
@@ -123,12 +123,12 @@ export default function CampaignsPage() {
                     <Badge variant="outline">{CAMPAIGN_TYPE_LABELS[c.type]}</Badge>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {format(new Date(c.start_date), "MMM d, yyyy")}
-                    {c.end_date && ` – ${format(new Date(c.end_date), "MMM d, yyyy")}`}
+                    {format(new Date(c.start_date), "dd/MM/yyyy")}
+                    {c.end_date && ` – ${format(new Date(c.end_date), "dd/MM/yyyy")}`}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {c.entry_date
-                      ? format(new Date(c.entry_date), "MMM d, yyyy")
+                      ? format(new Date(c.entry_date), "dd/MM/yyyy")
                       : "—"}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">

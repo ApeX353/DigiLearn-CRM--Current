@@ -36,6 +36,16 @@ export class Campaign {
   @Column({ type: 'varchar', length: 200 })
   name: string;
 
+  /**
+   * Human URL slug derived from `name` (unique). Used in `/campaigns/:slug`
+   * so detail URLs no longer expose the raw uuid. Nullable so legacy rows
+   * created before the column existed still load; the detail lookup always
+   * falls back to the uuid when a slug is missing.
+   */
+  @Index({ unique: true })
+  @Column({ type: 'text', nullable: true, unique: true })
+  slug: string | null;
+
   @Column({ type: 'enum', enum: CampaignType, default: CampaignType.OTHER })
   type: CampaignType;
 

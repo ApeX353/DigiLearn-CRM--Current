@@ -426,6 +426,36 @@ function repName(p: AssignmentProposal): string {
   );
 }
 
+type SalesTeamRep = {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  roles?: { name: string }[];
+  territory_provinces?: string | null;
+};
+
+/**
+ * Valid redirect / rebalance targets = the sales team: managers (Kim, Busi)
+ * + reps who actually carry a territory (Manake, Tanya). Excludes seed
+ * sales_reps with no territory so the picker isn't cluttered with non-team
+ * accounts. Shared by the pending queue, the rebalance panel and the rejected
+ * list so they always offer the same people.
+ */
+function useSalesTeamReps(): SalesTeamRep[] {
+  const staffQuery = useStaff({ status: "active", page: 1, limit: 100 });
+  const allStaff: SalesTeamRep[] =
+    (staffQuery.data as any)?.data ??
+    (staffQuery.data as any)?.items ??
+    (Array.isArray(staffQuery.data) ? staffQuery.data : []);
+  return allStaff.filter((u) => {
+    const names = (u.roles ?? []).map((r) => r.name);
+    return (
+      names.includes("sales_manager") ||
+      (names.includes("sales_rep") && !!u.territory_provinces)
+    );
+  });
+}
+
 /**
  * AUTO1 — the auto-assign engine's suggestions. Nothing is assigned
  * until a manager approves here; the reason column says why each rep
@@ -435,15 +465,11 @@ function repName(p: AssignmentProposal): string {
 function AutoAssignQueue() {
   const { data: pending = [], isLoading, refetch } =
     useAssignmentProposals("pending");
-  const { data: rejected = [], refetch: refetchRejected } =
-    useAssignmentProposals("rejected");
   const { data: projection = [] } = useAssignmentProjection();
   const approve = useApproveAssignmentProposal();
   const reject = useRejectAssignmentProposal();
   const approveBatch = useApproveAssignmentProposalBatch();
   const rejectBatch = useRejectAssignmentProposalBatch();
-  const redirectRejected = useRedirectRejectedProposal();
-  const sendToNewLeads = useSendProposalToNewLeads();
   const runAutoAssign = useRunAutoAssign();
   const rebalance = useRebalanceLeads();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
@@ -451,8 +477,6 @@ function AutoAssignQueue() {
   const [repFilter, setRepFilter] = useState<string | null>(null);
   // R4/R8 — bulk multi-select on the pending list.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  // R5 — which sub-view of the auto-assign tab is showing.
-  const [view, setView] = useState<"pending" | "rejected">("pending");
   // R-UX: live fill for "Approve all" — {done,total} while a run is in flight.
   const [approveProgress, setApproveProgress] = useState<{
     done: number;
@@ -463,34 +487,12 @@ function AutoAssignQueue() {
   const [rbTo, setRbTo] = useState<string>("");
   const [rbCount, setRbCount] = useState<string>("");
   const [rbResult, setRbResult] = useState<RebalanceResult | null>(null);
-  const staffQuery = useStaff({ status: "active", page: 1, limit: 100 });
-  const allStaff: Array<{
-    id: string;
-    first_name?: string;
-    last_name?: string;
-    roles?: { name: string }[];
-    territory_provinces?: string | null;
-  }> =
-    (staffQuery.data as any)?.data ??
-    (staffQuery.data as any)?.items ??
-    (Array.isArray(staffQuery.data) ? staffQuery.data : []);
-  // Valid redirect targets = the sales team: managers (Kim, Busi) + reps who
-  // actually carry a territory (Manake, Tanya). Excludes seed sales_reps with
-  // no territory so the picker isn't cluttered with non-team accounts.
-  const reps = allStaff.filter((u) => {
-    const names = (u.roles ?? []).map((r) => r.name);
-    return (
-      names.includes("sales_manager") ||
-      (names.includes("sales_rep") && !!u.territory_provinces)
-    );
-  });
+  const reps = useSalesTeamReps();
   const busy =
     approve.isPending ||
     reject.isPending ||
     approveBatch.isPending ||
     rejectBatch.isPending;
-  const rejectedBusy =
-    redirectRejected.isPending || sendToNewLeads.isPending;
 
   const runDistribution = (limit: number | null) => {
     runAutoAssign.mutate(limit, {
@@ -599,38 +601,9 @@ function AutoAssignQueue() {
         );
         setSelected(new Set());
         refetch();
-        refetchRejected();
       },
       onError: (err: any) =>
         toast.error(err?.response?.data?.message || "Batch reject failed"),
-    });
-  };
-
-  // R5 — rejected-row actions.
-  const redirectRejectedRow = (p: AssignmentProposal, repId: string) => {
-    if (!repId) return;
-    redirectRejected.mutate(
-      { id: p.id, repId },
-      {
-        onSuccess: () => {
-          toast.success("Lead redirected and assigned");
-          refetchRejected();
-          refetch();
-        },
-        onError: (err: any) =>
-          toast.error(err?.response?.data?.message || "Could not redirect"),
-      },
-    );
-  };
-
-  const sendRejectedToNewLeads = (p: AssignmentProposal) => {
-    sendToNewLeads.mutate(p.id, {
-      onSuccess: () => {
-        toast.success("Lead sent back to New Leads");
-        refetchRejected();
-      },
-      onError: (err: any) =>
-        toast.error(err?.response?.data?.message || "Could not send to New Leads"),
     });
   };
 
@@ -929,47 +902,21 @@ function AutoAssignQueue() {
     filteredPending.length > 0 &&
     filteredPending.every((p) => selected.has(p.id));
 
-  // R5 — a small Pending / Rejected toggle inside the auto-assign tab. The
-  // Rejected view is where a rejected suggestion gets redirected or sent back
-  // to New Leads, rather than just discarded.
-  const viewToggle = (
-    <div
-      className="flex items-center gap-2"
-      data-testid="auto-assign-view-toggle"
-    >
-      <Button
-        size="sm"
-        variant={view === "pending" ? "default" : "outline"}
-        onClick={() => setView("pending")}
-        data-testid="auto-assign-view-pending"
-      >
-        Pending{pending.length > 0 ? ` (${pending.length})` : ""}
-      </Button>
-      <Button
-        size="sm"
-        variant={view === "rejected" ? "default" : "outline"}
-        onClick={() => setView("rejected")}
-        data-testid="auto-assign-view-rejected"
-      >
-        Rejected{rejected.length > 0 ? ` (${rejected.length})` : ""}
-      </Button>
-    </div>
-  );
-
+  // AUTO1 — this tab now shows PENDING suggestions only. Rejected suggestions
+  // live under the top-level "Rejected" tab (one place for everything
+  // rejected), rendered by <AutoAssignRejectedList />.
   return (
     <div className="space-y-3">
       {toolbar}
-      {viewToggle}
-      {view === "pending" ? (
-        pending.length === 0 ? (
-          <div className="p-12 text-center text-sm text-muted-foreground">
-            No assignment suggestions waiting. Tap{" "}
-            <strong>Run auto-assign</strong> to distribute unworked, unassigned
-            leads by territory and workload — the suggestions land here for you
-            to approve. Nothing is assigned to anyone until you approve it.
-          </div>
-        ) : (
-          <>
+      {pending.length === 0 ? (
+        <div className="p-12 text-center text-sm text-muted-foreground">
+          No assignment suggestions waiting. Tap{" "}
+          <strong>Run auto-assign</strong> to distribute unworked, unassigned
+          leads by territory and workload — the suggestions land here for you to
+          approve. Nothing is assigned to anyone until you approve it.
+        </div>
+      ) : (
+        <>
             {perRep.size > 0 && (
               <div className="flex flex-wrap gap-2" data-testid="rep-tiles">
                 <button
@@ -1157,91 +1104,301 @@ function AutoAssignQueue() {
               </table>
             </div>
           </>
-        )
-      ) : rejected.length === 0 ? (
-        <div className="p-12 text-center text-sm text-muted-foreground">
+        )}
+    </div>
+  );
+}
+
+/**
+ * CHANGE 2/3 — the auto-assign REJECTED suggestions, surfaced under the
+ * top-level "Rejected" tab so managers have one place for everything rejected.
+ * Each row can be redirected to a chosen rep/manager (turns the reject into an
+ * assignment) or sent back to the New Leads pool. Adds multi-select + a sticky
+ * bulk bar that loops the single-row hooks over the selection (client-side; no
+ * new server endpoint).
+ */
+function AutoAssignRejectedList() {
+  const { data: rejected = [], refetch: refetchRejected } =
+    useAssignmentProposals("rejected");
+  const redirectRejected = useRedirectRejectedProposal();
+  const sendToNewLeads = useSendProposalToNewLeads();
+  const reps = useSalesTeamReps();
+
+  // Multi-select + a client-side "busy" flag while a bulk loop is in flight.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkRepId, setBulkRepId] = useState<string>("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const rejectedBusy =
+    redirectRejected.isPending || sendToNewLeads.isPending || bulkBusy;
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(rejected.map((p) => p.id)) : new Set());
+  };
+  const allSelected =
+    rejected.length > 0 && rejected.every((p) => selected.has(p.id));
+
+  // Single-row actions (kept alongside the bulk bar).
+  const redirectRejectedRow = (p: AssignmentProposal, repId: string) => {
+    if (!repId) return;
+    redirectRejected.mutate(
+      { id: p.id, repId },
+      {
+        onSuccess: () => {
+          toast.success("Lead redirected and assigned");
+          refetchRejected();
+        },
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message || "Could not redirect"),
+      },
+    );
+  };
+
+  const sendRejectedToNewLeads = (p: AssignmentProposal) => {
+    sendToNewLeads.mutate(p.id, {
+      onSuccess: () => {
+        toast.success("Lead sent back to New Leads");
+        refetchRejected();
+      },
+      onError: (err: any) =>
+        toast.error(
+          err?.response?.data?.message || "Could not send to New Leads",
+        ),
+    });
+  };
+
+  // Bulk — loop the single-row hooks over the selection, await each, toast a
+  // summary, then refetch. No new server endpoint (per the brief).
+  const bulkRedirect = async () => {
+    if (!bulkRepId) {
+      toast.error("Pick a rep to redirect the selected leads to");
+      return;
+    }
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    let done = 0;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await redirectRejected.mutateAsync({ id, repId: bulkRepId });
+        done++;
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    toast.success(`${done} redirected${failed ? `, ${failed} failed` : ""}`);
+    setSelected(new Set());
+    setBulkRepId("");
+    refetchRejected();
+  };
+
+  const bulkSendToNewLeads = async () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    let done = 0;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await sendToNewLeads.mutateAsync(id);
+        done++;
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    toast.success(
+      `${done} sent to New Leads${failed ? `, ${failed} failed` : ""}`,
+    );
+    setSelected(new Set());
+    refetchRejected();
+  };
+
+  return (
+    <div className="space-y-3" data-testid="auto-assign-rejected-section">
+      <div className="flex items-center gap-2">
+        <XCircle className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-semibold">
+          Auto-assign — rejected suggestions
+          {rejected.length > 0 ? ` (${rejected.length})` : ""}
+        </h3>
+      </div>
+      {rejected.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">
           No rejected suggestions. When you reject a suggestion it lands here so
           you can redirect it to another rep/manager or send it back to New
           Leads — a reject is never just discarded.
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full" data-testid="auto-assign-rejected-queue">
-            <thead className="bg-muted/50">
-              <tr className="text-left text-xs font-medium uppercase tracking-wide">
-                <th className="p-3">Lead</th>
-                <th className="p-3 w-44">Was suggested to</th>
-                <th className="p-3">Why this rep</th>
-                <th className="p-3 w-36">Rejected</th>
-                <th className="p-3 w-80">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rejected.map((p) => (
-                <tr key={p.id} className="border-t hover:bg-muted/30">
-                  <td className="p-3 align-top">
-                    <Link
-                      to={`/leads/${p.lead_id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {p.lead?.lead_name || p.lead_id.slice(0, 8)}
-                    </Link>
-                    {p.lead?.school?.name && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {p.lead.school.name}
-                        {p.lead.school.province
-                          ? ` — ${p.lead.school.province}`
-                          : ""}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-3 align-top text-sm font-medium">
-                    {repName(p)}
-                  </td>
-                  <td className="p-3 align-top text-sm max-w-[40ch]">
-                    <div className="line-clamp-2 break-words" title={p.reason}>
-                      {p.reason}
-                    </div>
-                  </td>
-                  <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
-                    {ago(p.decided_at || p.created_at)}
-                  </td>
-                  <td className="p-3 align-top whitespace-nowrap">
-                    <div className="flex gap-2">
-                      <select
-                        className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
-                        value=""
-                        disabled={rejectedBusy || reps.length === 0}
-                        onChange={(e) => redirectRejectedRow(p, e.target.value)}
-                        data-testid={`auto-assign-redirect-rejected-${p.id}`}
-                        title="Assign this lead to a rep or manager"
-                      >
-                        <option value="">Redirect to…</option>
-                        {reps.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {[r.first_name, r.last_name]
-                              .filter(Boolean)
-                              .join(" ") || "rep"}
-                          </option>
-                        ))}
-                      </select>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => sendRejectedToNewLeads(p)}
-                        disabled={rejectedBusy}
-                        data-testid={`auto-assign-to-new-leads-${p.id}`}
-                      >
-                        <Undo2 className="mr-1.5 h-3 w-3" />
-                        Send to New Leads
-                      </Button>
-                    </div>
-                  </td>
+        <>
+          {/* Bulk bar — shown when ≥1 row is selected. */}
+          {selected.size > 0 && (
+            <div
+              className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-2 shadow-sm"
+              data-testid="auto-assign-rejected-bulk-bar"
+            >
+              <span className="text-sm font-medium">
+                {selected.size} selected
+              </span>
+              <select
+                className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                value={bulkRepId}
+                disabled={rejectedBusy || reps.length === 0}
+                onChange={(e) => setBulkRepId(e.target.value)}
+                data-testid="auto-assign-rejected-bulk-rep"
+              >
+                <option value="">Redirect selected to…</option>
+                {reps.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {[r.first_name, r.last_name].filter(Boolean).join(" ") ||
+                      "rep"}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                onClick={bulkRedirect}
+                disabled={rejectedBusy || !bulkRepId}
+                data-testid="auto-assign-rejected-bulk-redirect"
+              >
+                {bulkBusy ? (
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                ) : (
+                  <ArrowRightLeft className="mr-1.5 h-3 w-3" />
+                )}
+                Redirect selected ({selected.size})
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={bulkSendToNewLeads}
+                disabled={rejectedBusy}
+                data-testid="auto-assign-rejected-bulk-to-new-leads"
+              >
+                {bulkBusy ? (
+                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                ) : (
+                  <Undo2 className="mr-1.5 h-3 w-3" />
+                )}
+                Send selected to New Leads
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+            </div>
+          )}
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full" data-testid="auto-assign-rejected-queue">
+              <thead className="bg-muted/50">
+                <tr className="text-left text-xs font-medium uppercase tracking-wide">
+                  <th className="p-3 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all"
+                      checked={allSelected}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                      data-testid="auto-assign-rejected-select-all"
+                    />
+                  </th>
+                  <th className="p-3">Lead</th>
+                  <th className="p-3 w-44">Was suggested to</th>
+                  <th className="p-3">Why this rep</th>
+                  <th className="p-3 w-36">Rejected</th>
+                  <th className="p-3 w-80">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y">
+                {rejected.map((p) => (
+                  <tr key={p.id} className="border-t hover:bg-muted/30">
+                    <td className="p-3 align-top">
+                      <input
+                        type="checkbox"
+                        aria-label="Select row"
+                        checked={selected.has(p.id)}
+                        onChange={() => toggleOne(p.id)}
+                        data-testid={`auto-assign-rejected-select-${p.id}`}
+                      />
+                    </td>
+                    <td className="p-3 align-top">
+                      <Link
+                        to={`/leads/${p.lead_id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {p.lead?.lead_name || p.lead_id.slice(0, 8)}
+                      </Link>
+                      {p.lead?.school?.name && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {p.lead.school.name}
+                          {p.lead.school.province
+                            ? ` — ${p.lead.school.province}`
+                            : ""}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3 align-top text-sm font-medium">
+                      {repName(p)}
+                    </td>
+                    <td className="p-3 align-top text-sm max-w-[40ch]">
+                      <div className="line-clamp-2 break-words" title={p.reason}>
+                        {p.reason}
+                      </div>
+                    </td>
+                    <td className="p-3 align-top text-xs text-muted-foreground whitespace-nowrap">
+                      {ago(p.decided_at || p.created_at)}
+                    </td>
+                    <td className="p-3 align-top whitespace-nowrap">
+                      <div className="flex gap-2">
+                        <select
+                          className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                          value=""
+                          disabled={rejectedBusy || reps.length === 0}
+                          onChange={(e) =>
+                            redirectRejectedRow(p, e.target.value)
+                          }
+                          data-testid={`auto-assign-redirect-rejected-${p.id}`}
+                          title="Assign this lead to a rep or manager"
+                        >
+                          <option value="">Redirect to…</option>
+                          {reps.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {[r.first_name, r.last_name]
+                                .filter(Boolean)
+                                .join(" ") || "rep"}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => sendRejectedToNewLeads(p)}
+                          disabled={rejectedBusy}
+                          data-testid={`auto-assign-to-new-leads-${p.id}`}
+                        >
+                          <Undo2 className="mr-1.5 h-3 w-3" />
+                          Send to New Leads
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1365,7 +1522,10 @@ export default function ApprovalQueuePage() {
                 <QueueTable status="approved" kind={kind} />
               </TabsContent>
               <TabsContent value="rejected">
-                <QueueTable status="rejected" kind={kind} />
+                <div className="space-y-6">
+                  <QueueTable status="rejected" kind={kind} />
+                  <AutoAssignRejectedList />
+                </div>
               </TabsContent>
               <TabsContent value="auto-assign">
                 <AutoAssignQueue />

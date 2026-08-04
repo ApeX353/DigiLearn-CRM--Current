@@ -269,27 +269,55 @@ function BatchDetail({ id, onBack }: { id: string; onBack: () => void }) {
   );
 }
 
-/** One staged batch, as a clickable row that opens its detail. */
-function BatchRow({ b, onOpen }: { b: ImportBatch; onOpen: () => void }) {
+/** One batch card. Pending batches are clickable (open the review detail);
+ *  approved batches are read-only and show what the approval created + when. */
+function BatchRow({ b, onOpen }: { b: ImportBatch; onOpen?: () => void }) {
+  const meta = (
+    <div className="flex items-center gap-3">
+      <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+      <div>
+        <div className="font-medium">{b.filename ?? "Import"}</div>
+        <div className="text-xs text-muted-foreground">
+          by{" "}
+          {[b.uploaded_by?.first_name, b.uploaded_by?.last_name]
+            .filter(Boolean)
+            .join(" ") || "—"}
+          {fmtDate(b.created_at) ? ` · ${fmtDate(b.created_at)}` : ""}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Approved (read-only): no approve/skip, show leads created and when.
+  if (!onOpen) {
+    return (
+      <div
+        className="flex w-full items-center justify-between rounded border p-3 text-left"
+        data-testid="import-batch-row"
+      >
+        {meta}
+        <div className="flex items-center gap-2">
+          <Badge className="bg-green-100 text-green-800">
+            {b.created_count ?? 0} created
+          </Badge>
+          {fmtDate(b.decided_at) && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <CalendarDays className="h-3.5 w-3.5" /> {fmtDate(b.decided_at)}
+            </span>
+          )}
+          <Badge variant="secondary">{b.total_rows} rows</Badge>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={onOpen}
       className="flex w-full items-center justify-between rounded border p-3 text-left hover:bg-muted/40"
       data-testid="import-batch-row"
     >
-      <div className="flex items-center gap-3">
-        <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
-        <div>
-          <div className="font-medium">{b.filename ?? "Import"}</div>
-          <div className="text-xs text-muted-foreground">
-            by{" "}
-            {[b.uploaded_by?.first_name, b.uploaded_by?.last_name]
-              .filter(Boolean)
-              .join(" ") || "—"}
-            {fmtDate(b.created_at) ? ` · ${fmtDate(b.created_at)}` : ""}
-          </div>
-        </div>
-      </div>
+      {meta}
       <div className="flex items-center gap-2">
         <Badge className="bg-green-100 text-green-800">
           {b.importable_count} ready
@@ -314,6 +342,8 @@ interface CampaignFolder {
   leadCount: number;
   readyCount: number;
   dupCount: number;
+  /** Leads actually created on approval (approved view only). */
+  createdCount: number;
 }
 
 const NO_CAMPAIGN_KEY = "__none__";
@@ -336,6 +366,7 @@ function groupIntoFolders(batches: ImportBatch[]): CampaignFolder[] {
         leadCount: 0,
         readyCount: 0,
         dupCount: 0,
+        createdCount: 0,
       };
       byKey.set(key, folder);
     }
@@ -343,6 +374,7 @@ function groupIntoFolders(batches: ImportBatch[]): CampaignFolder[] {
     folder.leadCount += b.total_rows ?? 0;
     folder.readyCount += b.importable_count ?? 0;
     folder.dupCount += b.duplicate_count ?? 0;
+    folder.createdCount += b.created_count ?? 0;
     // Fall back to the earliest batch submission date when the campaign has
     // no entry date (or there is no campaign).
     if (!b.campaign?.entry_date && b.created_at) {
@@ -357,27 +389,68 @@ function groupIntoFolders(batches: ImportBatch[]): CampaignFolder[] {
 
 /** The "Import approvals" section of the manager Approval Queue. */
 export function ImportApprovalsQueue() {
-  const { data: batches = [], isLoading } = useImportBatches();
+  // Pending = batches awaiting a decision (approve/skip). Approved = read-only
+  // record of what each approval created, so approved batches no longer sit
+  // mixed in with the pending ones.
+  const [tab, setTab] = useState<"pending" | "approved">("pending");
+  const { data: batches = [], isLoading } = useImportBatches(tab);
   const [openId, setOpenId] = useState<string | null>(null);
   // Folders are collapsed by default; expanding shows the batches inside.
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
 
+  const approved = tab === "approved";
   const folders = useMemo(() => groupIntoFolders(batches), [batches]);
 
   if (openId) return <BatchDetail id={openId} onBack={() => setOpenId(null)} />;
 
+  const tabs = (
+    <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
+      <Button
+        variant={tab === "pending" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => setTab("pending")}
+        data-testid="import-tab-pending"
+      >
+        Pending
+      </Button>
+      <Button
+        variant={tab === "approved" ? "default" : "ghost"}
+        size="sm"
+        onClick={() => setTab("approved")}
+        data-testid="import-tab-approved"
+      >
+        Approved
+      </Button>
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading imports…
+      <div className="space-y-2">
+        {tabs}
+        <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading imports…
+        </div>
       </div>
     );
   }
   if (batches.length === 0) {
     return (
-      <div className="py-10 text-center text-sm text-muted-foreground">
-        No imports waiting for approval. Use <strong>Import Leads</strong> on the
-        Leads page (or inside a campaign) to stage one.
+      <div className="space-y-2">
+        {tabs}
+        <div className="py-10 text-center text-sm text-muted-foreground">
+          {approved ? (
+            <>
+              No approved imports yet. Once you approve a batch it moves here
+              with a record of what it created.
+            </>
+          ) : (
+            <>
+              No imports waiting for approval. Use <strong>Import Leads</strong>{" "}
+              on the Leads page (or inside a campaign) to stage one.
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -385,14 +458,22 @@ export function ImportApprovalsQueue() {
   const totalRows = batches.reduce((s, b) => s + (b.total_rows ?? 0), 0);
   const totalReady = batches.reduce((s, b) => s + (b.importable_count ?? 0), 0);
   const totalDup = batches.reduce((s, b) => s + (b.duplicate_count ?? 0), 0);
+  const totalCreated = batches.reduce((s, b) => s + (b.created_count ?? 0), 0);
 
   return (
     <div className="space-y-2">
+      {tabs}
       <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-2 text-sm">
         <Badge variant="secondary">{batches.length} batch{batches.length === 1 ? "" : "es"}</Badge>
         <Badge variant="secondary">{totalRows} rows</Badge>
-        <Badge className="bg-green-100 text-green-800">{totalReady} ready</Badge>
-        <Badge className="bg-amber-100 text-amber-800">{totalDup} duplicate{totalDup === 1 ? "" : "s"}</Badge>
+        {approved ? (
+          <Badge className="bg-green-100 text-green-800">{totalCreated} lead{totalCreated === 1 ? "" : "s"} created</Badge>
+        ) : (
+          <>
+            <Badge className="bg-green-100 text-green-800">{totalReady} ready</Badge>
+            <Badge className="bg-amber-100 text-amber-800">{totalDup} duplicate{totalDup === 1 ? "" : "s"}</Badge>
+          </>
+        )}
       </div>
       {folders.map((f) => {
         const open = !!openFolders[f.key];
@@ -422,13 +503,21 @@ export function ImportApprovalsQueue() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <Badge className="bg-green-100 text-green-800">
-                  {f.readyCount} ready
-                </Badge>
-                {f.dupCount > 0 && (
-                  <Badge className="bg-amber-100 text-amber-800">
-                    {f.dupCount} dup
+                {approved ? (
+                  <Badge className="bg-green-100 text-green-800">
+                    {f.createdCount} created
                   </Badge>
+                ) : (
+                  <>
+                    <Badge className="bg-green-100 text-green-800">
+                      {f.readyCount} ready
+                    </Badge>
+                    {f.dupCount > 0 && (
+                      <Badge className="bg-amber-100 text-amber-800">
+                        {f.dupCount} dup
+                      </Badge>
+                    )}
+                  </>
                 )}
                 <Badge variant="secondary">
                   {f.leadCount} lead{f.leadCount === 1 ? "" : "s"}
@@ -438,7 +527,11 @@ export function ImportApprovalsQueue() {
             {open && (
               <div className="space-y-2 border-t p-2">
                 {f.batches.map((b) => (
-                  <BatchRow key={b.id} b={b} onOpen={() => setOpenId(b.id)} />
+                  <BatchRow
+                    key={b.id}
+                    b={b}
+                    onOpen={approved ? undefined : () => setOpenId(b.id)}
+                  />
                 ))}
               </div>
             )}

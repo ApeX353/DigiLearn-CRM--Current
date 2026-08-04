@@ -50,6 +50,8 @@ export interface ImportBatch {
   created_count: number | null;
   campaign_id: string | null;
   created_at: string;
+  /** Set when the batch was approved/rejected — drives the "Approved" view. */
+  decided_at?: string | null;
   uploaded_by?: { first_name?: string; last_name?: string } | null;
   /** R7: entry_date drives the campaign "folder" header on the approval queue. */
   campaign?: { id: string; name: string; entry_date?: string | null } | null;
@@ -58,16 +60,21 @@ export interface ImportBatch {
 
 export const importBatchKeys = {
   all: ["import-batches"] as const,
+  list: (status: "pending" | "approved") =>
+    ["import-batches", { status }] as const,
   detail: (id: string) => ["import-batches", id] as const,
 };
 
-/** Pending batches awaiting approval (rows omitted). Polls so the nav badge
+/** Import batches for the approval queue (rows omitted). Defaults to pending;
+ *  pass "approved" for the read-only Approved view. Polls so the nav badge
  *  updates and beeps soon after a new import comes in. */
-export function useImportBatches() {
+export function useImportBatches(status: "pending" | "approved" = "pending") {
   return useQuery({
-    queryKey: importBatchKeys.all,
+    queryKey: importBatchKeys.list(status),
     queryFn: async (): Promise<ImportBatch[]> => {
-      const res = await apiClientAuth.get("/leads/import/batches");
+      const res = await apiClientAuth.get("/leads/import/batches", {
+        params: { status },
+      });
       return res.data?.data ?? [];
     },
     refetchInterval: 30_000,
