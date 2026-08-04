@@ -453,6 +453,11 @@ function AutoAssignQueue() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // R5 — which sub-view of the auto-assign tab is showing.
   const [view, setView] = useState<"pending" | "rejected">("pending");
+  // R-UX: live fill for "Approve all" — {done,total} while a run is in flight.
+  const [approveProgress, setApproveProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   // Rebalance panel state.
   const [rbFrom, setRbFrom] = useState<string>("");
   const [rbTo, setRbTo] = useState<string>("");
@@ -517,20 +522,34 @@ function AutoAssignQueue() {
     });
   };
 
-  const approveAll = () => {
-    approveBatch.mutate(
-      pending.map((p) => p.id),
-      {
-        onSuccess: (r) => {
-          toast.success(
-            `${r.approved} assigned${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`,
-          );
-          refetch();
-        },
-        onError: (err: any) =>
-          toast.error(err?.response?.data?.message || "Batch approve failed"),
-      },
-    );
+  // Approve every pending proposal in small chunks so the progress bar fills
+  // as each batch lands (better feedback than a lone spinner for hundreds).
+  const approveAll = async () => {
+    const ids = pending.map((p) => p.id);
+    if (ids.length === 0) return;
+    const CHUNK = 20;
+    let approved = 0;
+    let skipped = 0;
+    setApproveProgress({ done: 0, total: ids.length });
+    try {
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const r = await approveBatch.mutateAsync(ids.slice(i, i + CHUNK));
+        approved += r.approved;
+        skipped += r.skipped.length;
+        setApproveProgress({
+          done: Math.min(i + CHUNK, ids.length),
+          total: ids.length,
+        });
+      }
+      toast.success(
+        `${approved} assigned${skipped ? `, ${skipped} skipped` : ""}`,
+      );
+      refetch();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Batch approve failed");
+    } finally {
+      setApproveProgress(null);
+    }
   };
 
   const redirect = (p: AssignmentProposal, repId: string) => {
@@ -751,6 +770,23 @@ function AutoAssignQueue() {
             )}
             Approve all {pending.length}
           </Button>
+        )}
+        {approveProgress && (
+          <div className="w-full max-w-xs" data-testid="approve-all-progress">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                style={{
+                  width: `${Math.round(
+                    (approveProgress.done / approveProgress.total) * 100,
+                  )}%`,
+                }}
+              />
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+              Approving {approveProgress.done} / {approveProgress.total}…
+            </div>
+          </div>
         )}
       </div>
       {preview && preview.length > 0 && (
