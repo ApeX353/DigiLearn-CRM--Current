@@ -165,6 +165,28 @@ export class DashboardService {
   }
 
   private async resolveDailyLeadsTarget(): Promise<number> {
+    // FIX #4: the Compliance tab is now the SINGLE SOURCE OF TRUTH for
+    // the daily contact target. `daily_contacts_per_rep` always
+    // resolves — to the admin's explicit value set in
+    // Settings → Compliance, or its built-in 40 default — so it is
+    // checked FIRST and is authoritative. This stops a stale legacy
+    // `defaults` value (e.g. a lingering 38 written before the
+    // Compliance tab existed) from shadowing the admin's compliance
+    // value. The legacy `defaults` lookups below are kept only as a
+    // secondary fallback and can never override an explicit compliance
+    // value.
+    const complianceTarget = await this.complianceSettings.getNumber(
+      'daily_contacts_per_rep',
+    );
+    const complianceValue = this.toPositiveFiniteNumber(complianceTarget);
+    if (complianceValue !== null) {
+      return complianceValue;
+    }
+
+    // Legacy fallbacks — only reached if the compliance lookup above
+    // somehow fails to resolve to a positive number. Retained so any
+    // organisation that wrote to these keys before the Compliance tab
+    // existed still gets a usable number.
     const defaultsSetting = await this.settingsService.getSetting('defaults');
     const nestedTarget =
       defaultsSetting?.value &&
@@ -185,12 +207,8 @@ export class DashboardService {
       return dottedValue;
     }
 
-    // Phase A.3: fall back to the canonical compliance setting
-    // (`compliance.targets.daily_contacts_per_rep`), which itself
-    // defaults to 40 if no admin override exists. The legacy
-    // `defaults` lookups above remain so any organisation that wrote
-    // to those keys before A.3 keeps the same behaviour.
-    return this.complianceSettings.getNumber('daily_contacts_per_rep');
+    // Last resort: return the raw compliance value (its 40 default).
+    return complianceTarget;
   }
 
   private buildLeadsContactedBaseQuery(

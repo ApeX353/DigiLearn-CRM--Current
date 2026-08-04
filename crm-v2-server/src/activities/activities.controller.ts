@@ -214,15 +214,19 @@ export class ActivitiesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateActivityDto: UpdateActivityDto,
     @CurrentUser('id') userId: string,
-    @CurrentUser('role') role: string,
+    @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
+    // Mirror updateStatus: derive the full role list so the service can
+    // apply next-step / outcome compliance gates on the edit path.
+    const userRoles = (currentUser?.roles || []).map((r) => r.name);
     // C-02: a rep can only edit an activity in their own scope.
-    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const scopeUserId = userRoles.includes('sales_rep') ? userId : undefined;
     const activity = await this.activitiesService.update(
       id,
       updateActivityDto,
       userId,
       scopeUserId,
+      userRoles,
     );
     return {
       success: true,
@@ -300,10 +304,13 @@ export class ActivitiesController {
   async bulkUpdateStatus(
     @Body() body: BulkStatusDto,
     @CurrentUser('id') userId: string,
-    @CurrentUser('role') role: string,
+    @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
+    // Mirror updateStatus: derive the full role list so the service can
+    // apply the next-step compliance gate on the bulk path.
+    const userRoles = (currentUser?.roles || []).map((r) => r.name);
     // C-02: a rep can only bulk-update activities in their own scope.
-    const scopeUserId = role === 'sales_rep' ? userId : undefined;
+    const scopeUserId = userRoles.includes('sales_rep') ? userId : undefined;
     const { updated, followUpCandidates } =
       await this.activitiesService.bulkUpdateStatus(
         body.ids,
@@ -312,6 +319,7 @@ export class ActivitiesController {
         body.outcome,
         body.completion_note,
         scopeUserId,
+        userRoles,
       );
     return {
       success: true,

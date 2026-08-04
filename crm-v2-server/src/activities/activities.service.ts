@@ -1116,12 +1116,16 @@ export class ActivitiesService {
     dto: UpdateActivityDto,
     userId: string,
     scopeUserId?: string,
+    userRoles: string[] = [],
   ): Promise<Activity> {
     return this.dataSource.transaction(async (manager) => {
       // C-02: a rep can only edit an activity in their own scope. A
       // foreign id 404s here, before any write.
       const activity = await this.findOne(id, scopeUserId);
       const oldValues = { ...activity };
+      // Capture the pre-edit status so we can detect an edit that
+      // transitions the activity INTO completed (FIX #1 / FIX #2).
+      const oldStatus = activity.status;
 
       const { task, note, call, email, meeting, whatsapp, ...activityData } =
         dto;
@@ -1137,6 +1141,51 @@ export class ActivitiesService {
       }
 
       Object.assign(activity, activityData);
+
+      // FIX #3 — require_activity_due_date on the edit path. Mirrors the
+      // create-time gate: if this edit leaves the activity OPEN with no
+      // date and the setting is on, reject. Runs inside the transaction
+      // so the throw rolls the edit back before any row is written.
+      await this.assertOpenActivityHasDate(
+        activity.type,
+        activity.status,
+        activity.due_at,
+        activity.scheduled_at,
+      );
+
+      // FIX #1 / FIX #2 — an edit that transitions the activity INTO
+      // completed must satisfy the same completion discipline the
+      // status endpoints already enforce. Both checks run BEFORE the
+      // save so a rejected edit never persists.
+      if (
+        activity.status === ActivityStatus.COMPLETED &&
+        oldStatus !== ActivityStatus.COMPLETED
+      ) {
+        // FIX #1 — enforce_outcome_on_completion (default false, so this
+        // is inert until an admin toggles it on). The UpdateActivityDto
+        // carries no completion_outcome field, so after the Object.assign
+        // above `activity.completion_outcome` reflects either a value the
+        // payload merged in or the previously-stored one; if neither is
+        // present the completion has no outcome.
+        const enforceOutcome = await this.complianceSettings.getBoolean(
+          'enforce_outcome_on_completion',
+        );
+        if (enforceOutcome && !activity.completion_outcome) {
+          throw new BadRequestException(
+            'outcome is required when marking an activity completed',
+          );
+        }
+
+        // NEXT-STEP enforcement on this path is DEFERRED on purpose: the
+        // `enforce_next_step_on_completion` setting is tied to the open
+        // NEXT2 design conflict (the client marks done first and only asks
+        // for the follow-up afterwards, never sending it before completion).
+        // Extending the gate here would spread that 400 trap to the edit
+        // path. Re-enable only after NEXT2 (client rebuild to submit the
+        // next step WITH the completion) is done. `userRoles` is plumbed
+        // through and ready for that.
+      }
+
       await manager.save(Activity, activity);
 
       // Update type-specific details
@@ -1351,6 +1400,7 @@ export class ActivitiesService {
     outcome?: ActivityOutcome,
     completionNote?: string,
     scopeUserId?: string,
+    userRoles: string[] = [],
   ): Promise<{
     updated: Activity[];
     followUpCandidates: Activity[];
@@ -1400,6 +1450,14 @@ export class ActivitiesService {
         if (oldStatus === status) continue;
 
         activity.status = status;
+
+        // NEXT-STEP enforcement on bulk is DEFERRED on purpose — same reason
+        // as the edit path: the `enforce_next_step_on_completion` setting is
+        // tied to the open NEXT2 client trap (done-first, next-step-after).
+        // Wiring it here would spread the unclearable 400 to bulk-complete.
+        // Re-enable only once NEXT2 (client) is fixed. `userRoles` is plumbed
+        // and ready.
+
         if (status === ActivityStatus.COMPLETED && !activity.completed_at) {
           // ACT4: same rule as the single path — overdue history keeps
           // its own date instead of being stamped with today.
