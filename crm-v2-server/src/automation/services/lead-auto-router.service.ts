@@ -247,11 +247,21 @@ export class LeadAutoRouterService {
   async listProposals(
     status: AssignmentProposalStatus = AssignmentProposalStatus.PENDING,
   ): Promise<LeadAssignmentProposal[]> {
-    return this.proposalRepository.find({
-      where: { status },
-      relations: ['lead', 'lead.school', 'proposed_rep', 'decided_by'],
-      order: { created_at: 'ASC' },
-    });
+    // R1: never surface a proposal whose lead is gone. INNER JOIN drops
+    // proposals whose lead row was hard-removed; the deleted_at guard drops
+    // soft-deleted leads (e.g. purged test imports). Without this the queue
+    // showed the raw lead id — reading as a bare "school ID" — for every
+    // proposal left orphaned by a lead deletion.
+    return this.proposalRepository
+      .createQueryBuilder('p')
+      .innerJoinAndSelect('p.lead', 'lead')
+      .andWhere('lead.deleted_at IS NULL')
+      .leftJoinAndSelect('lead.school', 'school')
+      .leftJoinAndSelect('p.proposed_rep', 'proposed_rep')
+      .leftJoinAndSelect('p.decided_by', 'decided_by')
+      .where('p.status = :status', { status })
+      .orderBy('p.created_at', 'ASC')
+      .getMany();
   }
 
   /**

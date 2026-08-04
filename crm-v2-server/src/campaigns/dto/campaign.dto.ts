@@ -21,6 +21,14 @@ export class CreateCampaignDto {
   @IsEnum(CampaignType)
   type: CampaignType;
 
+  @ApiPropertyOptional({
+    example: '2026-08-04',
+    description: 'R6: date the campaign was entered into the CRM (defaults to today).',
+  })
+  @IsOptional()
+  @IsDateString()
+  entry_date?: string;
+
   @ApiProperty({ example: '2026-08-10' })
   @IsDateString()
   start_date: string;

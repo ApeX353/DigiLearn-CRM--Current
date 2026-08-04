@@ -39,6 +39,16 @@ export class Campaign {
   @Column({ type: 'enum', enum: CampaignType, default: CampaignType.OTHER })
   type: CampaignType;
 
+  /**
+   * R6: the date the campaign was entered into the CRM (distinct from
+   * `start_date`, which is when the event runs). Defaults to the creation
+   * date on backfill; editable so a campaign logged late can carry its true
+   * intake date. Used on the approval "folders" so leads group by campaign
+   * + entry date and don't get mixed (R7).
+   */
+  @Column({ type: 'date', nullable: true })
+  entry_date: string | null;
+
   @Column({ type: 'date' })
   start_date: string;
 

@@ -56,6 +56,8 @@ export class CampaignsService {
     const campaign = this.campaignRepo.create({
       ...dto,
       currency: dto.currency ?? 'USD',
+      // R6: default the entry date to today when not supplied.
+      entry_date: dto.entry_date ?? new Date().toISOString().slice(0, 10),
       created_by_id: userId,
     });
     return this.campaignRepo.save(campaign);

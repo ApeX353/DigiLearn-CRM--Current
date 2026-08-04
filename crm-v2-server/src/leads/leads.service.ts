@@ -53,7 +53,10 @@ import { Invoice } from '../invoices/entities/invoice.entity';
 import { Activity, ActivityType } from '../activities/entities/activity.entity';
 import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
 import { LeadEscalation } from './entities/lead-escalation.entity';
-import { LeadAssignmentProposal } from '../automation/entities/lead-assignment-proposal.entity';
+import {
+  LeadAssignmentProposal,
+  AssignmentProposalStatus,
+} from '../automation/entities/lead-assignment-proposal.entity';
 import { EmailQueue } from '../email-sequences/entities/email-queue.entity';
 import { DuplicateSuspicion } from './entities/duplicate-suspicion.entity';
 import { DocumentItem } from '../document-items/entities/document-item.entity';
@@ -1047,6 +1050,14 @@ export class LeadsService {
     const lead = await this.findOne(id);
 
     await this.leadRepository.softDelete(id);
+
+    // R1: retire any pending auto-assign proposals for this lead so the
+    // approval queue doesn't keep an orphan row (which rendered as a bare
+    // "ID") once the lead is gone.
+    await this.dataSource.getRepository(LeadAssignmentProposal).update(
+      { lead_id: id, status: AssignmentProposalStatus.PENDING },
+      { status: AssignmentProposalStatus.SUPERSEDED, decided_at: new Date() },
+    );
 
     await this.activityLogsService.logDelete(
       'Lead',
