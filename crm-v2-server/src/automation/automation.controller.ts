@@ -128,6 +128,24 @@ export class AutomationController {
     return { success: true, data };
   }
 
+  // UNDO — reverse approvals a manager just made: unassign the lead(s),
+  // clear the first-touch SLA the approval started, and return the
+  // proposal(s) to PENDING. Only untouched (no activity, still owned by the
+  // proposed rep) approvals are reversed; the rest are skipped with a reason.
+  @Post('assignment-proposals/undo')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Undo a batch of auto-assign approvals' })
+  async undoAssignmentApprovals(
+    @Body('ids') ids: string[],
+    @CurrentUser('id') userId: string,
+  ) {
+    const data = await this.autoRouter.undoApprovals(
+      Array.isArray(ids) ? ids : [],
+      userId,
+    );
+    return { success: true, data };
+  }
+
   // R4/R8 — reject a batch of proposals in one call (bulk multi-select).
   @Post('assignment-proposals/reject-batch')
   @Roles('admin', 'sales_manager')

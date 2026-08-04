@@ -299,3 +299,28 @@ export function useApproveAssignmentProposalBatch() {
     },
   });
 }
+
+/**
+ * Undo — reverse approvals a manager just made. Unassigns the lead(s),
+ * clears the first-touch SLA the approval started, and returns the
+ * proposal(s) to PENDING (they reappear in the queue). Leads a rep has
+ * already worked, or that were reassigned by hand, are kept (skipped).
+ */
+export function useUndoAssignmentApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      ids: string[],
+    ): Promise<{ undone: number; skipped: Array<{ id: string; why: string }> }> => {
+      const res = await apiClientAuth.post(
+        `/automation/assignment-proposals/undo`,
+        { ids },
+      );
+      return res.data?.data ?? res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assignmentProposalsKeys.all });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}

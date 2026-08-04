@@ -440,6 +440,100 @@ export class LeadAutoRouterService {
   }
 
   /**
+   * UNDO — reverse an approval a manager just made (Kim, 4 Aug). An approval
+   * assigns the lead and starts the first-touch SLA clock; undo puts both
+   * back exactly as they were and returns the proposal to PENDING so it
+   * reappears in the queue. Guarded so it can never strip a lead a rep has
+   * started on:
+   *  - only an APPROVED proposal can be undone;
+   *  - never touch a lead that has ANY activity (a rep has worked it) — an
+   *    auto-assigned lead starts with none, so any activity means hands-off;
+   *  - never touch a lead whose owner was changed by hand after approval.
+   * Per-row try/catch so one failure is a skip, not a batch abort.
+   */
+  async undoApprovals(
+    ids: string[],
+    deciderId: string,
+  ): Promise<{ undone: number; skipped: Array<{ id: string; why: string }> }> {
+    let undone = 0;
+    const skipped: Array<{ id: string; why: string }> = [];
+    for (const id of ids) {
+      try {
+        const proposal = await this.proposalRepository.findOne({
+          where: { id },
+          relations: ['lead'],
+        });
+        if (!proposal) {
+          skipped.push({ id, why: 'proposal not found' });
+          continue;
+        }
+        if (proposal.status !== AssignmentProposalStatus.APPROVED) {
+          skipped.push({ id, why: 'not an approved proposal' });
+          continue;
+        }
+
+        const lead = await this.leadRepository.findOne({
+          where: { id: proposal.lead_id },
+        });
+        if (!lead) {
+          skipped.push({ id, why: 'lead no longer exists' });
+          continue;
+        }
+
+        // SAFETY: any activity means a rep has already touched this lead — an
+        // auto-assigned lead starts with none, so never strip a worked lead.
+        // EXISTS check by lead_id, same style as the distributable pool.
+        const worked = await this.leadRepository
+          .createQueryBuilder('lead')
+          .where('lead.id = :id', { id: lead.id })
+          .andWhere(
+            'EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = lead.id)',
+          )
+          .getCount();
+        if (worked > 0) {
+          skipped.push({ id, why: 'lead already worked' });
+          continue;
+        }
+
+        // SAFETY: someone changed the owner by hand after approval — leave it.
+        if (lead.assigned_to !== proposal.proposed_rep_id) {
+          skipped.push({ id, why: 'reassigned by hand' });
+          continue;
+        }
+
+        const repId = proposal.proposed_rep_id;
+        await this.dataSource.transaction(async (mgr) => {
+          // Put the lead back: unassign and clear the first-touch SLA the
+          // approval started (never leave a phantom deadline running).
+          await mgr.getRepository(Lead).update(lead.id, {
+            assigned_to: null,
+            current_sla_due_date: null,
+            sla_breached: false,
+          });
+          // Return the proposal to the queue as if never decided.
+          proposal.status = AssignmentProposalStatus.PENDING;
+          proposal.decided_by_id = null;
+          proposal.decided_at = null;
+          await mgr.getRepository(LeadAssignmentProposal).save(proposal);
+        });
+
+        await this.activityLogsService.logUpdate(
+          'Lead',
+          lead.id,
+          { assigned_to: repId },
+          { assigned_to: null },
+          deciderId,
+          'Auto-assign approval undone',
+        );
+        undone++;
+      } catch (e: any) {
+        skipped.push({ id, why: e?.message ?? 'failed' });
+      }
+    }
+    return { undone, skipped };
+  }
+
+  /**
    * R4/R8 — reject a batch in one call, mirroring approveProposals: per-id
    * try/catch so one already-decided (or missing) proposal never aborts the
    * rest. Returns how many were rejected and which were skipped and why.

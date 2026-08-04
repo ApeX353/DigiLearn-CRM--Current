@@ -59,6 +59,7 @@ import {
   useSendProposalToNewLeads,
   useRunAutoAssign,
   useRebalanceLeads,
+  useUndoAssignmentApproval,
   DISTRIBUTION_BATCH_SIZES,
 } from "~/api/assignment-proposals";
 import type {
@@ -472,6 +473,7 @@ function AutoAssignQueue() {
   const rejectBatch = useRejectAssignmentProposalBatch();
   const runAutoAssign = useRunAutoAssign();
   const rebalance = useRebalanceLeads();
+  const undoApproval = useUndoAssignmentApproval();
   const [preview, setPreview] = useState<DistributionPreviewRow[] | null>(null);
   const [batchSize, setBatchSize] = useState<number | null>(50);
   const [repFilter, setRepFilter] = useState<string | null>(null);
@@ -510,15 +512,40 @@ function AutoAssignQueue() {
     });
   };
 
+  // Undo — reverse a just-made approval (unassign + clear the SLA the
+  // approval started). The undone proposals reappear as pending. Leads a rep
+  // has already worked (or reassigned by hand) are kept, never stripped.
+  const undo = (ids: string[]) => {
+    if (ids.length === 0) return;
+    undoApproval.mutate(ids, {
+      onSuccess: (r) => {
+        toast.success(
+          `${r.undone} assignment(s) undone${
+            r.skipped.length
+              ? `, ${r.skipped.length} kept (already worked)`
+              : ""
+          }`,
+        );
+        refetch();
+      },
+      onError: (err: any) =>
+        toast.error(err?.response?.data?.message || "Could not undo"),
+    });
+  };
+
   const decide = (p: AssignmentProposal, action: "approve" | "reject") => {
     const m = action === "approve" ? approve : reject;
     m.mutate(p.id, {
-      onSuccess: () =>
-        toast.success(
-          action === "approve"
-            ? `Lead assigned to ${repName(p)}`
-            : "Suggestion rejected — lead stays unassigned",
-        ),
+      onSuccess: () => {
+        if (action === "approve") {
+          // Offer an immediate Undo — Kim's "reverse the one I just made".
+          toast.success(`Lead assigned to ${repName(p)}`, {
+            action: { label: "Undo", onClick: () => undo([p.id]) },
+          });
+        } else {
+          toast.success("Suggestion rejected — lead stays unassigned");
+        }
+      },
       onError: (err: any) =>
         toast.error(err?.response?.data?.message || "Something went wrong"),
     });
@@ -545,6 +572,7 @@ function AutoAssignQueue() {
       }
       toast.success(
         `${approved} assigned${skipped ? `, ${skipped} skipped` : ""}`,
+        { action: { label: "Undo", onClick: () => undo(ids) } },
       );
       refetch();
     } catch (err: any) {
@@ -580,10 +608,12 @@ function AutoAssignQueue() {
   };
 
   const approveSelected = () => {
-    approveBatch.mutate([...selected], {
+    const ids = [...selected];
+    approveBatch.mutate(ids, {
       onSuccess: (r) => {
         toast.success(
           `${r.approved} assigned${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`,
+          { action: { label: "Undo", onClick: () => undo(ids) } },
         );
         setSelected(new Set());
         refetch();
