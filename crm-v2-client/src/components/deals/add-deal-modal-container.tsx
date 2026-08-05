@@ -157,8 +157,15 @@ export default function AddDealModalContainer({
         onClose();
         onDealCreated?.(initialValues?.lead_id);
       },
-      onError: () => {
-        toast.error("Failed to create deal");
+      onError: (err) => {
+        // DEAL-GHOST1: surface the server's actual reason (e.g. the
+        // commercial-intent gate's "the following are required first: …")
+        // instead of a dead-end generic toast that hides what to fix.
+        const msg =
+          err instanceof Error && err.message
+            ? err.message
+            : "Failed to create deal";
+        toast.error(msg);
       },
     });
   };

@@ -24,11 +24,56 @@ export enum BugSeverity {
   VERY_CRITICAL = 'very_critical',
 }
 
+/**
+ * Lifecycle states. The original four (open/in_progress/resolved/closed)
+ * are kept so no historical row is invalidated; the Work-Tracker redesign
+ * (2026-08-02, BUG-TRACKER-CLASSIFICATION-REDESIGN.md) adds the honest
+ * set below.
+ *
+ *   new(=open) -> triaged -> ready -> in_progress -> verification -> done
+ *                                \-> backlog
+ *   terminal: duplicate | cancelled | wont_do (+ legacy resolved/closed)
+ *
+ * `backlog` is where requested-but-not-yet-scheduled work lives (features
+ * especially), so `closed` stops doubling as a feature backlog.
+ */
 export enum BugStatus {
   OPEN = 'open',
   IN_PROGRESS = 'in_progress',
   RESOLVED = 'resolved',
   CLOSED = 'closed',
+  BACKLOG = 'backlog',
+  VERIFICATION = 'verification',
+  DONE = 'done',
+  DUPLICATE = 'duplicate',
+  CANCELLED = 'cancelled',
+  WONT_DO = 'wont_do',
+}
+
+/**
+ * What kind of work a ticket really is. Severity/priority describe impact
+ * and scheduling; this describes the nature of the work, so a feature
+ * request stops being filed (and "fixed") as a bug.
+ */
+export enum WorkType {
+  BUG = 'bug',
+  FEATURE = 'feature',
+  DATA_TASK = 'data_task',
+  INVESTIGATION = 'investigation',
+  TASK = 'task',
+}
+
+/**
+ * Delivery decision for ANY work item — deliberately separate from
+ * severity, which stays a bug-impact measure only. Nullable: an untriaged
+ * item carries no priority yet.
+ */
+export enum WorkPriority {
+  P0 = 'p0',
+  P1 = 'p1',
+  P2 = 'p2',
+  P3 = 'p3',
+  BACKLOG = 'backlog',
 }
 
 /**
@@ -41,6 +86,8 @@ export enum BugStatus {
 @Index(['status'])
 @Index(['reported_by_id'])
 @Index(['assigned_to_id'])
+@Index(['work_type'])
+@Index(['priority'])
 export class BugReport {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -51,11 +98,39 @@ export class BugReport {
   @Column({ type: 'text' })
   description: string;
 
+  /**
+   * What kind of work this ticket is. Defaults to `bug` so the historical
+   * meaning of the tracker is preserved until a triager reclassifies.
+   */
+  @Column({
+    name: 'work_type',
+    type: 'enum',
+    enum: WorkType,
+    default: WorkType.BUG,
+  })
+  work_type: WorkType;
+
   @Column({ type: 'enum', enum: BugSeverity, default: BugSeverity.MEDIUM })
   severity: BugSeverity;
 
+  /** Delivery priority — separate from severity; null until triaged. */
+  @Column({ type: 'enum', enum: WorkPriority, nullable: true })
+  priority: WorkPriority | null;
+
   @Column({ type: 'enum', enum: BugStatus, default: BugStatus.OPEN })
   status: BugStatus;
+
+  /** Free-text area of the product, e.g. leads / payments / imports. */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  component: string | null;
+
+  /**
+   * Cross-cutting tags (security, payments, leads, imports, production…).
+   * jsonb array, mirroring lead_import_batches.rows — a security concern is
+   * a label on a bug, never a work type of its own.
+   */
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  labels: string[];
 
   /** Where the reporter hit the bug (route/URL), free text, optional. */
   @Column({ name: 'page_url', type: 'varchar', length: 500, nullable: true })
@@ -88,6 +163,31 @@ export class BugReport {
    */
   @Column({ name: 'resolved_at', type: 'timestamp', nullable: true })
   resolved_at: Date | null;
+
+  /**
+   * Lifecycle stamps added by the Work-Tracker redesign. Each is set when
+   * the ticket first enters the matching phase; all nullable so an
+   * untouched ticket carries no aging signal it hasn't earned.
+   */
+  @Column({ name: 'triaged_at', type: 'timestamp', nullable: true })
+  triaged_at: Date | null;
+
+  @Column({ name: 'started_at', type: 'timestamp', nullable: true })
+  started_at: Date | null;
+
+  @Column({ name: 'verified_at', type: 'timestamp', nullable: true })
+  verified_at: Date | null;
+
+  @Column({ name: 'closed_at', type: 'timestamp', nullable: true })
+  closed_at: Date | null;
+
+  /** When set, this ticket is a duplicate of the referenced one. */
+  @Column({ name: 'duplicate_of_id', type: 'uuid', nullable: true })
+  duplicate_of_id: string | null;
+
+  @ManyToOne(() => BugReport, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'duplicate_of_id' })
+  duplicate_of: BugReport | null;
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

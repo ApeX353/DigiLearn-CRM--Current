@@ -6,6 +6,62 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-05 — DEAL-GHOST1: a *failed* deal create still appears on the pipeline, with no reason shown
+
+**Severity:** High · **Area:** Deals / pipeline · **Status:** OPEN (discovered, fix pending) · **Reported by:** Mrs Mpofu (Manake's attempt)
+
+**Symptom.** Manake tried to create a deal on prod. The app showed
+"Failed to create deal" — yet the deal then appeared on her pipeline, as
+if it had been created. Two wrong things at once: (a) a create that was
+*rejected* still surfaced as a card, and (b) the error gave her no reason
+and no way to fix it.
+
+**Root cause — three verified layers (read-only prod investigation):**
+  1. **The real reason is swallowed by the client.** The server rejects
+     with a precise, actionable message —
+     `"Cannot create deal yet — the following are required first: …"`
+     (`deals.service.ts` `assertCommercialIntentGate`). But
+     `add-deal-modal-container.tsx` does
+     `onError: () => toast.error("Failed to create deal")`, discarding
+     `err.message` entirely. The rep sees a dead-end.
+  2. **The caches are never reconciled on failure.** `useCreateDeal`
+     (`api/deals/use-deals.ts`) invalidates the deal/pipeline queries
+     **only `onSuccess`, never `onError`**. There is no `onMutate`
+     optimistic insert anywhere in the deals/pipeline components, and the
+     DB proves nothing was persisted (see below) — so the lingering card
+     is a **stale client-cache artifact** left un-refreshed after the
+     rejected attempt, visible until a hard reload. This is also the
+     duplicate-deal risk: a rep who retries after the phantom can create
+     two once the gate is satisfied.
+  3. **Why it failed at all:** the commercial-intent gate is **ON** in
+     prod (`compliance.policy.enforce_commercial_intent_for_deal = true`).
+     Manake's leads all have `commercial_intent = false` and no
+     decision-maker recorded, and sit in Nurture/Contacted — so the gate
+     *correctly* rejects. The defect is the UX around a legitimate
+     rejection, not the gate logic itself. (Whether the gate *should* be
+     on is a separate policy call — settings changes aren't audited, so
+     the code cannot say who enabled it.)
+
+**Data impact — NONE on prod (verified).** `deals` created today, all
+states = **0**; the table has no soft-delete column, so no hidden/orphaned
+deal exists. There is nothing to clean up — the phantom lives only in the
+browser cache until refresh.
+
+**Planned fix (staging-first).**
+  - Surface the server message: `onError` shows `err.message` (fall back
+    to the generic string only when absent), so the rep sees exactly what
+    to add (intent signal / value / title / decision-maker).
+  - `useCreateDeal` also invalidates `deals`/pipeline queries `onError`,
+    so a rejected attempt cannot leave a stale card.
+  - Product decision to confirm with Kim/Dube: keep the commercial-intent
+    gate ON, or relax it.
+
+Files (to change): `crm-v2-client/src/components/deals/add-deal-modal-container.tsx`,
+`crm-v2-client/src/api/deals/use-deals.ts`. Server message source:
+`crm-v2-server/src/deals/deals.service.ts` (`assertCommercialIntentGate`).
+
+---
+
 ## 2026-08-02 — Autonomous batch 2 (IDOR + settings wiring + school flow + audit)
 
 ### C-02 (activities): activity write paths were not owner-scoped

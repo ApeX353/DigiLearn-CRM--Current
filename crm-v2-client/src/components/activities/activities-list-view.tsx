@@ -96,6 +96,29 @@ function dueParts(activity: Activity): { date: string | null; time: string | nul
   return { date, time };
 }
 
+// ACT-DATE: a row with no due/scheduled date is not "undated" — it is either
+// a timeless note or a past interaction logged after the fact. Both carry a
+// real date (completed_at for done rows, else the day it was logged), so show
+// that with a soft label instead of an alarming "No due date". No data is
+// invented — created_at is always present.
+function loggedParts(
+  activity: Activity,
+): { label: string; date: string } | null {
+  const isDone =
+    activity.status === "completed" || !!activity.completed_at;
+  const raw = isDone
+    ? activity.completed_at ?? activity.created_at
+    : activity.created_at;
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  const date = d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return { label: isDone ? "Done" : "Logged", date };
+}
+
 function durationLabel(mins?: number): string {
   if (!mins || mins <= 0) return "—";
   if (mins < 60) return `${mins} min`;
@@ -164,12 +187,21 @@ export function ActivitiesListView({
                 status: activity.status,
               });
               const due = dueParts(activity);
+              const loggedFallback = due.date ? null : loggedParts(activity);
               const related = relatedRecord(activity);
               const isPending = pendingIds.has(activity.id);
               const isDone =
                 activity.status === "completed" || !!activity.completed_at;
               const isSelected = selectedIds.includes(activity.id);
-              const assigneeName = fullName(activity.assigned_to ?? undefined);
+              // ACT-OWNER: the list showed only an explicit assignee, so the
+              // ~488 activities that carry no assigned_to (but always a
+              // creator) read as "Unassigned". Fall back to the creator — the
+              // rep the activity actually belongs to — matching the owner
+              // idiom already used in activity-kit (assigned_to ?? created_by).
+              const explicitAssignee = activity.assigned_to ?? undefined;
+              const owner = explicitAssignee ?? activity.created_by ?? undefined;
+              const assigneeName = fullName(owner);
+              const ownerFromCreator = !explicitAssignee && !!activity.created_by;
               const dueText = activityDueLabel({
                 dueAt: activity.due_at,
                 scheduledAt: activity.scheduled_at,
@@ -309,6 +341,15 @@ export function ActivitiesListView({
                                 </div>
                               )}
                             </div>
+                          ) : loggedFallback ? (
+                            <div className="leading-tight text-muted-foreground">
+                              <div className="font-medium">
+                                {loggedFallback.date}
+                              </div>
+                              <div className="text-[11px] opacity-80">
+                                {loggedFallback.label}
+                              </div>
+                            </div>
                           ) : (
                             <span className="text-xs italic text-muted-foreground">
                               No due date
@@ -340,6 +381,11 @@ export function ActivitiesListView({
                                 )}
                               >
                                 {assigneeName}
+                                {ownerFromCreator && (
+                                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                                    · logged
+                                  </span>
+                                )}
                               </span>
                             </div>
                           ) : (

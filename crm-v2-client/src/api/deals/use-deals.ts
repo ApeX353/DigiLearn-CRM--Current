@@ -292,7 +292,12 @@ export function useCreateDeal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateDealDto) => api.create(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+    // DEAL-GHOST1: reconcile the deal/pipeline caches on BOTH outcomes. A
+    // rejected create previously invalidated nothing (onSuccess only), so a
+    // stale card could linger on the pipeline until a hard refresh — the
+    // "ghost deal" Kim saw after a failed create. Refetching on settle
+    // forces the board to match the database on success OR failure.
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.all }),
   });
 }
 

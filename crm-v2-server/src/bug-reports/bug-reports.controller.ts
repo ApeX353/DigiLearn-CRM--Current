@@ -67,6 +67,20 @@ export class BugReportsController {
     return { success: true, data: items, meta: { total } };
   }
 
+  @Get('counts')
+  @Roles(...ALL_OPERATORS)
+  @ApiOperation({
+    summary:
+      'Tallies by status AND work_type in one call (replaces per-status requests)',
+  })
+  async counts(
+    @Query() query: QueryBugReportDto,
+    @CurrentUser() user: RequestingUser,
+  ) {
+    const data = await this.service.counts(query, user);
+    return { success: true, data };
+  }
+
   @Get('assignable-users')
   @Roles(...TRIAGE)
   @ApiOperation({ summary: 'Active users a ticket can be assigned to' })

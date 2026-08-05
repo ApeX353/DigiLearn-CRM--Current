@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsEnum,
   IsUUID,
+  IsArray,
   MaxLength,
   MinLength,
   IsInt,
@@ -11,7 +12,12 @@ import {
   Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BugSeverity, BugStatus } from '../entities/bug-report.entity';
+import {
+  BugSeverity,
+  BugStatus,
+  WorkType,
+  WorkPriority,
+} from '../entities/bug-report.entity';
 
 export class CreateBugReportDto {
   @IsString()
@@ -25,9 +31,29 @@ export class CreateBugReportDto {
   @MinLength(5)
   description: string;
 
+  /** What kind of work this is; defaults to `bug` server-side if omitted. */
+  @IsOptional()
+  @IsEnum(WorkType)
+  workType?: WorkType;
+
   @IsOptional()
   @IsEnum(BugSeverity)
   severity?: BugSeverity;
+
+  @IsOptional()
+  @IsEnum(WorkPriority)
+  priority?: WorkPriority;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  component?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  labels?: string[];
 
   @IsOptional()
   @IsString()
@@ -41,8 +67,32 @@ export class UpdateBugReportDto {
   status?: BugStatus;
 
   @IsOptional()
+  @IsEnum(WorkType)
+  workType?: WorkType;
+
+  @IsOptional()
   @IsEnum(BugSeverity)
   severity?: BugSeverity;
+
+  @IsOptional()
+  @IsEnum(WorkPriority)
+  priority?: WorkPriority;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  component?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  labels?: string[];
+
+  /** Mark this ticket a duplicate of another; null clears the link. */
+  @IsOptional()
+  @IsUUID('4')
+  duplicateOfId?: string | null;
 
   /** UUID of the user to assign to, or null to unassign. */
   @IsOptional()
@@ -76,8 +126,36 @@ export class QueryBugReportDto {
   status?: BugStatus;
 
   @IsOptional()
+  @IsEnum(WorkType)
+  workType?: WorkType;
+
+  @IsOptional()
   @IsEnum(BugSeverity)
   severity?: BugSeverity;
+
+  @IsOptional()
+  @IsEnum(WorkPriority)
+  priority?: WorkPriority;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  component?: string;
+
+  /**
+   * Assignee filter. A UUID narrows to that person; the literal string
+   * `unassigned` returns only tickets with no assignee.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  assignee?: string;
+
+  /** Full-text search across title + description. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 
   @IsOptional()
   @Type(() => Number)

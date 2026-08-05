@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Bug, Loader2, Plus, ShieldCheck } from "lucide-react";
+import {
+  Bug,
+  CheckSquare,
+  Database,
+  Lightbulb,
+  Loader2,
+  Plus,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import Container from "~/components/container";
 import PageHeader from "~/components/page-header";
@@ -34,9 +43,14 @@ import {
   useAssignableUsers,
   SEVERITY_LABELS,
   STATUS_LABELS,
+  WORK_TYPE_LABELS,
+  PRIORITY_LABELS,
   type BugReport,
+  type BugReportFilters,
   type BugSeverity,
   type BugStatus,
+  type WorkType,
+  type WorkPriority,
 } from "~/api/bug-reports";
 
 const SEVERITIES: BugSeverity[] = [
@@ -46,8 +60,99 @@ const SEVERITIES: BugSeverity[] = [
   "critical",
   "very_critical",
 ];
-const STATUSES: BugStatus[] = ["open", "in_progress", "resolved", "closed"];
+const STATUSES: BugStatus[] = [
+  "open",
+  "in_progress",
+  "backlog",
+  "verification",
+  "resolved",
+  "done",
+  "closed",
+  "duplicate",
+  "cancelled",
+  "wont_do",
+];
+const WORK_TYPES: WorkType[] = [
+  "bug",
+  "feature",
+  "data_task",
+  "investigation",
+  "task",
+];
+const PRIORITIES: WorkPriority[] = ["p0", "p1", "p2", "p3", "backlog"];
 
+/* ------------------------------------------------------------------ */
+/* Visual encodings — each dimension gets a distinct one              */
+/* ------------------------------------------------------------------ */
+
+// Work type: colour + icon (a "what is this" identity chip).
+const TYPE_META: Record<
+  WorkType,
+  { icon: typeof Bug; className: string }
+> = {
+  bug: {
+    icon: Bug,
+    className:
+      "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300",
+  },
+  feature: {
+    icon: Lightbulb,
+    className:
+      "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300",
+  },
+  data_task: {
+    icon: Database,
+    className:
+      "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
+  },
+  investigation: {
+    icon: Search,
+    className:
+      "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300",
+  },
+  task: {
+    icon: CheckSquare,
+    className:
+      "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
+  },
+};
+
+function TypeBadge({ type }: { type: WorkType }) {
+  const meta = TYPE_META[type];
+  const Icon = meta.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${meta.className}`}
+    >
+      <Icon className="h-3 w-3" />
+      {WORK_TYPE_LABELS[type]}
+    </span>
+  );
+}
+
+// Priority: a compact square-ish chip (a "when" signal), colour by urgency.
+const PRIORITY_CLASS: Record<WorkPriority, string> = {
+  p0: "bg-red-600 text-white",
+  p1: "bg-orange-500 text-white",
+  p2: "bg-yellow-400 text-black",
+  p3: "bg-emerald-500 text-white",
+  backlog: "bg-muted text-muted-foreground",
+};
+
+function PriorityChip({ priority }: { priority: WorkPriority | null }) {
+  if (!priority)
+    return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums ${PRIORITY_CLASS[priority]}`}
+      title={`Priority ${PRIORITY_LABELS[priority]}`}
+    >
+      {PRIORITY_LABELS[priority]}
+    </span>
+  );
+}
+
+// Severity: the existing shadcn Badge variants (an "impact" signal).
 const severityVariant: Record<
   BugSeverity,
   "default" | "secondary" | "outline" | "destructive"
@@ -65,49 +170,159 @@ const statusVariant: Record<
 > = {
   open: "destructive",
   in_progress: "default",
+  backlog: "outline",
+  verification: "default",
   resolved: "secondary",
+  done: "secondary",
   closed: "outline",
+  duplicate: "outline",
+  cancelled: "outline",
+  wont_do: "outline",
 };
 
 /* ------------------------------------------------------------------ */
-/* Report-a-bug dialog (available to everyone)                         */
+/* Saved views                                                         */
 /* ------------------------------------------------------------------ */
-function ReportBugDialog() {
+type ViewKey =
+  | "all"
+  | "bugs"
+  | "features"
+  | "data"
+  | "investigations"
+  | "done";
+
+const VIEWS: {
+  key: ViewKey;
+  label: string;
+  filter: { workType?: WorkType; status?: BugStatus };
+}[] = [
+  { key: "all", label: "All", filter: {} },
+  { key: "bugs", label: "Bugs", filter: { workType: "bug" } },
+  {
+    key: "features",
+    label: "Features (Backlog)",
+    filter: { workType: "feature" },
+  },
+  { key: "data", label: "Data & Ops", filter: { workType: "data_task" } },
+  {
+    key: "investigations",
+    label: "Investigations",
+    filter: { workType: "investigation" },
+  },
+  { key: "done", label: "Done", filter: { status: "done" } },
+];
+
+/* ------------------------------------------------------------------ */
+/* Create work item dialog (type-aware)                                */
+/* ------------------------------------------------------------------ */
+/**
+ * "Create work item" asks WHAT is being reported first, then shows the
+ * right fields. Bugs get expected/actual/steps/environment; features get
+ * problem/outcome/value/acceptance; the rest get a plain description. The
+ * "Report a problem" shortcut locks the type to bug.
+ */
+function CreateWorkItemDialog({
+  triggerLabel,
+  defaultType,
+  lockType,
+}: {
+  triggerLabel: string;
+  defaultType: WorkType;
+  lockType?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const [type, setType] = useState<WorkType>(defaultType);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [component, setComponent] = useState("");
   const [severity, setSeverity] = useState<BugSeverity>("medium");
   const [pageUrl, setPageUrl] = useState("");
+
+  // Bug fields
+  const [expected, setExpected] = useState("");
+  const [actual, setActual] = useState("");
+  const [steps, setSteps] = useState("");
+  const [environment, setEnvironment] = useState("");
+
+  // Feature fields
+  const [problem, setProblem] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [value, setValue] = useState("");
+  const [acceptance, setAcceptance] = useState("");
+
+  // Generic (data/investigation/task)
+  const [details, setDetails] = useState("");
+
   const create = useCreateBugReport();
 
   const reset = () => {
+    setType(defaultType);
     setTitle("");
-    setDescription("");
+    setComponent("");
     setSeverity("medium");
     setPageUrl("");
+    setExpected("");
+    setActual("");
+    setSteps("");
+    setEnvironment("");
+    setProblem("");
+    setOutcome("");
+    setValue("");
+    setAcceptance("");
+    setDetails("");
+  };
+
+  const section = (label: string, body: string) =>
+    body.trim() ? `**${label}**\n${body.trim()}` : "";
+
+  const buildDescription = (): string => {
+    if (type === "bug") {
+      return [
+        section("Expected result", expected),
+        section("Actual result", actual),
+        section("Steps to reproduce", steps),
+        section("Environment", environment),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    if (type === "feature") {
+      return [
+        section("User problem", problem),
+        section("Desired outcome", outcome),
+        section("Business value", value),
+        section("Acceptance criteria", acceptance),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    return details.trim();
   };
 
   const submit = async () => {
     if (title.trim().length < 3) {
-      toast.error("Give the bug a short title (at least 3 characters).");
+      toast.error("Give the item a short title (at least 3 characters).");
       return;
     }
+    const description = buildDescription();
     if (description.trim().length < 5) {
-      toast.error("Please describe what happened (at least 5 characters).");
+      toast.error("Please fill in at least one detail field.");
       return;
     }
     try {
       await create.mutateAsync({
         title: title.trim(),
-        description: description.trim(),
-        severity,
-        pageUrl: pageUrl.trim() || undefined,
+        description,
+        workType: type,
+        component: component.trim() || undefined,
+        ...(type === "bug"
+          ? { severity, pageUrl: pageUrl.trim() || undefined }
+          : {}),
       });
-      toast.success("Thanks! Your bug report was sent to the team.");
+      toast.success("Thanks! Your work item was sent to the team.");
       reset();
       setOpen(false);
     } catch {
-      toast.error("Could not submit the report. Please try again.");
+      toast.error("Could not submit. Please try again.");
     }
   };
 
@@ -119,70 +334,206 @@ function ReportBugDialog() {
         if (!o) reset();
       }}
     >
-      <Button onClick={() => setOpen(true)}>
+      <Button
+        variant={lockType ? "outline" : "default"}
+        onClick={() => setOpen(true)}
+      >
         <Plus className="mr-1.5 h-4 w-4" />
-        Report a bug
+        {triggerLabel}
       </Button>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Report a bug</DialogTitle>
+          <DialogTitle>{lockType ? "Report a problem" : "Create work item"}</DialogTitle>
           <DialogDescription>
-            Tell us what went wrong. This goes straight to the support team as
-            an in-house ticket.
+            {lockType
+              ? "Tell us what went wrong. This is filed as a bug for the support team."
+              : "Pick what you're reporting, then fill in the details."}
           </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="bug-title">Title</Label>
-            <Input
-              id="bug-title"
-              placeholder="Short summary of the problem"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={200}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="bug-desc">What happened?</Label>
-            <Textarea
-              id="bug-desc"
-              placeholder="Steps to reproduce, what you expected, what you saw…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={5}
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          {!lockType && (
             <div className="space-y-1.5">
-              <Label>Severity</Label>
+              <Label>Type</Label>
               <Select
-                value={severity}
-                onValueChange={(v) => setSeverity(v as BugSeverity)}
+                value={type}
+                onValueChange={(v) => setType(v as WorkType)}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SEVERITIES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {SEVERITY_LABELS[s]}
+                  {WORK_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {WORK_TYPE_LABELS[t]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="wi-title">Title</Label>
+            <Input
+              id="wi-title"
+              placeholder="Short summary"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={200}
+            />
+          </div>
+
+          {type === "bug" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-expected">Expected result</Label>
+                <Textarea
+                  id="wi-expected"
+                  placeholder="What should have happened"
+                  value={expected}
+                  onChange={(e) => setExpected(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-actual">Actual result</Label>
+                <Textarea
+                  id="wi-actual"
+                  placeholder="What actually happened"
+                  value={actual}
+                  onChange={(e) => setActual(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-steps">Steps to reproduce</Label>
+                <Textarea
+                  id="wi-steps"
+                  placeholder="1. … 2. … 3. …"
+                  value={steps}
+                  onChange={(e) => setSteps(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wi-env">Environment</Label>
+                  <Input
+                    id="wi-env"
+                    placeholder="e.g. production, Chrome"
+                    value={environment}
+                    onChange={(e) => setEnvironment(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Severity</Label>
+                  <Select
+                    value={severity}
+                    onValueChange={(v) => setSeverity(v as BugSeverity)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEVERITIES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {SEVERITY_LABELS[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-url">Page / where (optional)</Label>
+                <Input
+                  id="wi-url"
+                  placeholder="e.g. Leads page"
+                  value={pageUrl}
+                  onChange={(e) => setPageUrl(e.target.value)}
+                  maxLength={500}
+                />
+              </div>
+            </>
+          )}
+
+          {type === "feature" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-problem">User problem</Label>
+                <Textarea
+                  id="wi-problem"
+                  placeholder="What can't the user do today?"
+                  value={problem}
+                  onChange={(e) => setProblem(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-outcome">Desired outcome</Label>
+                <Textarea
+                  id="wi-outcome"
+                  placeholder="What should be possible instead?"
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-value">Business value</Label>
+                <Textarea
+                  id="wi-value"
+                  placeholder="Why does it matter / who benefits?"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="wi-accept">Acceptance criteria</Label>
+                <Textarea
+                  id="wi-accept"
+                  placeholder="How do we know it's done?"
+                  value={acceptance}
+                  onChange={(e) => setAcceptance(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            </>
+          )}
+
+          {type !== "bug" && type !== "feature" && (
             <div className="space-y-1.5">
-              <Label htmlFor="bug-url">Page / where (optional)</Label>
-              <Input
-                id="bug-url"
-                placeholder="e.g. Leads page"
-                value={pageUrl}
-                onChange={(e) => setPageUrl(e.target.value)}
-                maxLength={500}
+              <Label htmlFor="wi-details">Details</Label>
+              <Textarea
+                id="wi-details"
+                placeholder={
+                  type === "data_task"
+                    ? "Source file/query, expected affected count, backup and rollback plan…"
+                    : type === "investigation"
+                      ? "The question, evidence so far, decision owner and required output…"
+                      : "Describe the task…"
+                }
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                rows={5}
               />
             </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="wi-component">Component (optional)</Label>
+            <Input
+              id="wi-component"
+              placeholder="e.g. leads, payments, imports"
+              value={component}
+              onChange={(e) => setComponent(e.target.value)}
+              maxLength={100}
+            />
           </div>
         </div>
+
         <DialogFooter>
           <Button
             variant="outline"
@@ -195,7 +546,7 @@ function ReportBugDialog() {
             {create.isPending && (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             )}
-            Submit report
+            Submit
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -204,7 +555,7 @@ function ReportBugDialog() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Triage dialog (admin / admin_support)                               */
+/* Triage dialog (triagers)                                            */
 /* ------------------------------------------------------------------ */
 function TriageDialog({
   bug,
@@ -216,15 +567,20 @@ function TriageDialog({
   const update = useUpdateBugReport();
   const { data: users } = useAssignableUsers(!!bug);
   const [status, setStatus] = useState<BugStatus>("open");
+  const [workType, setWorkType] = useState<WorkType>("bug");
   const [severity, setSeverity] = useState<BugSeverity>("medium");
+  const [priority, setPriority] = useState<WorkPriority | "none">("none");
+  const [component, setComponent] = useState("");
   const [assignee, setAssignee] = useState<string>("unassigned");
   const [resolution, setResolution] = useState("");
 
-  // Sync local state when a new ticket is opened.
   useEffect(() => {
     if (bug) {
       setStatus(bug.status);
+      setWorkType(bug.work_type);
       setSeverity(bug.severity);
+      setPriority(bug.priority ?? "none");
+      setComponent(bug.component ?? "");
       setAssignee(bug.assigned_to_id ?? "unassigned");
       setResolution(bug.resolution_note ?? "");
     }
@@ -232,13 +588,25 @@ function TriageDialog({
 
   if (!bug) return null;
 
+  const needsNote =
+    status === "resolved" || status === "verification" || status === "done";
+
   const save = async () => {
+    if (needsNote && resolution.trim().length === 0) {
+      toast.error(
+        "A resolution note is required to move this to resolved, verification, or done.",
+      );
+      return;
+    }
     try {
       await update.mutateAsync({
         id: bug.id,
         dto: {
           status,
+          workType,
           severity,
+          priority: priority === "none" ? undefined : priority,
+          component: component.trim() || undefined,
           assignedToId: assignee === "unassigned" ? null : assignee,
           resolutionNote: resolution.trim() || undefined,
         },
@@ -271,6 +639,24 @@ function TriageDialog({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <Select
+                value={workType}
+                onValueChange={(v) => setWorkType(v as WorkType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORK_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {WORK_TYPE_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label>Status</Label>
               <Select
@@ -307,27 +693,60 @@ function TriageDialog({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label>Priority</Label>
+              <Select
+                value={priority}
+                onValueChange={(v) => setPriority(v as WorkPriority | "none")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PRIORITY_LABELS[p]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="triage-component">Component</Label>
+              <Input
+                id="triage-component"
+                placeholder="e.g. leads, payments"
+                value={component}
+                onChange={(e) => setComponent(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assign to</Label>
+              <Select value={assignee} onValueChange={setAssignee}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {(users ?? []).map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Assign to</Label>
-            <Select value={assignee} onValueChange={setAssignee}>
-              <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {(users ?? []).map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="resolution">Resolution note</Label>
+            <Label htmlFor="resolution">
+              Resolution note{needsNote ? " (required)" : ""}
+            </Label>
             <Textarea
               id="resolution"
               placeholder="What was done (sent to the reporter when resolved)…"
@@ -355,18 +774,19 @@ function TriageDialog({
 }
 
 /* ------------------------------------------------------------------ */
-/* Read-only detail dialog (everyone — the product owner's window)     */
+/* Read-only detail dialog                                             */
 /* ------------------------------------------------------------------ */
-/**
- * Mr Dube's request (2026-07-27): click a bug and understand, in plain
- * words, what was wrong and what was done about it — plus when it was
- * raised and when it was fixed. Read-only; triage stays in TriageDialog.
- */
 const STATUS_PLAIN: Record<BugStatus, string> = {
   open: "This has been reported and is waiting to be worked on.",
   in_progress: "The team is working on this right now.",
+  backlog: "This is a planned item waiting to be scheduled.",
+  verification: "The fix is done and is being verified.",
   resolved: "This has been fixed.",
+  done: "This has been delivered and accepted.",
   closed: "This ticket is closed.",
+  duplicate: "This is a duplicate of another ticket.",
+  cancelled: "This was cancelled.",
+  wont_do: "This will not be worked on.",
 };
 
 function BugDetailDialog({
@@ -379,7 +799,10 @@ function BugDetailDialog({
   if (!bug) return null;
 
   const fixed = bug.resolved_at ? new Date(bug.resolved_at) : null;
-  const isDone = bug.status === "resolved" || bug.status === "closed";
+  const isDone =
+    bug.status === "resolved" ||
+    bug.status === "closed" ||
+    bug.status === "done";
 
   return (
     <Dialog open={!!bug} onOpenChange={(o) => !o && onClose()}>
@@ -387,12 +810,19 @@ function BugDetailDialog({
         <DialogHeader>
           <DialogTitle className="pr-6 break-words">{bug.title}</DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-1.5 pt-1">
+            <TypeBadge type={bug.work_type} />
+            <PriorityChip priority={bug.priority} />
             <Badge variant={severityVariant[bug.severity]}>
               {SEVERITY_LABELS[bug.severity]}
             </Badge>
             <Badge variant={statusVariant[bug.status]}>
               {STATUS_LABELS[bug.status]}
             </Badge>
+            {bug.component ? (
+              <span className="text-xs text-muted-foreground">
+                · {bug.component}
+              </span>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
 
@@ -418,9 +848,22 @@ function BugDetailDialog({
             </div>
           </div>
 
+          {bug.labels?.length ? (
+            <div className="flex flex-wrap gap-1.5">
+              {bug.labels.map((l) => (
+                <span
+                  key={l}
+                  className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
+                >
+                  {l}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
           <div>
             <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
-              What was wrong
+              Details
             </p>
             <div className="rounded-md border bg-muted/30 p-3 whitespace-pre-wrap break-words">
               {bug.description}
@@ -435,8 +878,8 @@ function BugDetailDialog({
               {bug.resolution_note
                 ? bug.resolution_note
                 : isDone
-                  ? "Fixed — no further notes were added."
-                  : "Nothing yet — this will be filled in once the fix is done."}
+                  ? "Done — no further notes were added."
+                  : "Nothing yet — this will be filled in once the work is done."}
             </div>
           </div>
         </div>
@@ -455,19 +898,8 @@ function BugDetailDialog({
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 export default function BugReportsPage() {
-  // Three audiences, deliberately different views:
-  //  - owner triager (admin_support = prince): full workspace — dates,
-  //    reporter, assignee, aging, and the Triage controls.
-  //  - product owner (admin = Mr Dube): a status-only tracker. He can see
-  //    WHAT bugs exist and their severity/status, but NOT when they were
-  //    raised, how long they've been open, or who's on them — so the board
-  //    never advertises that a fix is taking a while.
-  //  - everyone else: their own reported tickets.
   const isOwnerTriager = useAnyRole(["admin_support"]);
   const isAdmin = useAnyRole(["admin"]);
-  // MGRBUG1 (owner request 2026-07-27): sales managers now see the whole
-  // list and can triage it, alongside admin_support. Reps still see only
-  // what they reported themselves.
   const isManager = useAnyRole(["sales_manager", "manager"]);
   const isTriager = isOwnerTriager || isManager;
   const isProductOwner = isAdmin && !isOwnerTriager;
@@ -477,56 +909,95 @@ export default function BugReportsPage() {
   const showAssignee = !isProductOwner;
   const showManage = isTriager;
 
+  const [view, setView] = useState<ViewKey>("all");
   const [statusFilter, setStatusFilter] = useState<BugStatus | "all">("all");
+  const [priorityFilter, setPriorityFilter] = useState<WorkPriority | "all">(
+    "all",
+  );
+  const [typeFilter, setTypeFilter] = useState<WorkType | "all">("all");
+  const [componentFilter, setComponentFilter] = useState("");
+  const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [active, setActive] = useState<BugReport | null>(null);
   const [detail, setDetail] = useState<BugReport | null>(null);
 
-  const { data, isLoading } = useBugReports(
-    statusFilter === "all" ? undefined : statusFilter,
+  // Debounce the search box so we don't refetch on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const activeView = VIEWS.find((v) => v.key === view) ?? VIEWS[0];
+
+  // Refinements shared by list + counts (NOT the view filter, so tab
+  // badges show each view's own total).
+  const refinements: BugReportFilters = useMemo(
+    () => ({
+      ...(priorityFilter !== "all" ? { priority: priorityFilter } : {}),
+      ...(componentFilter.trim() ? { component: componentFilter.trim() } : {}),
+      ...(debouncedQ.trim() ? { q: debouncedQ.trim() } : {}),
+    }),
+    [priorityFilter, componentFilter, debouncedQ],
   );
+
+  const listFilters: BugReportFilters = useMemo(
+    () => ({
+      ...activeView.filter,
+      ...refinements,
+      // An explicit status/type filter overrides the view's own.
+      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+      ...(typeFilter !== "all" && !activeView.filter.workType
+        ? { workType: typeFilter }
+        : {}),
+    }),
+    [activeView, refinements, statusFilter, typeFilter],
+  );
+
+  const { data, isLoading } = useBugReports(listFilters);
   const rows = data?.data ?? [];
-  // What the server says exists for this filter, so a truncated list is
-  // always declared rather than quietly short.
   const filteredTotal = data?.meta?.total ?? rows.length;
 
-  // Counts at a glance, for everybody. These come from the server's own
-  // totals per status — NOT from counting the rows on screen, which would
-  // only ever count the first page of 50. Reps see their own tickets, so
-  // these are their own counts; triagers see the team's.
-  const { data: countData } = useBugReportCounts();
-  const counts = countData ?? ({} as Record<BugStatus, number>);
-  const totalCount = STATUSES.reduce((sum, s) => sum + (counts[s] ?? 0), 0);
-  const countFor = (s: BugStatus | "all") =>
-    s === "all" ? totalCount : (counts[s] ?? 0);
+  const { data: countData } = useBugReportCounts(refinements);
+  const counts = countData ?? { total: 0, byStatus: {}, byWorkType: {} };
+
+  const viewCount = (v: (typeof VIEWS)[number]) => {
+    if (v.key === "all") return counts.total ?? 0;
+    if (v.filter.workType) return counts.byWorkType[v.filter.workType] ?? 0;
+    if (v.filter.status) return counts.byStatus[v.filter.status] ?? 0;
+    return 0;
+  };
 
   const subtitle = isProductOwner
-    ? "Reported issues and their current status. Click any row to see what went wrong and what was done about it."
+    ? "Reported work and its current status. Click any row to see the detail."
     : isTriager
-      ? "Every issue reported across the team. Click a row to read the detail, or use Triage to assign it and set its status."
-      : "Spotted something broken? Report it and track your tickets here.";
+      ? "Every work item across the team. Click a row to read the detail, or use Triage to classify and assign it."
+      : "Spotted something, or want to request a change? Create a work item and track it here.";
 
   return (
     <Container>
       <PageHeader
-        title={isProductOwner ? "Bug Tracker" : "Bug Reports"}
-        actions={<ReportBugDialog />}
+        title="Work Tracker"
+        actions={
+          <div className="flex gap-2">
+            <CreateWorkItemDialog
+              triggerLabel="Report a problem"
+              defaultType="bug"
+              lockType
+            />
+            <CreateWorkItemDialog
+              triggerLabel="Create work item"
+              defaultType="bug"
+            />
+          </div>
+        }
       >
-        <Tabs
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as BugStatus | "all")}
-        >
+        <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)}>
           <TabsList>
-            <TabsTrigger value="all">
-              All
-              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
-                {countFor("all")}
-              </span>
-            </TabsTrigger>
-            {STATUSES.map((s) => (
-              <TabsTrigger key={s} value={s}>
-                {STATUS_LABELS[s]}
+            {VIEWS.map((v) => (
+              <TabsTrigger key={v.key} value={v.key}>
+                {v.label}
                 <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
-                  {countFor(s)}
+                  {viewCount(v)}
                 </span>
               </TabsTrigger>
             ))}
@@ -536,32 +1007,78 @@ export default function BugReportsPage() {
 
       <p className="mb-3 text-sm text-muted-foreground">{subtitle}</p>
 
-      {/* At-a-glance totals — same numbers for every audience. */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        {(
-          [
-            ["Open", countFor("open"), "text-destructive"],
-            ["In progress", countFor("in_progress"), "text-foreground"],
-            ["Fixed", countFor("resolved"), "text-emerald-600"],
-            ["Closed", countFor("closed"), "text-muted-foreground"],
-          ] as const
-        ).map(([label, n, tone]) => (
-          <div
-            key={label}
-            className="rounded-md border px-3 py-2 min-w-[104px]"
-          >
-            <div className={`text-xl font-semibold tabular-nums ${tone}`}>
-              {n}
-            </div>
-            <div className="text-xs text-muted-foreground">{label}</div>
-          </div>
-        ))}
-        <div className="rounded-md border border-dashed px-3 py-2 min-w-[104px]">
-          <div className="text-xl font-semibold tabular-nums">
-            {countFor("all")}
-          </div>
-          <div className="text-xs text-muted-foreground">Total reported</div>
+      {/* Filter bar */}
+      <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="w-56 pl-8"
+            placeholder="Search title & description…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
         </div>
+
+        {view === "all" && (
+          <Select
+            value={typeFilter}
+            onValueChange={(v) => setTypeFilter(v as WorkType | "all")}
+          >
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {WORK_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {WORK_TYPE_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as BugStatus | "all")}
+        >
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={priorityFilter}
+          onValueChange={(v) => setPriorityFilter(v as WorkPriority | "all")}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="Priority" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All priorities</SelectItem>
+            {PRIORITIES.map((p) => (
+              <SelectItem key={p} value={p}>
+                {PRIORITY_LABELS[p]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          className="w-40"
+          placeholder="Component…"
+          value={componentFilter}
+          onChange={(e) => setComponentFilter(e.target.value)}
+          maxLength={100}
+        />
       </div>
 
       {isLoading ? (
@@ -573,106 +1090,109 @@ export default function BugReportsPage() {
           <Bug className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             {isTriager || isProductOwner
-              ? "No bug reports match this filter."
-              : "You haven't reported any bugs yet."}
+              ? "No work items match these filters."
+              : "You haven't created any work items yet."}
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             Showing {rows.length} of {filteredTotal}
-            {rows.length < filteredTotal && (
-              <span className="text-destructive">
-                {" "}
-                — narrow it down with the tabs above to see the rest
-              </span>
-            )}
           </p>
           <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                {showRaised && <th className="px-3 py-2">Raised</th>}
-                <th className="px-3 py-2">Title</th>
-                <th className="px-3 py-2">Severity</th>
-                <th className="px-3 py-2">Status</th>
-                {/* Solved date shows for every audience (owner decision
-                    2026-07-26): only resolved/closed tickets carry a date,
-                    so open tickets still advertise no aging. */}
-                <th className="px-3 py-2">Solved</th>
-                {showReporter && <th className="px-3 py-2">Reporter</th>}
-                {showAssignee && <th className="px-3 py-2">Assignee</th>}
-                {showManage && <th className="px-3 py-2 text-right">Manage</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rows.map((bug) => (
-                <tr
-                  key={bug.id}
-                  className="cursor-pointer hover:bg-muted/30"
-                  onClick={() => setDetail(bug)}
-                >
-                  {showRaised && (
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                      {format(new Date(bug.created_at), "MMM d, yyyy")}
-                    </td>
-                  )}
-                  <td
-                    className="max-w-[280px] truncate px-3 py-2 font-medium"
-                    title={bug.title}
-                  >
-                    {bug.title}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={severityVariant[bug.severity]}>
-                      {SEVERITY_LABELS[bug.severity]}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={statusVariant[bug.status]}>
-                      {STATUS_LABELS[bug.status]}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                    {bug.resolved_at
-                      ? format(new Date(bug.resolved_at), "MMM d, yyyy")
-                      : "—"}
-                  </td>
-                  {showReporter && (
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {bug.reported_by
-                        ? `${bug.reported_by.first_name} ${bug.reported_by.last_name}`
-                        : "—"}
-                    </td>
-                  )}
-                  {showAssignee && (
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {bug.assigned_to ? (
-                        `${bug.assigned_to.first_name} ${bug.assigned_to.last_name}`
-                      ) : (
-                        <span className="text-muted-foreground">Unassigned</span>
-                      )}
-                    </td>
-                  )}
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  {showRaised && <th className="px-3 py-2">Raised</th>}
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2">Title</th>
+                  <th className="px-3 py-2">Priority</th>
+                  <th className="px-3 py-2">Severity</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Solved</th>
+                  {showReporter && <th className="px-3 py-2">Reporter</th>}
+                  {showAssignee && <th className="px-3 py-2">Assignee</th>}
                   {showManage && (
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActive(bug);
-                        }}
-                      >
-                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-                        Triage
-                      </Button>
-                    </td>
+                    <th className="px-3 py-2 text-right">Manage</th>
                   )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((bug) => (
+                  <tr
+                    key={bug.id}
+                    className="cursor-pointer hover:bg-muted/30"
+                    onClick={() => setDetail(bug)}
+                  >
+                    {showRaised && (
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                        {format(new Date(bug.created_at), "MMM d, yyyy")}
+                      </td>
+                    )}
+                    <td className="px-3 py-2">
+                      <TypeBadge type={bug.work_type} />
+                    </td>
+                    <td
+                      className="max-w-[260px] truncate px-3 py-2 font-medium"
+                      title={bug.title}
+                    >
+                      {bug.title}
+                    </td>
+                    <td className="px-3 py-2">
+                      <PriorityChip priority={bug.priority} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant={severityVariant[bug.severity]}>
+                        {SEVERITY_LABELS[bug.severity]}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant={statusVariant[bug.status]}>
+                        {STATUS_LABELS[bug.status]}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                      {bug.resolved_at
+                        ? format(new Date(bug.resolved_at), "MMM d, yyyy")
+                        : "—"}
+                    </td>
+                    {showReporter && (
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {bug.reported_by
+                          ? `${bug.reported_by.first_name} ${bug.reported_by.last_name}`
+                          : "—"}
+                      </td>
+                    )}
+                    {showAssignee && (
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {bug.assigned_to ? (
+                          `${bug.assigned_to.first_name} ${bug.assigned_to.last_name}`
+                        ) : (
+                          <span className="text-muted-foreground">
+                            Unassigned
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    {showManage && (
+                      <td className="px-3 py-2 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActive(bug);
+                          }}
+                        >
+                          <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                          Triage
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

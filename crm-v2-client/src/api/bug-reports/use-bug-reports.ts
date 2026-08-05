@@ -2,15 +2,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClientAuth } from "~/api/axios";
 import type {
   BugReport,
+  BugReportCounts,
+  BugReportFilters,
   CreateBugReportDto,
   UpdateBugReportDto,
   AssignableUser,
-  BugStatus,
 } from "./types";
 
 const keys = {
   all: ["bug-reports"] as const,
-  list: (status?: BugStatus) => [...keys.all, "list", status ?? "all"] as const,
+  list: (filters?: BugReportFilters) =>
+    [...keys.all, "list", filters ?? {}] as const,
+  counts: (filters?: BugReportFilters) =>
+    [...keys.all, "counts", filters ?? {}] as const,
   assignable: [...["bug-reports"], "assignable-users"] as const,
 };
 
@@ -20,19 +24,30 @@ interface ListResponse {
   meta?: { total?: number };
 }
 
+/** Drop empty values so the query string stays clean. */
+function toParams(filters?: BugReportFilters): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!filters) return out;
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== null && `${v}`.trim() !== "") out[k] = `${v}`;
+  }
+  return out;
+}
+
 const api = {
-  // The server pages at 50 by default and refuses anything above 100, so
-  // a single request cannot show the whole tracker. Collect the pages and
-  // hand back one list. `meta.total` is carried through so the page can
-  // state "showing N of M" — a short list is never silent.
-  list: async (status?: BugStatus): Promise<ListResponse> => {
+  // The server pages at 50 by default and caps at 100, so a single request
+  // cannot show the whole tracker. Collect the pages (server-side filtered)
+  // and hand back one list; `meta.total` is carried through so the page can
+  // state "showing N of M".
+  list: async (filters?: BugReportFilters): Promise<ListResponse> => {
     const PER_PAGE = 100;
     const MAX_PAGES = 20; // 2,000 tickets; far beyond any real board
+    const base = toParams(filters);
     const rows: BugReport[] = [];
     let total = 0;
     for (let page = 1; page <= MAX_PAGES; page++) {
       const res = await apiClientAuth.get("/bug-reports", {
-        params: { ...(status ? { status } : {}), page, limit: PER_PAGE },
+        params: { ...base, page, limit: PER_PAGE },
       });
       const body = res.data as ListResponse;
       const batch = body?.data ?? [];
@@ -55,49 +70,34 @@ const api = {
       .then((res) => res.data.data),
 
   /**
-   * Counts per status.
-   *
-   * Deliberately NOT derived by counting the rows of a list call: the
-   * list is paginated and returns 50 by default, so counting rows gives
-   * the size of the first page, not the board. Each status is asked for
-   * with limit=1 and only `meta.total` is read — accurate at any volume,
-   * and the payloads are tiny.
+   * One request returns tallies by status AND work_type — replacing the
+   * previous four separate per-status requests. Filters (except status)
+   * scope the counts the same way they scope the list.
    */
-  counts: async (): Promise<Record<BugStatus, number>> => {
-    const statuses: BugStatus[] = [
-      "open",
-      "in_progress",
-      "resolved",
-      "closed",
-    ];
-    const totals = await Promise.all(
-      statuses.map((s) =>
-        apiClientAuth
-          .get("/bug-reports", { params: { status: s, limit: 1 } })
-          .then((res) => Number(res.data?.meta?.total ?? 0))
-          .catch(() => 0),
-      ),
-    );
-    return statuses.reduce(
-      (acc, s, i) => ({ ...acc, [s]: totals[i] }),
-      {} as Record<BugStatus, number>,
+  counts: async (filters?: BugReportFilters): Promise<BugReportCounts> => {
+    const res = await apiClientAuth.get("/bug-reports/counts", {
+      params: toParams(filters),
+    });
+    const data = res.data?.data as BugReportCounts | undefined;
+    return (
+      data ?? { total: 0, byStatus: {}, byWorkType: {} }
     );
   },
 };
 
-export function useBugReports(status?: BugStatus) {
+export function useBugReports(filters?: BugReportFilters) {
   return useQuery({
-    queryKey: keys.list(status),
-    queryFn: () => api.list(status),
+    queryKey: keys.list(filters),
+    queryFn: () => api.list(filters),
     staleTime: 15 * 1000,
   });
 }
 
-/** Ticket counts by status, for the at-a-glance totals. */
-export function useBugReportCounts() {
+/** Ticket counts by status and work_type, for the tabs and totals. */
+export function useBugReportCounts(filters?: BugReportFilters) {
   return useQuery({
-    queryKey: [...keys.all, "counts"] as const,
-    queryFn: api.counts,
+    queryKey: keys.counts(filters),
+    queryFn: () => api.counts(filters),
     staleTime: 15 * 1000,
   });
 }
@@ -119,7 +119,7 @@ export function useUpdateBugReport() {
   });
 }
 
-/** Only triagers (admin / admin_support) can call this endpoint. */
+/** Only triagers (admin_support / managers) can call this endpoint. */
 export function useAssignableUsers(enabled = true) {
   return useQuery({
     queryKey: keys.assignable,
