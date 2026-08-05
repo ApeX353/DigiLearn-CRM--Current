@@ -619,6 +619,15 @@ export class ActivitiesService {
               end_time: endDate,
             });
             await manager.save(Meeting, meetingEntity);
+            // DURATION1: derive the activity's duration from the meeting
+            // window — the source of truth for a meeting — so the Duration
+            // field shows a real figure instead of a permanent "--".
+            const meetingMins = Math.max(
+              1,
+              Math.round((endDate.getTime() - startDate.getTime()) / 60000),
+            );
+            savedActivity.duration = meetingMins;
+            await manager.save(Activity, savedActivity);
           }
           break;
 

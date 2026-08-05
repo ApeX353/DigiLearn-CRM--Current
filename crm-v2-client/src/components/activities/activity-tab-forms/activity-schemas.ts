@@ -33,6 +33,9 @@ export const callTabSchema = z.object({
   summary: z.string().min(1, "Summary is required"),
   next_steps: z.string().optional(),
   follow_up_date: z.date().optional(),
+  // DURATION1: how long the call ran (minutes). Optional — the input maps an
+  // empty box to undefined so it stays blank rather than coercing to 0.
+  duration: z.number().int().positive().max(1440).optional(),
 });
 export type CallTabValues = z.infer<typeof callTabSchema>;
 

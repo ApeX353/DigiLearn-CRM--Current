@@ -35,6 +35,7 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
         summary: "",
         next_steps: "",
         follow_up_date: undefined,
+        duration: undefined,
       },
       mode: "onTouched",
     });
@@ -64,6 +65,9 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
           // the rep typed. That single omission accounts for the bulk
           // of the undated calls on production.
           due_at: v.follow_up_date?.toISOString(),
+          // DURATION1: carry the call length onto the activity so the
+          // Duration field shows a real number instead of "--".
+          duration: v.duration,
           call: {
             phone_number: v.phone_number,
             outcome: v.outcome,
@@ -156,6 +160,35 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
                     placeholder="Brief summary of the call..."
                     rows={2}
                     {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="duration"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Duration (mins)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="e.g. 15"
+                    name={field.name}
+                    ref={field.ref}
+                    onBlur={field.onBlur}
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === ""
+                          ? undefined
+                          : e.target.valueAsNumber,
+                      )
+                    }
                   />
                 </FormControl>
                 <FormMessage />
