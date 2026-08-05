@@ -99,16 +99,15 @@ function stripFollowUpPrefix(subject: string): string {
 
 function defaultSubject(sourceSubject: string, sourceType: ActivityType) {
   const clean = stripFollowUpPrefix(sourceSubject);
-  switch (sourceType) {
-    case "meeting":
-      return `Follow-up: ${clean}`;
-    case "call":
-      return `Next step after call: ${clean}`;
-    case "task":
-      return `Next step after: ${clean}`;
-    default:
-      return `Follow-up: ${clean}`;
-  }
+  const prefix =
+    sourceType === "call"
+      ? "Next step after call"
+      : sourceType === "task"
+        ? "Next step after"
+        : "Follow-up";
+  // If the source carried no real subject, don't emit a dangling "Follow-up:"
+  // with nothing after it — just use the prefix as the whole subject.
+  return clean ? `${prefix}: ${clean}` : prefix;
 }
 
 export function FollowUpPromptDialog() {
@@ -298,7 +297,15 @@ export function FollowUpPromptDialog() {
         lead_id: sourceActivity.lead_id ?? undefined,
         deal_id: sourceActivity.deal_id ?? undefined,
         contact_id: sourceActivity.contact_id ?? undefined,
-        assigned_to_id: sourceActivity.assigned_to_id ?? undefined,
+        // Never orphan a follow-up. Fall back to whoever the source was
+        // assigned to, else who logged it — mirroring the server next-step
+        // path's `?? userId`. Previously an unassigned source (e.g. a manager
+        // completing a call that carried no assignee) produced an ownerless
+        // task that showed on nobody's list.
+        assigned_to_id:
+          sourceActivity.assigned_to_id ??
+          sourceActivity.created_by?.id ??
+          undefined,
         ...(type === "task"
           ? { task: { status: "todo", priority: "medium" } }
           : {}),
