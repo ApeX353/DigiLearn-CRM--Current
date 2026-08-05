@@ -496,7 +496,7 @@ function AutoAssignQueue() {
     rejectBatch.isPending;
 
   const runDistribution = (limit: number | null) => {
-    runAutoAssign.mutate(limit, {
+    runAutoAssign.mutate({ limit }, {
       onSuccess: (r) => {
         setPreview(r.preview.filter((p) => p.will_gain > 0));
         toast.success(

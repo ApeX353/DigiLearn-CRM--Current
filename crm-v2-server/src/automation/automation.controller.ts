@@ -48,6 +48,7 @@ export class AutomationController {
   async runAssignmentDistribution(
     @CurrentUser('id') userId: string,
     @Query('limit') limitParam?: string,
+    @Query('campaign_id') campaignId?: string,
   ) {
     // "all" (or nothing) → distribute every eligible lead; otherwise the
     // chosen batch size. Anything unparseable falls back to all.
@@ -56,7 +57,14 @@ export class AutomationController {
       const n = Number.parseInt(limitParam, 10);
       limit = Number.isFinite(n) && n > 0 ? n : null;
     }
-    const data = await this.autoRouter.runDistribution(userId, limit);
+    // Optional campaign scope: distribute ONLY leads sourced from this import
+    // campaign (Kim's flow — "distribute the batch we just imported", not the
+    // whole backlog). Blank = every eligible lead, as before.
+    const data = await this.autoRouter.runDistribution(
+      userId,
+      limit,
+      campaignId && campaignId !== 'all' ? campaignId : null,
+    );
     return { success: true, data };
   }
 

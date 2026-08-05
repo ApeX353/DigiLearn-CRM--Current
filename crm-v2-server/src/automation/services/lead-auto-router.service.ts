@@ -151,6 +151,7 @@ export class LeadAutoRouterService {
   async runDistribution(
     triggeredById?: string,
     limit: number | null = null,
+    campaignId: string | null = null,
   ): Promise<DistributionResult> {
     const includeManagers = await this.complianceSettings.getBoolean(
       'auto_assign_include_managers',
@@ -172,7 +173,7 @@ export class LeadAutoRouterService {
       recipients.map((r) => [r.id, 0]),
     );
 
-    const pool = await this.getDistributablePool(limit);
+    const pool = await this.getDistributablePool(limit, campaignId);
 
     let proposed = 0;
     let skipped = 0;
@@ -1029,7 +1030,10 @@ export class LeadAutoRouterService {
    *
    * @param limit The manager's batch choice; null = all such leads.
    */
-  private async getDistributablePool(limit: number | null): Promise<Lead[]> {
+  private async getDistributablePool(
+    limit: number | null,
+    campaignId: string | null = null,
+  ): Promise<Lead[]> {
     const pendingLeadIds = (
       await this.proposalRepository.find({
         where: { status: AssignmentProposalStatus.PENDING },
@@ -1048,8 +1052,13 @@ export class LeadAutoRouterService {
       // "No activity yet" — a lead with any activity has been picked up.
       .andWhere(
         'NOT EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = lead.id)',
-      )
-      .orderBy('lead.created_at', 'ASC');
+      );
+    // Campaign scope: when the manager distributes a specific import, limit the
+    // pool to that campaign's leads so an old backlog is never swept in.
+    if (campaignId) {
+      qb.andWhere('lead.source_campaign_id = :campaignId', { campaignId });
+    }
+    qb.orderBy('lead.created_at', 'ASC');
     if (typeof limit === 'number' && limit > 0) {
       qb.limit(limit);
     }

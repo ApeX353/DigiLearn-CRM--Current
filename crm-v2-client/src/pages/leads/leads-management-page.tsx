@@ -19,6 +19,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useRunAutoAssign } from "~/api/assignment-proposals";
+import { useCampaigns } from "~/api/campaigns";
 import { MyEnquiriesBanner } from "~/components/leads/my-enquiries-banner";
 import {
   LEAD_SOURCES,
@@ -289,20 +290,29 @@ export default function LeadsManagementPage() {
 
   const navigate = useNavigate();
   const runAutoAssign = useRunAutoAssign();
+  const { data: autoAssignCampaigns } = useCampaigns();
+  const [autoAssignCampaignId, setAutoAssignCampaignId] = useState<string>("");
   const runAutoAssignFromNew = () => {
-    // Distribute the whole new/unworked pool; approvals happen in the queue.
-    runAutoAssign.mutate(null, {
-      onSuccess: (r) => {
-        toast.success(
-          r.proposed > 0
-            ? `${r.proposed} lead(s) proposed — review them in the Approval Queue`
-            : "Nothing to distribute right now",
-        );
-        if (r.proposed > 0) navigate("/admin/approval-queue");
+    // Scope to the chosen import campaign so ONLY those leads are distributed
+    // (Kim's flow — "distribute the batch we imported", not the whole backlog).
+    // Blank = every new/unworked lead. Approvals happen in the queue.
+    runAutoAssign.mutate(
+      { campaignId: autoAssignCampaignId || undefined },
+      {
+        onSuccess: (r) => {
+          toast.success(
+            r.proposed > 0
+              ? `${r.proposed} lead(s) proposed — review them in the Approval Queue`
+              : "Nothing to distribute right now",
+          );
+          if (r.proposed > 0) navigate("/admin/approval-queue");
+        },
+        onError: (err: any) =>
+          toast.error(
+            err?.response?.data?.message || "Could not run auto-assign",
+          ),
       },
-      onError: (err: any) =>
-        toast.error(err?.response?.data?.message || "Could not run auto-assign"),
-    });
+    );
   };
   const canAssignLeads = useAnyRole(["admin", "sales_manager"]);
   // CSV5 — bulk import is a management action, not a rep one. Same
@@ -540,7 +550,24 @@ export default function LeadsManagementPage() {
             auto-assign for the freshly imported (unassigned, unworked)
             leads. It proposes only — approvals happen in the queue. */}
         {canImportLeads && leadFilter === "New" && (
-          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+            <label className="text-xs font-medium text-muted-foreground">
+              Distribute:
+            </label>
+            <select
+              value={autoAssignCampaignId}
+              onChange={(e) => setAutoAssignCampaignId(e.target.value)}
+              disabled={runAutoAssign.isPending}
+              data-testid="auto-assign-campaign"
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="">All new leads</option>
+              {(autoAssignCampaigns ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
             <Button
               size="sm"
               onClick={runAutoAssignFromNew}
@@ -555,8 +582,9 @@ export default function LeadsManagementPage() {
               Run auto-assign
             </Button>
             <span className="text-xs text-muted-foreground">
-              Distributes new, unassigned leads by territory and workload —
-              suggestions land in the Approval Queue for you to approve.
+              {autoAssignCampaignId
+                ? "Distributes only that campaign's new, unassigned leads by territory and workload — suggestions land in the Approval Queue."
+                : "Distributes all new, unassigned leads by territory and workload — pick a campaign to scope it to one import. Suggestions land in the Approval Queue."}
             </span>
           </div>
         )}

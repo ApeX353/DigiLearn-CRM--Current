@@ -218,12 +218,17 @@ export const DISTRIBUTION_BATCH_SIZES: Array<number | null> = [
 export function useRunAutoAssign() {
   const queryClient = useQueryClient();
   return useMutation({
+    // `limit` = batch size (null = all). `campaignId` scopes the run to a
+    // single import campaign's leads (Kim's flow) — omitted = whole pool.
     mutationFn: async (
-      limit: number | null,
+      vars: { limit?: number | null; campaignId?: string | null } = {},
     ): Promise<DistributionResult> => {
-      const q = limit === null ? "all" : String(limit);
+      const { limit = null, campaignId = null } = vars;
+      const params = new URLSearchParams();
+      params.set("limit", limit === null ? "all" : String(limit));
+      if (campaignId) params.set("campaign_id", campaignId);
       const res = await apiClientAuth.post(
-        `/automation/assignment-proposals/run?limit=${q}`,
+        `/automation/assignment-proposals/run?${params.toString()}`,
       );
       return res.data?.data ?? res.data;
     },
