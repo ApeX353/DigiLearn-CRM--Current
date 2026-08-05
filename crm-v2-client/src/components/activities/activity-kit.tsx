@@ -554,18 +554,19 @@ export function CompletedActivityFeedItem({
     new Date(completedAt),
     "MMM d, yyyy · h:mm a",
   );
-  const note =
-    (activity.type === "note" && activity.note?.content) ||
-    // eea1c4ae: a task completed through the outcome dialog stores its
-    // note on the activity itself — show it so it isn't invisible.
-    (activity as { completion_note?: string }).completion_note ||
-    activity.description;
+  const isNote = activity.type === "note";
+  // eea1c4ae: a task completed through the outcome dialog stores its
+  // note on the activity itself — show it so it isn't invisible.
+  const completionNote = (activity as { completion_note?: string })
+    .completion_note;
+  const noteBody =
+    (isNote && activity.note?.content) || completionNote || activity.description;
 
   // Outcome surfacing — calls and meetings carry an outcome blob; we
   // pull whatever short label exists so the feed reads like a sales
-  // log instead of a plain timeline. eea1c4ae: fall back to the
-  // activity-level `completion_outcome` (set by the outcome dialog on
-  // task/other completions) so a recorded outcome always shows.
+  // log instead of a plain timeline. Falls back to the activity-level
+  // `completion_outcome` (set by the outcome dialog on task/other
+  // completions) so a recorded outcome always shows.
   const outcome =
     (activity.type === "call"
       ? activity.call?.outcome ??
@@ -574,6 +575,13 @@ export function CompletedActivityFeedItem({
         ? (activity.meeting as { outcome?: string } | undefined)?.outcome
         : undefined) ??
     (activity as { completion_outcome?: string }).completion_outcome;
+
+  // OUT-DUBE (Mr Dube, 5 Aug): a completed, non-note activity must read its
+  // outcome inline — "Outcome: <text>" — not hide it behind a click. Prefer
+  // the free-text note the rep typed, else the humanised outcome category.
+  const outcomeText = isNote
+    ? null
+    : completionNote || (outcome ? String(outcome).replace(/_/g, " ") : null);
 
   return (
     <li className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30">
@@ -597,10 +605,17 @@ export function CompletedActivityFeedItem({
           </span>
         </div>
 
-        {note && (
-          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-            {note}
+        {outcomeText ? (
+          <p className="mt-1 line-clamp-2 text-sm">
+            <span className="font-medium text-foreground">Outcome:</span>{" "}
+            <span className="text-muted-foreground">{outcomeText}</span>
           </p>
+        ) : (
+          noteBody && (
+            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+              {noteBody}
+            </p>
+          )
         )}
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -614,7 +629,7 @@ export function CompletedActivityFeedItem({
               {owner}
             </span>
           )}
-          {outcome && (
+          {outcome && completionNote && (
             <Badge
               variant="outline"
               className="rounded-full px-1.5 py-0 text-[10px]"
