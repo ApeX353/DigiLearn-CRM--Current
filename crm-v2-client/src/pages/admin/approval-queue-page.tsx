@@ -803,9 +803,10 @@ function AutoAssignQueue() {
           <ArrowRightLeft className="h-4 w-4" />
           Rebalance load
           <span className="text-xs font-normal text-muted-foreground">
-            move a batch of <strong>the selected import's</strong> leads between
-            two reps (cross-territory allowed, existing books untouched) — keeps
-            the 50-lead fairness gap, unworked leads move first
+            balance <strong>the selected import's proposals</strong> between two
+            reps <strong>before you approve</strong> (cross-territory allowed,
+            existing books untouched) — so each lead is assigned once. The
+            preview shows the <em>projected</em> totals; keeps the 50-lead gap.
           </span>
         </div>
         <div className="flex flex-wrap items-end gap-2">

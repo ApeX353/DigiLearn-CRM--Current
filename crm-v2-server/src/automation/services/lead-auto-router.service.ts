@@ -761,6 +761,15 @@ export class LeadAutoRouterService {
       throw new NotFoundException('One of the selected reps was not found');
     }
 
+    // REBAL-PRE: for an import, balance the PROPOSALS before approval so each
+    // lead is assigned only ONCE (no double-assign, no SLA started-then-cleared).
+    if (opts.campaignId) {
+      return this.balanceImportProposals(
+        { ...opts, campaignId: opts.campaignId },
+        names,
+      );
+    }
+
     const loads = await this.getOpenLeadCounts([fromRepId, toRepId]);
     const fromLoad = loads.get(fromRepId) ?? 0;
     const toLoad = loads.get(toRepId) ?? 0;
@@ -804,10 +813,20 @@ export class LeadAutoRouterService {
 
     if (opts.preview || moved === 0) {
       if (moved === 0) {
-        result.note =
-          fromLoad <= toLoad
-            ? `${names.get(fromRepId)} is not carrying more than ${names.get(toRepId)} — nothing to move`
-            : 'Moving any leads would push the pair past the fairness gap';
+        if (want <= 0) {
+          // The gap itself blocks the move.
+          result.note =
+            fromLoad <= toLoad
+              ? `${names.get(fromRepId)} is not carrying more than ${names.get(toRepId)} — nothing to move`
+              : 'Moving any leads would push the pair past the fairness gap';
+        } else {
+          // The gap ALLOWS a move, but no lead matched the scope — almost
+          // always because the chosen import hasn't been approved yet, so its
+          // leads aren't assigned to anyone to move. (Don't blame the gap.)
+          result.note = opts.campaignId
+            ? `${names.get(fromRepId)} has no leads from the selected import to move yet — approve the import first so its leads are assigned`
+            : `${names.get(fromRepId)} has no eligible leads to move`;
+        }
       }
       return result;
     }
@@ -864,6 +883,134 @@ export class LeadAutoRouterService {
       `Rebalance: moved ${moved} lead(s) ${names.get(fromRepId)} → ${names.get(toRepId)} by ${deciderId}`,
     );
     return result;
+  }
+
+  /**
+   * REBAL-PRE: balance an import BEFORE approval by moving pending proposals
+   * between two reps (reassign proposed_rep_id). Approval then assigns each
+   * lead once. Projected load = a rep's existing open book + their pending
+   * proposals for this import. Cross-territory allowed; keeps the 50-gap.
+   */
+  private async balanceImportProposals(
+    opts: {
+      fromRepId: string;
+      toRepId: string;
+      count?: number | null;
+      campaignId: string;
+      deciderId: string;
+      preview?: boolean;
+    },
+    names: Map<string, string>,
+  ): Promise<RebalanceResult> {
+    const { fromRepId, toRepId, campaignId, deciderId } = opts;
+    const existing = await this.getOpenLeadCounts([fromRepId, toRepId]);
+    const fromProps = await this.countImportProposals(fromRepId, campaignId);
+    const toProps = await this.countImportProposals(toRepId, campaignId);
+    // Projected = what each rep WILL hold once this import is approved.
+    const fromLoad = (existing.get(fromRepId) ?? 0) + fromProps;
+    const toLoad = (existing.get(toRepId) ?? 0) + toProps;
+
+    let want =
+      typeof opts.count === 'number' && opts.count > 0
+        ? Math.floor(opts.count)
+        : Math.max(0, Math.floor((fromLoad - toLoad) / 2));
+    // Keep `to` within the fairness gap of `from` after the move, and never
+    // move more proposals than `from` actually has for this import.
+    const maxByGap = Math.floor((FAIRNESS_GAP + fromLoad - toLoad) / 2);
+    want = Math.min(want, Math.max(0, maxByGap), fromProps);
+
+    const proposalIds =
+      want > 0
+        ? await this.pickImportProposals(fromRepId, campaignId, want)
+        : [];
+    const moved = proposalIds.length;
+
+    const result: RebalanceResult = {
+      preview: !!opts.preview,
+      moved,
+      from: {
+        id: fromRepId,
+        name: names.get(fromRepId)!,
+        before: fromLoad,
+        after: fromLoad - moved,
+      },
+      to: {
+        id: toRepId,
+        name: names.get(toRepId)!,
+        before: toLoad,
+        after: toLoad + moved,
+      },
+      lead_ids: [],
+    };
+
+    if (opts.preview || moved === 0) {
+      if (moved === 0) {
+        result.note =
+          fromProps === 0
+            ? `${names.get(fromRepId)} has no pending proposals from this import to move`
+            : fromLoad <= toLoad
+              ? `${names.get(fromRepId)} is not projected above ${names.get(toRepId)} — nothing to move`
+              : 'Moving any proposals would push the pair past the fairness gap';
+      }
+      return result;
+    }
+
+    // Commit: reassign the proposals to the receiving rep. No lead is assigned
+    // here — approval does that, once, with the balanced split.
+    await this.proposalRepository.update(
+      { id: In(proposalIds) },
+      { proposed_rep_id: toRepId },
+    );
+    try {
+      await this.userNotificationsService.sendToUsers({
+        title: 'Proposed leads rebalanced to you',
+        message: `${moved} proposed lead(s) were rebalanced to you before approval — they become yours once the import is approved.`,
+        severity: 'info',
+        entity: 'Lead',
+        entityId: 'rebalance-proposals',
+        dedupeKey: `proposal-rebalance-${toRepId}-${campaignId}`,
+        actionUrl: '/admin/approval-queue',
+        userIds: [toRepId],
+      });
+    } catch {
+      // notification failure never unwinds the move
+    }
+    this.logger.log(
+      `Balance (proposals): moved ${moved} proposal(s) ${names.get(
+        fromRepId,
+      )} → ${names.get(toRepId)} for campaign ${campaignId} by ${deciderId}`,
+    );
+    return result;
+  }
+
+  private async countImportProposals(
+    repId: string,
+    campaignId: string,
+  ): Promise<number> {
+    return this.proposalRepository
+      .createQueryBuilder('p')
+      .innerJoin('leads', 'l', 'l.id = p.lead_id')
+      .where('p.status = :s', { s: AssignmentProposalStatus.PENDING })
+      .andWhere('p.proposed_rep_id = :repId', { repId })
+      .andWhere('l.source_campaign_id = :campaignId', { campaignId })
+      .getCount();
+  }
+
+  private async pickImportProposals(
+    repId: string,
+    campaignId: string,
+    limit: number,
+  ): Promise<string[]> {
+    const rows = await this.proposalRepository
+      .createQueryBuilder('p')
+      .select('p.id', 'id')
+      .innerJoin('leads', 'l', 'l.id = p.lead_id')
+      .where('p.status = :s', { s: AssignmentProposalStatus.PENDING })
+      .andWhere('p.proposed_rep_id = :repId', { repId })
+      .andWhere('l.source_campaign_id = :campaignId', { campaignId })
+      .limit(limit)
+      .getRawMany<{ id: string }>();
+    return rows.map((r) => r.id);
   }
 
   /** Display names for a set of user ids. */
