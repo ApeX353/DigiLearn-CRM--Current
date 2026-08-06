@@ -259,6 +259,9 @@ export interface RebalanceInput {
   to_rep_id: string;
   /** null/omitted = auto-even the two to the middle. */
   count?: number | null;
+  /** Scope the move to one import campaign's leads (never a rep's existing
+   *  book). Omitted = whole book (legacy). */
+  campaign_id?: string | null;
   /** true = "will move X" figures without writing. */
   preview?: boolean;
 }

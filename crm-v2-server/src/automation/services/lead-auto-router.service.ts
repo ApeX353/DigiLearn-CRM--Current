@@ -746,6 +746,7 @@ export class LeadAutoRouterService {
     fromRepId: string;
     toRepId: string;
     count?: number | null;
+    campaignId?: string | null;
     deciderId: string;
     preview?: boolean;
   }): Promise<RebalanceResult> {
@@ -776,7 +777,10 @@ export class LeadAutoRouterService {
     const maxByGap = Math.floor((FAIRNESS_GAP + fromLoad - toLoad) / 2);
     want = Math.min(want, Math.max(0, maxByGap), fromLoad);
 
-    const leads = want > 0 ? await this.pickRebalanceLeads(fromRepId, want) : [];
+    const leads =
+      want > 0
+        ? await this.pickRebalanceLeads(fromRepId, want, opts.campaignId)
+        : [];
     const leadIds = leads.map((l) => l.id);
     const moved = leadIds.length;
 
@@ -885,14 +889,22 @@ export class LeadAutoRouterService {
   private async pickRebalanceLeads(
     fromRepId: string,
     limit: number,
+    campaignId?: string | null,
   ): Promise<Lead[]> {
-    return this.leadRepository
+    const qb = this.leadRepository
       .createQueryBuilder('lead')
       .where('lead.assigned_to = :fromRepId', { fromRepId })
       .andWhere('lead.deleted_at IS NULL')
       .andWhere('lead.status NOT IN (:...terminal)', {
         terminal: [...TERMINAL_LEAD_STATUSES],
-      })
+      });
+    // REBAL-SCOPE: balance ONLY the chosen import's leads (NASH / any future
+    // import) — never a rep's existing book. Without a campaign it falls back
+    // to the whole book (legacy behaviour), but the UI always passes one.
+    if (campaignId) {
+      qb.andWhere('lead.source_campaign_id = :campaignId', { campaignId });
+    }
+    return qb
       // Unworked (no activity) sorts first — Postgres orders false before true.
       .orderBy(
         '(EXISTS (SELECT 1 FROM activities a WHERE a.lead_id = lead.id))',

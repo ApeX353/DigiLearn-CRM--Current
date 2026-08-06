@@ -216,6 +216,7 @@ export class AutomationController {
       from_rep_id?: string;
       to_rep_id?: string;
       count?: number | null;
+      campaign_id?: string | null;
       preview?: boolean;
     },
   ) {
@@ -223,6 +224,7 @@ export class AutomationController {
       fromRepId: body?.from_rep_id ?? '',
       toRepId: body?.to_rep_id ?? '',
       count: body?.count ?? null,
+      campaignId: body?.campaign_id ?? null,
       deciderId: userId,
       preview: !!body?.preview,
     });

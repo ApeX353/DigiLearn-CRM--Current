@@ -62,6 +62,7 @@ import {
   useUndoAssignmentApproval,
   DISTRIBUTION_BATCH_SIZES,
 } from "~/api/assignment-proposals";
+import { useCampaigns } from "~/api/campaigns";
 import type {
   AssignmentProposal,
   DistributionPreviewRow,
@@ -488,6 +489,10 @@ function AutoAssignQueue() {
   const [rbTo, setRbTo] = useState<string>("");
   const [rbCount, setRbCount] = useState<string>("");
   const [rbResult, setRbResult] = useState<RebalanceResult | null>(null);
+  // REBAL-SCOPE: the import whose leads the balancer may move. Required — the
+  // balancer must only touch import leads, never a rep's existing book.
+  const [rbCampaign, setRbCampaign] = useState<string>("");
+  const { data: rbCampaigns } = useCampaigns();
   const reps = useSalesTeamReps();
   const busy =
     approve.isPending ||
@@ -616,12 +621,19 @@ function AutoAssignQueue() {
       toast.error("Pick two different reps to move leads between");
       return;
     }
+    if (!rbCampaign) {
+      toast.error(
+        "Pick which import to balance — the balancer only moves that import's leads",
+      );
+      return;
+    }
     const n = rbCount.trim() === "" ? null : Number(rbCount);
     rebalance.mutate(
       {
         from_rep_id: rbFrom,
         to_rep_id: rbTo,
         count: n && n > 0 ? Math.floor(n) : null,
+        campaign_id: rbCampaign,
         preview: isPreview,
       },
       {
@@ -791,11 +803,33 @@ function AutoAssignQueue() {
           <ArrowRightLeft className="h-4 w-4" />
           Rebalance load
           <span className="text-xs font-normal text-muted-foreground">
-            move a batch between two reps (cross-territory allowed) — keeps the
-            50-lead fairness gap, unworked leads move first
+            move a batch of <strong>the selected import's</strong> leads between
+            two reps (cross-territory allowed, existing books untouched) — keeps
+            the 50-lead fairness gap, unworked leads move first
           </span>
         </div>
         <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-muted-foreground">
+              Balance which import
+            </label>
+            <select
+              className="h-9 w-48 rounded-md border border-input bg-transparent px-2 text-sm"
+              value={rbCampaign}
+              onChange={(e) => {
+                setRbCampaign(e.target.value);
+                setRbResult(null);
+              }}
+              data-testid="rebalance-campaign"
+            >
+              <option value="">Select import…</option>
+              {(rbCampaigns ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted-foreground">From</label>
             <select
@@ -858,7 +892,7 @@ function AutoAssignQueue() {
             size="sm"
             variant="outline"
             onClick={() => runRebalance(true)}
-            disabled={rebalance.isPending || !rbFrom || !rbTo}
+            disabled={rebalance.isPending || !rbFrom || !rbTo || !rbCampaign}
             data-testid="rebalance-preview"
           >
             {rebalance.isPending && (
