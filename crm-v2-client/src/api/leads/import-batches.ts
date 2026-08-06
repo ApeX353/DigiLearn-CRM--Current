@@ -77,7 +77,9 @@ export function useImportBatches(status: "pending" | "approved" = "pending") {
       });
       return res.data?.data ?? [];
     },
-    refetchInterval: 30_000,
+    // Real-time counters: poll fast so importable/duplicate/created counts and
+    // the nav badge update live (esp. created_count ticking during approval).
+    refetchInterval: 4_000,
   });
 }
 
@@ -90,6 +92,8 @@ export function useImportBatch(id: string | null) {
       const res = await apiClientAuth.get(`/leads/import/batches/${id}`);
       return res.data?.data;
     },
+    // Keep the open batch's row/decision counters live.
+    refetchInterval: 4_000,
   });
 }
 

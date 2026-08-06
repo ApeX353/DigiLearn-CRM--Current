@@ -59,7 +59,7 @@ export function useAssignmentProposals(status: AssignmentProposalStatus) {
     },
     // Auto-refresh so proposals appear in the queue as a run finishes,
     // without the manager having to reload the page.
-    refetchInterval: status === "pending" ? 8000 : false,
+    refetchInterval: status === "pending" ? 5000 : false,
   });
 }
 
@@ -123,7 +123,7 @@ export function useAssignmentProjection() {
       const data = res.data?.data ?? res.data;
       return Array.isArray(data) ? data : [];
     },
-    refetchInterval: 8000,
+    refetchInterval: 5000,
   });
 }
 

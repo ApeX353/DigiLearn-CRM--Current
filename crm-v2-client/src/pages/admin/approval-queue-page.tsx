@@ -919,16 +919,49 @@ function AutoAssignQueue() {
           </Button>
         </div>
         {rbResult && (
-          <div className="text-xs text-muted-foreground" data-testid="rebalance-result">
+          <div className="mt-2" data-testid="rebalance-result">
             {rbResult.moved > 0 ? (
-              <span>
-                {rbResult.preview ? "Would move" : "Moved"}{" "}
-                <strong>{rbResult.moved}</strong> lead(s): {rbResult.from.name}{" "}
-                {rbResult.from.before}→{rbResult.from.after}, {rbResult.to.name}{" "}
-                {rbResult.to.before}→{rbResult.to.after}
-              </span>
+              <div className="rounded-lg border-2 border-primary/40 bg-primary/[0.04] p-3">
+                <div className="text-sm font-semibold">
+                  {rbResult.preview
+                    ? "Preview — will move"
+                    : "Moved"}{" "}
+                  <span className="text-primary">{rbResult.moved}</span> lead
+                  {rbResult.moved === 1 ? "" : "s"}
+                  {rbResult.preview ? (
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      (nothing saved yet — press Move to commit)
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 text-base tabular-nums">
+                  <span>
+                    {rbResult.from.name}:{" "}
+                    <span className="font-medium">{rbResult.from.before}</span>
+                    <span className="text-muted-foreground"> → </span>
+                    <span className="font-bold text-rose-600">
+                      {rbResult.from.after}
+                    </span>
+                  </span>
+                  <span>
+                    {rbResult.to.name}:{" "}
+                    <span className="font-medium">{rbResult.to.before}</span>
+                    <span className="text-muted-foreground"> → </span>
+                    <span className="font-bold text-emerald-600">
+                      {rbResult.to.after}
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    gap after ={" "}
+                    {Math.abs(rbResult.from.after - rbResult.to.after)}
+                  </span>
+                </div>
+              </div>
             ) : (
-              <span>{rbResult.note || "Nothing to move"}</span>
+              <div className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+                {rbResult.note || "Nothing to move"}
+              </div>
             )}
           </div>
         )}
