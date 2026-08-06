@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Lead } from '../entities/lead.entity';
 import { School } from '../../schools/entities/schools.entity';
 import { Contact } from '../../contacts/entities/contact.entity';
@@ -485,7 +485,59 @@ export class DuplicateDetectionService {
     if (params.record_type) {
       qb.andWhere('d.record_type = :rt', { rt: params.record_type });
     }
-    return qb.getMany();
+    const rows = await qb.getMany();
+    return this.attachRecordNames(rows);
+  }
+
+  /**
+   * DUP-NAMES (Mr Dube): the queue stores only record UUIDs, so it rendered
+   * database codes. Resolve each suspicion's new/existing record id to a
+   * human name (lead / school / contact) so the UI shows actual names.
+   */
+  private async attachRecordNames(rows: DuplicateSuspicion[]) {
+    const byType: Record<DuplicateRecordType, Set<string>> = {
+      lead: new Set(),
+      school: new Set(),
+      contact: new Set(),
+    };
+    for (const r of rows) {
+      byType[r.record_type].add(r.new_record_id);
+      byType[r.record_type].add(r.existing_record_id);
+    }
+    const names = new Map<string, string>();
+    if (byType.lead.size) {
+      const leads = await this.leadRepo.find({
+        where: { id: In([...byType.lead]) },
+        select: ['id', 'lead_name'],
+      });
+      for (const l of leads)
+        names.set(l.id, l.lead_name?.trim() || '(unnamed lead)');
+    }
+    if (byType.school.size) {
+      const schools = await this.schoolRepo.find({
+        where: { id: In([...byType.school]) },
+        select: ['id', 'name'],
+      });
+      for (const s of schools)
+        names.set(s.id, s.name?.trim() || '(unnamed school)');
+    }
+    if (byType.contact.size) {
+      const contacts = await this.contactRepo.find({
+        where: { id: In([...byType.contact]) },
+        select: ['id', 'first_name', 'last_name'],
+      });
+      for (const c of contacts)
+        names.set(
+          c.id,
+          `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() ||
+            '(unnamed contact)',
+        );
+    }
+    return rows.map((r) => ({
+      ...r,
+      new_record_name: names.get(r.new_record_id) ?? null,
+      existing_record_name: names.get(r.existing_record_id) ?? null,
+    }));
   }
 
   async review(

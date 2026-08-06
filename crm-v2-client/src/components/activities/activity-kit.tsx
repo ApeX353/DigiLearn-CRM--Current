@@ -605,17 +605,10 @@ export function CompletedActivityFeedItem({
           </span>
         </div>
 
-        {outcomeText ? (
-          <p className="mt-1 line-clamp-2 text-sm">
-            <span className="font-medium text-foreground">Outcome:</span>{" "}
-            <span className="text-muted-foreground">{outcomeText}</span>
+        {(outcomeText || noteBody) && (
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+            {outcomeText || noteBody}
           </p>
-        ) : (
-          noteBody && (
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-              {noteBody}
-            </p>
-          )
         )}
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

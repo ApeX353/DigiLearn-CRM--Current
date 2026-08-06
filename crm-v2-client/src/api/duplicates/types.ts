@@ -27,6 +27,9 @@ export interface DuplicateSuspicion {
   record_type: DuplicateRecordType;
   new_record_id: string;
   existing_record_id: string;
+  /** DUP-NAMES: human names resolved server-side (null if the record is gone). */
+  new_record_name?: string | null;
+  existing_record_name?: string | null;
   score: number;
   signals: DuplicateSignal[];
   status: DuplicateSuspicionStatus;

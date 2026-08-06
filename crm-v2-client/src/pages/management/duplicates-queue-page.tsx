@@ -264,15 +264,16 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
           <span>
             New record:{" "}
-            <span className="text-foreground font-mono text-[11px]">
-              {row.new_record_id.slice(0, 8)}…
+            <span className="text-foreground font-medium">
+              {row.new_record_name ?? `${row.new_record_id.slice(0, 8)}…`}
             </span>
           </span>
           <span>·</span>
           <span>
             Matches:{" "}
-            <span className="text-foreground font-mono text-[11px]">
-              {row.existing_record_id.slice(0, 8)}…
+            <span className="text-foreground font-medium">
+              {row.existing_record_name ??
+                `${row.existing_record_id.slice(0, 8)}…`}
             </span>
           </span>
         </div>
