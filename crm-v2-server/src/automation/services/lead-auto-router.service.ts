@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Lead } from '../../leads/entities/lead.entity';
 import { LeadSLA } from '../../leads/entities/lead-sla.entity';
 import {
@@ -270,10 +270,10 @@ export class LeadAutoRouterService {
   /**
    * R2 — the per-rep current→projected strip that sits above the queue.
    * For every rep who has a pending proposal (whose lead still exists /
-   * isn't soft-deleted), report their current open load, how many pending
-   * proposals point at them, and the projected total if all were approved.
-   * Reuses getOpenLeadCounts + a group-by on pending proposals joined to
-   * non-deleted leads. Sorted by projected desc.
+   * isn't soft-deleted), report their current FULL-book load (EQUITY1 — every
+   * non-deleted lead they hold, so the strip matches the basis the balancer
+   * catches reps up on), how many pending proposals point at them, and the
+   * projected total if all were approved. Sorted by projected desc.
    */
   async getQueueProjection(): Promise<
     Array<{
@@ -301,7 +301,7 @@ export class LeadAutoRouterService {
 
     const [names, current] = await Promise.all([
       this.getUserNames(repIds),
-      this.getOpenLeadCounts(repIds),
+      this.getBookLeadCounts(repIds),
     ]);
 
     return pendingRows
@@ -888,8 +888,13 @@ export class LeadAutoRouterService {
   /**
    * REBAL-PRE: balance an import BEFORE approval by moving pending proposals
    * between two reps (reassign proposed_rep_id). Approval then assigns each
-   * lead once. Projected load = a rep's existing open book + their pending
-   * proposals for this import. Cross-territory allowed; keeps the 50-gap.
+   * lead once. Projected load = a rep's existing FULL book (every non-deleted
+   * lead they hold, incl. Converted/Disqualified — EQUITY1) + their pending
+   * proposals for this import. Moving `(from − to) / 2` proposals meets the two
+   * in the middle, i.e. brings the lighter rep UP to level with the heavier one
+   * and stops there (the fairness gap caps any overshoot). Cross-territory
+   * allowed — that is the whole point of an equity catch-up; each moved
+   * proposal's reason is rewritten to say so.
    */
   private async balanceImportProposals(
     opts: {
@@ -903,7 +908,8 @@ export class LeadAutoRouterService {
     names: Map<string, string>,
   ): Promise<RebalanceResult> {
     const { fromRepId, toRepId, campaignId, deciderId } = opts;
-    const existing = await this.getOpenLeadCounts([fromRepId, toRepId]);
+    // EQUITY1: balance on the FULL book, not the open-only count.
+    const existing = await this.getBookLeadCounts([fromRepId, toRepId]);
     const fromProps = await this.countImportProposals(fromRepId, campaignId);
     const toProps = await this.countImportProposals(toRepId, campaignId);
     // Projected = what each rep WILL hold once this import is approved.
@@ -955,12 +961,32 @@ export class LeadAutoRouterService {
       return result;
     }
 
-    // Commit: reassign the proposals to the receiving rep. No lead is assigned
-    // here — approval does that, once, with the balanced split.
-    await this.proposalRepository.update(
-      { id: In(proposalIds) },
-      { proposed_rep_id: toRepId },
-    );
+    // Commit: reassign each proposal to the receiving rep AND rewrite its
+    // reason to explain the cross-territory equity move (EQUITY1). Every moved
+    // proposal came from `from`, so its lead sits in `from`'s territory — the
+    // reason must say it goes to `to` for workload equity, not by territory, so
+    // a manager reading the queue understands why an out-of-territory lead is
+    // proposed to her. No lead is assigned here — approval does that, once.
+    const movedRows = await this.proposalRepository
+      .createQueryBuilder('p')
+      .leftJoin('leads', 'l', 'l.id = p.lead_id')
+      .leftJoin('schools', 's', 's.id = l.school_id')
+      .select('p.id', 'id')
+      .addSelect('s.province', 'province')
+      .where('p.id IN (:...ids)', { ids: proposalIds })
+      .getRawMany<{ id: string; province: string | null }>();
+    const fromName = names.get(fromRepId)!;
+    const toName = names.get(toRepId)!;
+    await this.dataSource.transaction(async (mgr) => {
+      const repo = mgr.getRepository(LeadAssignmentProposal);
+      for (const row of movedRows) {
+        const prov = row.province ?? 'This province';
+        await repo.update(row.id, {
+          proposed_rep_id: toRepId,
+          reason: `Equity assignment — ${prov} is ${fromName}'s territory, but this lead goes to ${toName} to bring her workload level with ${fromName} (workload equity, not territory).`,
+        });
+      }
+    });
     try {
       await this.userNotificationsService.sendToUsers({
         title: 'Proposed leads rebalanced to you',
@@ -1275,6 +1301,35 @@ export class LeadAutoRouterService {
       .andWhere('lead.status NOT IN (:...terminal)', {
         terminal: [...TERMINAL_LEAD_STATUSES],
       })
+      .groupBy('lead.assigned_to')
+      .getRawMany<{ rep: string; cnt: string }>();
+    for (const r of rows) {
+      load.set(r.rep, Number(r.cnt));
+    }
+    return load;
+  }
+
+  /**
+   * EQUITY1 — full-book load per recipient: every lead they hold that isn't
+   * deleted, INCLUDING Converted/Disqualified. This is the basis a manager
+   * balances an import on (Kim + prince, 07 Aug): "catch the lighter rep up to
+   * the heavier one" is measured on the WHOLE book each rep carries, not only
+   * their still-open work — a rep who has already converted or disqualified a
+   * lot of leads has still done that work and shouldn't be handed extra to
+   * catch up on an open-only count. Distribution fairness still uses the
+   * open count (getOpenLeadCounts); only the pre-approval balance uses this.
+   */
+  private async getBookLeadCounts(
+    repIds: string[],
+  ): Promise<Map<string, number>> {
+    const load = new Map<string, number>(repIds.map((id) => [id, 0]));
+    if (!repIds.length) return load;
+    const rows = await this.leadRepository
+      .createQueryBuilder('lead')
+      .select('lead.assigned_to', 'rep')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('lead.assigned_to IN (:...repIds)', { repIds })
+      .andWhere('lead.deleted_at IS NULL')
       .groupBy('lead.assigned_to')
       .getRawMany<{ rep: string; cnt: string }>();
     for (const r of rows) {

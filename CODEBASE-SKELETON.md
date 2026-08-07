@@ -532,9 +532,12 @@ Operational incident history records one SLA idle pass emitting 800 alerts.
 
 `automation/services/lead-auto-router.service.ts` + `automation.controller.ts`
 (`/automation/assignment-proposals/*`, `/automation/rebalance`) back the manager
-Auto-assign workspace. Built + verified on the staging line (`dube-upgrades`);
-**held off production until Kim signs off** (the whole suite, not just the
-engine). The engine PROPOSES — a manager decides:
+Auto-assign workspace. Built on the staging line (`dube-upgrades`), then
+**shipped to production** (api `0.0.24`→`0.0.26`, 06–07 Aug 2026) after Kim
+approved it on staging — verify the deployed build for the live version. On
+prod the cron stays OFF (`auto_assign_enabled=false`) while the manual
+"Run auto-assign" button still works; `auto_assign_include_managers=false`.
+The engine PROPOSES — a manager decides:
 
 - **Distribution** (`runDistribution` / the "Run auto-assign" button + the
   `auto_assign_enabled` cron): the distributable pool = unassigned + never-worked
@@ -559,7 +562,26 @@ engine). The engine PROPOSES — a manager decides:
 - **Rebalance** (`rebalance`, `/automation/rebalance`, REBAL1): a manager moves a
   batch of leads between two reps — preview then commit, keeps the ≤50 gap, moves
   unworked leads first, and is **cross-territory allowed** (a deliberate hand move
-  is not bound by the territory filter that governs auto-distribution).
+  is not bound by the territory filter that governs auto-distribution). Two
+  modes, chosen by whether a `campaign_id` is passed:
+  - **Import balance before approval (REBAL-PRE, the normal case):** when a
+    campaign is given, the balancer moves pending **proposals** (reassigns
+    `proposed_rep_id`), not assigned leads, so approval assigns each lead
+    **once** — no assign-then-reassign, no SLA started-then-cleared. `want =
+    (from − to) / 2` meets the two reps in the middle, i.e. brings the lighter
+    one **up to level** with the heavier and stops (the 50-gap caps overshoot).
+  - **EQUITY1 basis (07 Aug 2026):** the projected load it balances on is each
+    rep's **full book** (every non-deleted lead they hold, *including*
+    Converted/Disqualified — `getBookLeadCounts`), not the open-only count that
+    distribution fairness uses. A rep who has already closed a lot of leads has
+    still done that work and isn't handed extra to "catch up" on an open count.
+    The R2 projection strip shows the same full-book basis so the numbers match.
+    Each proposal moved **out of its territory** for equity has its `reason`
+    rewritten to say so ("… is X's territory, but goes to Y for workload
+    equity, not territory"), so a manager reading the queue understands why an
+    out-of-territory lead is proposed to a rep.
+  - **Legacy assigned-lead move:** with no campaign, it moves already-assigned
+    leads (`pickRebalanceLeads`), unworked first, on the open-lead count.
 
 Entity: `LeadAssignmentProposal` (status `pending·approved·rejected·superseded`).
 Deleting a lead supersedes its pending proposals so none dangle as orphan rows.

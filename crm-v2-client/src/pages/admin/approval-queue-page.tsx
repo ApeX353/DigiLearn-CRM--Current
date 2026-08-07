@@ -686,8 +686,10 @@ function AutoAssignQueue() {
   const toolbar = (
     <div className="space-y-3">
       {/* R2 — persistent current→projected strip. Shows, per rep with a
-          pending suggestion, their current open load and where it lands if
-          every pending suggestion is approved. Sorted by projected desc. */}
+          pending suggestion, their current FULL-book load (EQUITY1 — every
+          non-deleted lead they hold, matching the basis the balancer catches
+          reps up on) and where it lands if every pending suggestion is
+          approved. Sorted by projected desc. */}
       {projection.length > 0 && (
         <div
           className="rounded-lg border bg-muted/20 p-3"

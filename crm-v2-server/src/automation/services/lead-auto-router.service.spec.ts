@@ -68,9 +68,13 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     };
     const leadSla = { find: jest.fn().mockResolvedValue([]) };
     const activityLogs = { logUpdate: jest.fn().mockResolvedValue(undefined) };
+    const duplicateDetection = {
+      rebuildLeadSuspicions: jest.fn().mockResolvedValue(undefined),
+    };
     service = new LeadAutoRouterService(
       leadRepo, leadSla as never, proposalRepo, dataSource,
       notifications as never, compliance as never, activityLogs as never,
+      duplicateDetection as never,
     );
   }
 
