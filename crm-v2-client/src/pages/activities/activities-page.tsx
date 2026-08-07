@@ -219,6 +219,9 @@ export default function ActivitiesPage() {
     created_from: queryWindow.created_from,
     created_to: queryWindow.created_to,
     include_details: true,
+    // Searched by the API across the whole table, not in the browser over
+    // whatever page is loaded — see the note on `visibleActivities`.
+    search: debouncedSearch.trim() || undefined,
   });
 
   const allActivities = activitiesData?.data ?? [];
@@ -229,17 +232,26 @@ export default function ActivitiesPage() {
   const bulkUpdateStatus = useBulkUpdateActivityStatus();
   const requestCompletion = useActivityCompletionStore((s) => s.request);
 
-  // ---------- search filter (client-side) ----------
-  const visibleActivities = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return allActivities;
-    return allActivities.filter((a) => {
-      const subj = a.subject?.toLowerCase() ?? "";
-      const school = a.lead?.school?.name?.toLowerCase() ?? "";
-      const desc = a.description?.toLowerCase() ?? "";
-      return subj.includes(q) || school.includes(q) || desc.includes(q);
-    });
-  }, [allActivities, debouncedSearch]);
+  /**
+   * The API has already applied the search term, so this is just what came
+   * back.
+   *
+   * This used to filter client-side over `allActivities` — the 50 rows of
+   * the current page. With 5,500+ activities across 112 pages that meant
+   * searching a school name returned nothing unless the match happened to
+   * be on the page you were looking at, so reps concluded activities were
+   * missing when they were simply on page 40. The term now goes to the
+   * server (subject, description and the lead's school name), which also
+   * keeps the pagination counts honest.
+   */
+  const visibleActivities = allActivities;
+
+  // A new search term reshapes the whole result set, so stay on page 1 —
+  // otherwise searching while on page 40 asks the server for page 40 of a
+  // 1-page result and shows an empty list.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ---------- handlers ----------
   function toggleSelect(id: string) {

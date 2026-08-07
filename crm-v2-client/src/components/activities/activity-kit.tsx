@@ -856,23 +856,31 @@ export function CompletedActivityFeedItem({
               action. The document view saves field-by-field so there is no
               submit to block on — instead the gap is surfaced here, where a
               manager scanning the log can actually see it. */}
-          {isMissingNextAction(activity) && (
-            <span
-              className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
-              title="No follow-up date — nothing is scheduled after this"
-            >
-              No follow-up
-            </span>
-          )}
-          {isOpen ? (
-            <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-              {openWhen}
-            </span>
-          ) : (
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {completedClock}
-            </span>
-          )}
+          {/* Both chips live in ONE right-aligned cluster. Loose under
+              `justify-between` they were pushed around by however long the
+              subject happened to be, so the "No follow-up" badge landed at
+              a different x-position on every row and the column read as
+              ragged. Grouped, they anchor to the right edge and line up
+              down the feed. */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            {isMissingNextAction(activity) && (
+              <span
+                className="rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+                title="No follow-up date — nothing is scheduled after this"
+              >
+                No follow-up
+              </span>
+            )}
+            {isOpen ? (
+              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                {openWhen}
+              </span>
+            ) : (
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                {completedClock}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* OUT-DUBE (Mr Dube, 5 Aug): a completed, non-note activity reads
