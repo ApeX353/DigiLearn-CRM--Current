@@ -11,8 +11,9 @@
  *      the date window and propagates to both views.
  *   3. Toolbar — view toggle (List ↔ Calendar), type-chip rail,
  *      assignee picker, search box, and a refresh button.
- *   4. View body — either the dense list view (with bulk-done bar)
- *      or the week-grid calendar.
+ *   4. View body — either the timeline feed (same cards as record
+ *      pages, with select-all + bulk-done bar) or the week-grid
+ *      calendar.
  *
  * State lives in a single component so changing a tab or a chip
  * shifts every panel atomically; nothing is duplicated between the
@@ -66,15 +67,12 @@ import {
   resolveActivitiesPeriod,
   type ActivitiesPeriod,
 } from "~/components/activities/activities-period";
-import {
-  ActivitiesBulkBar,
-} from "~/components/activities/activities-list-view";
+import { ActivitiesBulkBar } from "~/components/activities/activities-bulk-bar";
 import { ActivitiesWeekView } from "~/components/activities/activities-week-view";
 import { useStaff } from "~/api/users";
 import { useDebounce } from "~/hooks/use-debounce";
 import { useActivityCompletionStore } from "~/stores/use-activity-completion-store";
 import { usePermission } from "~/hooks/use-permission";
-import { isDealReadonly, isLeadReadonly } from "~/stores/use-is-readonly";
 import { cn } from "~/lib/utils";
 
 type ViewMode = "list" | "calendar";
@@ -356,25 +354,6 @@ export default function ActivitiesPage() {
     setSelectedActivity(activity);
     setInspectorOpen(true);
   }
-
-  // The inspector is now unconditionally read-only (see its render
-  // below), so this per-record check no longer gates anything. Kept —
-  // and referenced — because the completion controls in this module do
-  // still need to know whether the parent lead/deal is closed.
-  const parentRecordIsClosed = useMemo(() => {
-    if (!selectedActivity) return false;
-    const lead = selectedActivity.lead;
-    const deal = selectedActivity.deal as
-      | { closeStatus?: string; close_status?: string; status?: string }
-      | undefined;
-    return (
-      isLeadReadonly(lead?.status) ||
-      isDealReadonly(
-        deal?.closeStatus ?? deal?.close_status ?? deal?.status,
-      )
-    );
-  }, [selectedActivity]);
-  void parentRecordIsClosed;
 
   /** Which entry is opened out in the feed (one at a time, as on records). */
   const [expandedId, setExpandedId] = useState<string | null>(null);
