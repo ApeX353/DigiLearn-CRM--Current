@@ -437,8 +437,6 @@ export function PlannedActivityCard({
   // printing both showed the same sentence twice — once clipped. When the
   // subject is only a clipped copy of the body, show the TYPE and let the
   // body below carry the words.
-  const plannedTypeLabel = getActivityVisual(activity.type).label;
-
   // The planned item's own words, read from whichever field its type
   // uses — same resolver as the log feed.
   const plannedBody =
@@ -450,21 +448,17 @@ export function PlannedActivityCard({
       (activity.meeting?.minutes_notes || activity.meeting?.agenda)) ||
     activity.description;
 
-  const plannedStrippedSubject = (activity.subject ?? "")
-    .replace(/^(call|whatsapp|note|email|meeting|task)\s*:\s*/i, "")
-    .replace(/[.…]+$/, "")
-    .trim();
-  const plannedSubjectIsRedundant =
+  // Same heading rule as the log feed (activityHeading): real subjects
+  // win, redundant ones promote a short body, long bodies fall back to
+  // the type label with the amber block carrying the words.
+  const plannedHeading =
+    activityHeading(activity) === getActivityVisual(activity.type).label &&
+    !activity.subject
+      ? "Untitled next step"
+      : activityHeading(activity);
+  const plannedBodyIsHeading =
     !!plannedBody &&
-    plannedStrippedSubject.length > 0 &&
-    plannedBody
-      .trim()
-      .toLowerCase()
-      .startsWith(
-        plannedStrippedSubject
-          .toLowerCase()
-          .slice(0, Math.min(24, plannedStrippedSubject.length)),
-      );
+    richTextToPlain(plannedBody).trim() === plannedHeading.trim();
 
   return (
     <div
@@ -506,9 +500,7 @@ export function PlannedActivityCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="truncate font-semibold">
-                  {plannedSubjectIsRedundant
-                    ? plannedTypeLabel
-                    : activity.subject || "Untitled next step"}
+                  {plannedHeading}
                 </span>
                 <Badge
                   variant="outline"
@@ -606,7 +598,7 @@ export function PlannedActivityCard({
       </span>
       </div>
 
-      {plannedBody && (
+      {plannedBody && !plannedBodyIsHeading && (
         <div className="px-4 pb-4">
           {/* Same reading pattern as the log: the content is there, click
               to open the rest. */}
@@ -691,9 +683,19 @@ export function activityHeading(activity: Activity): string {
       .trim()
       .toLowerCase()
       .startsWith(stripped.toLowerCase().slice(0, Math.min(24, stripped.length)));
-  return redundant
-    ? getActivityVisual(activity.type).label
-    : activity.subject || getActivityVisual(activity.type).label;
+  if (!redundant) {
+    return activity.subject || getActivityVisual(activity.type).label;
+  }
+  // Redundant subject. When the body itself is short enough to BE the
+  // title ("Not reachable", "Asked for an update…"), promote it — a row
+  // titled with real words reads far better than one titled "Call" with
+  // the words relegated to a body block. Long or multi-line bodies keep
+  // the type label and let the body block carry the words.
+  const promotable = body.trim();
+  if (promotable.length > 0 && promotable.length <= 90 && !promotable.includes("\n")) {
+    return promotable;
+  }
+  return getActivityVisual(activity.type).label;
 }
 
 /**
@@ -816,22 +818,15 @@ export function CompletedActivityFeedItem({
       (activity.meeting?.minutes_notes || activity.meeting?.agenda)) ||
     activity.description;
 
-  const typeLabel = getActivityVisual(activity.type).label;
-  // A subject is "redundant" when it is just the body clipped and
-  // prefixed with the type — which is how the create modal generated it.
-  const strippedSubject = (activity.subject ?? "")
-    .replace(/^(call|whatsapp|note|email|meeting|task)\s*:\s*/i, "")
-    .replace(/[.…]+$/, "")
-    .trim();
-  const subjectIsRedundant =
-    !!note &&
-    strippedSubject.length > 0 &&
-    note
-      .trim()
-      .toLowerCase()
-      .startsWith(
-        strippedSubject.toLowerCase().slice(0, Math.min(24, strippedSubject.length)),
-      );
+  // One shared heading rule across every surface (see activityHeading):
+  // real subjects win; redundant auto-generated subjects promote a short
+  // body into the title, or fall back to the type label for long ones.
+  const heading = activityHeading(activity);
+  // When the heading IS the body, the amber block would print the same
+  // words twice — this is what makes hand-written rows and legacy
+  // "Call: X" rows finally render alike.
+  const bodyIsHeading =
+    !!note && richTextToPlain(note).trim() === heading.trim();
 
   // Outcome surfacing. The canonical field is completion_outcome — the
   // one the close-the-loop dialog forces — with the legacy type-level
@@ -898,7 +893,7 @@ export function CompletedActivityFeedItem({
             className="truncate text-sm font-medium text-foreground hover:underline"
             aria-expanded={expanded}
           >
-            {subjectIsRedundant ? typeLabel : activity.subject || typeLabel}
+            {heading}
           </button>
           {/* Every activity except a note is meant to schedule the next
               action. The document view saves field-by-field so there is no
@@ -946,7 +941,7 @@ export function CompletedActivityFeedItem({
         {/* OUT-DUBE (Mr Dube, 5 Aug) is satisfied by the blocks below: the
             outcome note renders inline with an "Outcome · <label>" header,
             and outcome-only rows get the badge in the meta row. */}
-        {note && (
+        {note && !bodyIsHeading && (
           // Collapsed shows the opening lines; clicking the entry opens
           // the rest in place. No separate button — the entry itself is
           // the control, so the feed stays quiet.
