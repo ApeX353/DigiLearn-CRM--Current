@@ -1,6 +1,6 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { format } from "date-fns";
-import { Briefcase, Loader2, ExternalLink } from "lucide-react";
+import { Activity, Briefcase, Loader2, ExternalLink } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -15,6 +15,12 @@ import { useCurrency } from "~/hooks/use-currency";
 
 interface SchoolDealsTabProps {
   schoolId: string;
+  /**
+   * When provided, clicking a deal calls this instead of navigating to the
+   * deal page — lets the school page show the deal's activities in-place.
+   * Falls back to navigation when omitted.
+   */
+  onSelectDeal?: (dealId: string, dealName: string) => void;
 }
 
 const formatDate = (value?: string, fallback = "--") => {
@@ -35,8 +41,14 @@ const getStatusBadge = (closeStatus?: string) => {
   }
 };
 
-export function SchoolDealsTab({ schoolId }: SchoolDealsTabProps) {
+export function SchoolDealsTab({
+  schoolId,
+  onSelectDeal,
+}: SchoolDealsTabProps) {
+  const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const openDeal = (dealId: string, dealName: string) =>
+    onSelectDeal ? onSelectDeal(dealId, dealName) : navigate(`/deals/${dealId}`);
   const { data: dealsData, isLoading } = useDeals({
     school_id: schoolId,
     page: 1,
@@ -74,12 +86,33 @@ export function SchoolDealsTab({ schoolId }: SchoolDealsTabProps) {
                 deal.expected_close_date || deal.expectedCloseDate;
 
               return (
+                // Card body is a MOUSE convenience: clicking anywhere
+                // (except the title link + "View activities" button below)
+                // peeks the deal's activities in place. Intentionally NOT a
+                // role=button/tabIndex/keydown target — that made the card an
+                // ARIA button wrapping the title link + button and hijacked
+                // Enter/Space on them (title link stopped navigating for
+                // keyboard users). Keyboard/AT users use the real controls:
+                // the title link navigates, "View activities" peeks in place.
                 <div
                   key={deal.id}
-                  className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                  onClick={() => openDeal(deal.id, dealTitle)}
+                  className="flex cursor-pointer flex-col gap-3 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-accent/40 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="space-y-1">
-                    <p className="font-medium">{dealTitle}</p>
+                    {/* Title is a real link to the deal detail page —
+                        clicking the name navigates away. stopPropagation
+                        keeps it from also triggering the card's in-place
+                        activity focus. Card body + "View activities"
+                        button still open the deal's activities in place. */}
+                    <Link
+                      to={`/deals/${deal.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex w-fit items-center gap-1 font-medium text-primary hover:underline"
+                    >
+                      {dealTitle}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
                     <div className="flex flex-wrap items-center gap-2">
                       {getStatusBadge(deal.closeStatus)}
                       <Badge
@@ -101,11 +134,16 @@ export function SchoolDealsTab({ schoolId }: SchoolDealsTabProps) {
                     <span className="font-semibold">
                       {formatCurrency(Number(deal.value || 0))}
                     </span>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/deals/${deal.id}`}>
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        View Deal
-                      </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDeal(deal.id, dealTitle);
+                      }}
+                    >
+                      <Activity className="mr-2 h-4 w-4" />
+                      View activities
                     </Button>
                   </div>
                 </div>

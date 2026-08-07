@@ -14,6 +14,7 @@
  * the lead and deal pages don't need to change.
  */
 import { EngagementWorkspace } from "~/components/activities/engagement-workspace";
+import type { ComposerType } from "~/components/activities/activity-composer";
 import type { FeedFilter } from "~/components/activities/activity-kit";
 
 interface ActivitiesTabProps {
@@ -26,6 +27,11 @@ interface ActivitiesTabProps {
   initialFilter?: FeedFilter;
   /** Hide the filter bar when the tab itself is the filter. */
   hideFilterBar?: boolean;
+  /**
+   * Open the inline composer on this type. Used by the Note / Call /
+   * Email / WhatsApp tabs, which compose rather than filter.
+   */
+  composeType?: ComposerType | null;
 }
 
 export function ActivitiesTab({
@@ -39,6 +45,7 @@ export function ActivitiesTab({
   isReadonly = false,
   initialFilter,
   hideFilterBar,
+  composeType = null,
 }: ActivitiesTabProps) {
   void _leadIdFromDeal;
   return (
@@ -49,6 +56,7 @@ export function ActivitiesTab({
       isReadonly={isReadonly}
       initialFilter={initialFilter}
       hideFilterBar={hideFilterBar}
+      composeType={composeType}
     />
   );
 }

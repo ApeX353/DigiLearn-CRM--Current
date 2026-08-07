@@ -27,12 +27,16 @@ export const taskTabSchema = z.object({
 export type TaskTabValues = z.infer<typeof taskTabSchema>;
 
 // --- Call Tab ---
+// follow_up_date is REQUIRED: a logged call must schedule the next touch,
+// otherwise the lead is left with no next step. (It also spawns an open
+// follow-up task server-side.) Previously optional — and silently dropped
+// by the form — which was the loophole.
 export const callTabSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),
   outcome: z.enum(CALL_OUTCOMES, "Outcome is required"),
   summary: z.string().min(1, "Summary is required"),
   next_steps: z.string().optional(),
-  follow_up_date: z.date().optional(),
+  follow_up_date: z.date("Follow-up date is required"),
   // DURATION1: how long the call ran (minutes). Optional — the input maps an
   // empty box to undefined so it stays blank rather than coercing to 0.
   duration: z.number().int().positive().max(1440).optional(),
@@ -45,8 +49,8 @@ export const emailTabSchema = z.object({
   cc_recipients: z.string().optional(),
   subject: z.string().min(1, "Subject is required"),
   body: z.string().min(1, "Body is required"),
-  // ACT2 — every open activity needs a "when".
-  follow_up_date: z.date().optional(),
+  // ACT2 — every open activity needs a "when"; now required at the form.
+  follow_up_date: z.date("Follow-up date is required"),
 });
 export type EmailTabValues = z.infer<typeof emailTabSchema>;
 
@@ -70,7 +74,7 @@ export const whatsappTabSchema = z.object({
   direction: z.enum(WHATSAPP_DIRECTIONS),
   message_type: z.enum(WHATSAPP_MESSAGE_TYPES),
   // ACT2 — WhatsApp had no date field at all, which is why it was
-  // the single largest source of undated activities.
-  follow_up_date: z.date().optional(),
+  // the single largest source of undated activities. Now required.
+  follow_up_date: z.date("Follow-up date is required"),
 });
 export type WhatsAppTabValues = z.infer<typeof whatsappTabSchema>;

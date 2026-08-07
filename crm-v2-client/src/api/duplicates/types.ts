@@ -51,6 +51,12 @@ export interface DuplicateSuspicion {
   review_note: string | null;
   created_at: string;
   updated_at: string;
+  /** Human-readable labels for the two records (null if the record was
+   *  deleted). Resolved server-side so the queue shows names, not UUIDs. */
+  new_record_label?: string | null;
+  new_record_sublabel?: string | null;
+  existing_record_label?: string | null;
+  existing_record_sublabel?: string | null;
 }
 
 export const SIGNAL_LABELS: Record<string, string> = {

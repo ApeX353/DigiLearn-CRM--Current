@@ -39,6 +39,7 @@ import { useQuotes } from "~/api/quotes";
 import { useInvoices } from "~/api/invoices";
 import { FilesTab } from "~/components/deals/tabs/files-tab";
 import { RelatedLeadsSection } from "~/components/leads/related-leads";
+import { EngagementWorkspace } from "~/components/activities/engagement-workspace";
 import { formatCurrency } from "~/lib/utils";
 import { EditSchoolModal } from "~/components/schools/edit-school-modal";
 import { QuotePreviewModal } from "~/components/quotes/quote-preview-modal";
@@ -71,6 +72,15 @@ const ViewSchool = ({ id }: { id: string }) => {
   const [editOpen, setEditOpen] = useState(false);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  // Controlled tabs + the currently-focused lead/deal, so clicking a related
+  // lead/deal card shows THAT record's activities in the school's activity log
+  // (in-page) instead of navigating away to the lead or pipeline page.
+  const [activeTab, setActiveTab] = useState("activities");
+  const [focusEntity, setFocusEntity] = useState<{
+    type: "lead" | "deal";
+    id: string;
+    name: string;
+  } | null>(null);
   const { data: schoolData, isLoading, error } = useSchool(id);
   const { data: quotesData } = useQuotes({
     school_id: id,
@@ -188,12 +198,30 @@ const ViewSchool = ({ id }: { id: string }) => {
 
             {/* School overview — structural info that used to live
                 inside the Overview tab is now the primary left-pane
-                content. The tab has been retired. */}
-            <OverviewTab school={school} />
+                content. The tab has been retired. The always-visible
+                Related Leads card lives here; wiring onSelectLead makes
+                its cards focus that lead's activities in the right-pane
+                log instead of navigating away to the lead page. */}
+            <OverviewTab
+              school={school}
+              onSelectLead={(leadId, leadName) => {
+                setFocusEntity({ type: "lead", id: leadId, name: leadName });
+                setActiveTab("activities");
+              }}
+            />
           </>
         }
         right={
-          <Tabs defaultValue="activities" className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => {
+              setActiveTab(v);
+              // Manual tab navigation always resets to the full school view;
+              // only a lead/deal card click focuses a single record.
+              setFocusEntity(null);
+            }}
+            className="w-full"
+          >
             {/* Activities default; Overview retired (now in left pane).
                 Sticky tab strip keeps the content-type switch visible
                 while the workspace feed scrolls. */}
@@ -206,9 +234,9 @@ const ViewSchool = ({ id }: { id: string }) => {
                 {/* Fast-paths into the shared engagement workspace
                     pre-filtered by activity type — same Notes/Emails
                     /Calls triple we added to Lead and Deal detail. */}
+                {/* Calls / Emails are activity types — they live in the
+                    composer's type strip under Activity now. */}
                 <TabsTrigger value="notes">Notes</TabsTrigger>
-                <TabsTrigger value="emails">Emails</TabsTrigger>
-                <TabsTrigger value="calls">Calls</TabsTrigger>
                 {/* Leads tab sits BEFORE Deals by product rule —
                     every deal originates from a lead, so the lead
                     list is the upstream inventory the rep browses
@@ -244,42 +272,71 @@ const ViewSchool = ({ id }: { id: string }) => {
 
             <div className="mt-3">
               <TabsContent value="activities">
-                <ActivitiesTab school={school} />
+                {focusEntity ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+                      <span className="text-sm">
+                        Showing activities for{" "}
+                        <span className="font-semibold">
+                          {focusEntity.name}
+                        </span>{" "}
+                        <span className="text-muted-foreground">
+                          ({focusEntity.type})
+                        </span>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFocusEntity(null)}
+                      >
+                        Show all school activities
+                      </Button>
+                    </div>
+                    <EngagementWorkspace
+                      key={`${focusEntity.type}-${focusEntity.id}`}
+                      scope={focusEntity.type}
+                      leadId={
+                        focusEntity.type === "lead" ? focusEntity.id : undefined
+                      }
+                      dealId={
+                        focusEntity.type === "deal" ? focusEntity.id : undefined
+                      }
+                      isReadonly={!school.is_active}
+                    />
+                  </div>
+                ) : (
+                  // Composer opens on Call, matching the lead page, so the
+                  // type strip is right there to pick from.
+                  <ActivitiesTab school={school} composeType="call" />
+                )}
               </TabsContent>
 
+              {/* Compose, don't filter — same as the lead and deal pages.
+                  The log below stays complete while the rep writes. */}
               <TabsContent value="notes">
-                <ActivitiesTab
-                  school={school}
-                  initialFilter={{ kind: "type", value: "note" }}
-                  hideFilterBar
-                />
+                <ActivitiesTab school={school} composeType="note" />
               </TabsContent>
 
-              <TabsContent value="emails">
-                <ActivitiesTab
-                  school={school}
-                  initialFilter={{ kind: "type", value: "email" }}
-                  hideFilterBar
-                />
-              </TabsContent>
-
-              <TabsContent value="calls">
-                <ActivitiesTab
-                  school={school}
-                  initialFilter={{ kind: "type", value: "call" }}
-                  hideFilterBar
-                />
-              </TabsContent>
 
               <TabsContent value="leads">
                 <RelatedLeadsSection
                   schoolId={school.id}
                   schoolName={school.name}
+                  onSelectLead={(leadId, leadName) => {
+                    setFocusEntity({ type: "lead", id: leadId, name: leadName });
+                    setActiveTab("activities");
+                  }}
                 />
               </TabsContent>
 
               <TabsContent value="deals">
-                <SchoolDealsTab schoolId={id} />
+                <SchoolDealsTab
+                  schoolId={id}
+                  onSelectDeal={(dealId, dealName) => {
+                    setFocusEntity({ type: "deal", id: dealId, name: dealName });
+                    setActiveTab("activities");
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="contacts">

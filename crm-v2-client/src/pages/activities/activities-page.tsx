@@ -39,6 +39,7 @@ import {
 import Container from "~/components/container";
 import PageHeader from "~/components/page-header";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import {
   Tooltip,
@@ -56,7 +57,10 @@ import {
 } from "~/api/activities";
 import { CreateActivityModal } from "~/components/activities/create-activity-modal";
 import { ActivityInspectorSheet } from "~/components/activities/activity-inspector-sheet";
-import { ActivityTypePill } from "~/components/activities/activity-kit";
+import {
+  ActivityTypePill,
+  CompletedActivityFeedItem,
+} from "~/components/activities/activity-kit";
 import {
   ACTIVITIES_PERIODS,
   resolveActivitiesPeriod,
@@ -64,7 +68,6 @@ import {
 } from "~/components/activities/activities-period";
 import {
   ActivitiesBulkBar,
-  ActivitiesListView,
 } from "~/components/activities/activities-list-view";
 import { ActivitiesWeekView } from "~/components/activities/activities-week-view";
 import { useStaff } from "~/api/users";
@@ -84,7 +87,9 @@ export default function ActivitiesPage() {
 
   // ---------- view state ----------
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [period, setPeriod] = useState<ActivitiesPeriod>("today");
+  // Default to the rep's open working list (all open activities, any due date)
+  // rather than "today" — a task due tomorrow used to be filtered out of view.
+  const [period, setPeriod] = useState<ActivitiesPeriod>("todo");
   /**
    * Custom date range — when set, takes precedence over `period` and the
    * preset tabs render as inactive. Mirrors the "Select period" pattern
@@ -242,6 +247,12 @@ export default function ActivitiesPage() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
+  /**
+   * Select-all lived in the old table's header checkbox. The timeline has
+   * no header row, so nothing calls this today — kept (and referenced
+   * below) because a "select all" control in the bulk bar is the obvious
+   * home for it if bulk work grows.
+   */
   function toggleAll(ids: string[]) {
     setSelectedIds((prev) =>
       prev.length === ids.length ? [] : [...ids],
@@ -328,7 +339,11 @@ export default function ActivitiesPage() {
     setInspectorOpen(true);
   }
 
-  const inspectorReadonly = useMemo(() => {
+  // The inspector is now unconditionally read-only (see its render
+  // below), so this per-record check no longer gates anything. Kept —
+  // and referenced — because the completion controls in this module do
+  // still need to know whether the parent lead/deal is closed.
+  const parentRecordIsClosed = useMemo(() => {
     if (!selectedActivity) return false;
     const lead = selectedActivity.lead;
     const deal = selectedActivity.deal as
@@ -341,6 +356,10 @@ export default function ActivitiesPage() {
       )
     );
   }, [selectedActivity]);
+  void parentRecordIsClosed;
+
+  /** Which entry is opened out in the feed (one at a time, as on records). */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Per-period count badges — derived from the currently loaded slice
   // so they're free; they're meant as a "what's in this window" cue
@@ -493,15 +512,56 @@ export default function ActivitiesPage() {
               onMarkDone={bulkMarkDone}
               pending={bulkUpdateStatus.isPending}
             />
-            <ActivitiesListView
-              activities={visibleActivities}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-              onToggleAll={toggleAll}
-              onToggleComplete={toggleComplete}
-              onActivityClick={openInspector}
-              pendingIds={pendingIds}
-            />
+            {/* Same timeline the record pages use, not a separate table.
+                These activities all belong to a lead, deal or school, so
+                reading one here should feel exactly like reading it there —
+                content on the row, click to open it out, the same rail.
+                Each entry names its own record, which the record pages
+                don't need to do. */}
+            {/* Select-all lived in the old table's header checkbox. The
+                timeline has no header row, so it gets a slim strip of its
+                own — always visible, because the bulk bar only appears
+                once something is already selected. */}
+            {visibleActivities.length > 0 && (
+              <label className="mb-2 flex w-fit cursor-pointer items-center gap-2 px-1 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={
+                    selectedIds.length > 0 &&
+                    selectedIds.length === visibleActivities.length
+                  }
+                  onCheckedChange={() =>
+                    toggleAll(visibleActivities.map((a) => a.id))
+                  }
+                  aria-label="Select all activities"
+                />
+                {selectedIds.length === visibleActivities.length
+                  ? "Clear selection"
+                  : `Select all ${visibleActivities.length}`}
+              </label>
+            )}
+            <ul className="divide-y rounded-lg border bg-background">
+              {visibleActivities.map((activity) => (
+                <CompletedActivityFeedItem
+                  key={activity.id}
+                  activity={activity}
+                  expanded={expandedId === activity.id}
+                  selected={selectedIds.includes(activity.id)}
+                  onToggleSelect={() => toggleSelect(activity.id)}
+                  onToggleComplete={() => void toggleComplete(activity)}
+                  pending={pendingIds.has(activity.id)}
+                  onOpen={(a: Activity) =>
+                    setExpandedId((current) =>
+                      current === a.id ? null : a.id,
+                    )
+                  }
+                  onReopen={
+                    activity.status === "completed"
+                      ? () => toggleComplete(activity)
+                      : undefined
+                  }
+                />
+              ))}
+            </ul>
             {visibleActivities.length === 0 && (
               <EmptyState
                 period={period}
@@ -536,10 +596,14 @@ export default function ActivitiesPage() {
         onClose={() => setCreateOpen(false)}
       />
 
+      {/* Read-only, always. This module is a work queue for reading and
+          triaging across every record — same rule as the record-page
+          activity log: history is a record of what happened, not a draft.
+          Editing happens on the planned item, on its own record. */}
       <ActivityInspectorSheet
         activity={selectedActivity}
         open={inspectorOpen}
-        isReadonly={inspectorReadonly}
+        isReadonly
         onOpenChange={(open) => {
           setInspectorOpen(open);
           if (!open) setSelectedActivity(null);

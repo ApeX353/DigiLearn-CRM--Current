@@ -64,12 +64,15 @@ export const WhatsAppTabForm = forwardRef<TabFormHandle, SingleContactTabFormPro
         const v = form.getValues();
         return {
           subject: `WhatsApp: ${v.message.substring(0, 40)}`,
+          // Sent as the activity's next-action date AND as
+          // whatsapp.follow_up_date, which spawns the open follow-up task.
           due_at: v.follow_up_date?.toISOString(),
           whatsapp: {
             phone_number: v.phone_number,
             message: v.message,
             direction: v.direction,
             message_type: v.message_type,
+            follow_up_date: v.follow_up_date?.toISOString(),
           },
         };
       },
@@ -148,12 +151,14 @@ export const WhatsAppTabForm = forwardRef<TabFormHandle, SingleContactTabFormPro
             name="follow_up_date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Follow Up Date</FormLabel>
+                <FormLabel>
+                  Follow Up Date <span className="text-destructive">*</span>
+                </FormLabel>
                 <FormControl>
                   <DateTimePicker
                     value={field.value}
                     onChange={field.onChange}
-                    placeholder="When should this be followed up?"
+                    placeholder="Select follow up date and time"
                   />
                 </FormControl>
                 <FormMessage />

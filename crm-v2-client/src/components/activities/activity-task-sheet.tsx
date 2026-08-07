@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
+import { getActivityVisual } from "~/lib/activity-visuals";
 import {
   useActivity,
   useAddActivityComment,
@@ -286,6 +287,9 @@ export function ActivityTaskSheet({
     );
   };
 
+  const visual = getActivityVisual("task");
+  const Icon = visual.icon;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -314,28 +318,44 @@ export function ActivityTaskSheet({
           </div>
         ) : (
           <>
-            <SheetHeader className="pb-4">
-              {isEditingTitle ? (
-                <Input
-                  value={tempTitle}
-                  onChange={(e) => setTempTitle(e.target.value)}
-                  onBlur={handleTitleSave}
-                  onKeyDown={handleTitleKeyDown}
-                  className="text-xl font-semibold"
-                  autoFocus
-                />
-              ) : (
-                <SheetTitle
-                  className="text-xl cursor-text hover:bg-muted/50 rounded px-2 py-1 -mx-2 transition-colors"
-                  onClick={() => {
-                    if (isReadonly) return;
-                    setIsEditingTitle(true);
-                    setTempTitle(resolvedActivity.subject);
-                  }}
+            <SheetHeader className="border-b pb-4">
+              <div className="flex items-start gap-3.5 pr-8">
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${visual.tile}`}
                 >
-                  {resolvedActivity.subject}
-                </SheetTitle>
-              )}
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  {isEditingTitle ? (
+                    <Input
+                      value={tempTitle}
+                      onChange={(e) => setTempTitle(e.target.value)}
+                      onBlur={handleTitleSave}
+                      onKeyDown={handleTitleKeyDown}
+                      className="text-lg font-semibold"
+                      autoFocus
+                    />
+                  ) : (
+                    <SheetTitle
+                      className="cursor-text rounded px-1 -mx-1 text-lg font-semibold leading-snug transition-colors hover:bg-muted/50"
+                      onClick={() => {
+                        if (isReadonly) return;
+                        setIsEditingTitle(true);
+                        setTempTitle(resolvedActivity.subject);
+                      }}
+                    >
+                      {resolvedActivity.subject}
+                    </SheetTitle>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${visual.chip}`}
+                    >
+                      {visual.label}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </SheetHeader>
 
             <div className="space-y-6 px-4 py-6">

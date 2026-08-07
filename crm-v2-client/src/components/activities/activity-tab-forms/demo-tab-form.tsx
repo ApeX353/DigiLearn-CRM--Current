@@ -21,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormControl,
+  FormMessage,
 } from "~/components/ui/form";
 import type {
   ActivityTabFormProps,
@@ -125,6 +126,14 @@ export const DemoTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
           });
           return false;
         }
+        // A delivered demo / demo follow-up must schedule the next action,
+        // otherwise the deal is left with nothing planned.
+        if (subType !== "demo_booking" && !v.next_activity_date) {
+          form.setError("next_activity_date", {
+            message: "Next action date is required",
+          });
+          return false;
+        }
         return true;
       },
       getValues: (): TabFormPayload => {
@@ -139,7 +148,10 @@ export const DemoTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
         return {
           subject: subjectMap[subType],
           __demoType: subType,
-          due_at: v.planned_at, // Booking: due = planned date
+          // Next-action date: a booking is due when the demo happens; a
+          // delivery / follow-up is due when the next action is scheduled.
+          due_at:
+            subType === "demo_booking" ? v.planned_at : v.next_activity_date,
           demo: {
             planned_at: v.planned_at,
             mode: v.mode,
@@ -477,6 +489,33 @@ export const DemoTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                 )}
               />
 
+              {/* A delivered demo must schedule the next touch — this is
+                  the activity's next-action date. */}
+              <FormField
+                control={form.control}
+                name="next_activity_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Next activity date{" "}
+                      <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <DateTimePicker
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(d) =>
+                          field.onChange(d ? d.toISOString() : undefined)
+                        }
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Every activity must schedule the next action.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <p className="text-xs text-muted-foreground bg-muted/40 rounded p-2">
                 After saving, set the activity outcome (Completed /
                 Strong Interest / Quote Requested / Decision Maker
@@ -521,7 +560,10 @@ export const DemoTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                 name="next_activity_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Next activity date</FormLabel>
+                    <FormLabel>
+                      Next activity date{" "}
+                      <span className="text-destructive">*</span>
+                    </FormLabel>
                     <FormControl>
                       <DateTimePicker
                         value={field.value ? new Date(field.value) : undefined}
@@ -531,9 +573,9 @@ export const DemoTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
-                      Required unless your follow-up outcome is "Not
-                      Interested".
+                      Every activity must schedule the next action.
                     </p>
+                    <FormMessage />
                   </FormItem>
                 )}
               />

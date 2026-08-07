@@ -41,7 +41,6 @@ import {
   History,
   MessageSquare,
   Pencil,
-  RotateCcw,
 } from "lucide-react";
 import { Link } from "react-router";
 import type { Activity, ActivityType } from "~/api/activities";
@@ -49,6 +48,7 @@ import { ACTIVITY_TYPES } from "~/api/activities";
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -68,6 +68,10 @@ import {
   getActivityTile,
   type ActivityVisualType,
 } from "~/lib/activity-visuals";
+import { ArrowRight, DollarSign, Loader2, RotateCcw } from "lucide-react";
+import { getActivityVisual } from "~/lib/activity-visuals";
+import type { TimelineChange } from "~/lib/activity-timeline";
+import { isMissingNextAction } from "~/lib/activity-next-action";
 import { cn } from "~/lib/utils";
 
 // =====================================================================
@@ -385,6 +389,8 @@ export interface PlannedActivityCardProps {
   relatedOverride?: { label: string; href: string } | null;
   /** Compact variant for use on glance widgets (no description, no actions). */
   compact?: boolean;
+  /** Expands the full activity page beneath the card, in place. */
+  expanded?: boolean;
 }
 
 export function PlannedActivityCard({
@@ -394,6 +400,7 @@ export function PlannedActivityCard({
   disabled,
   relatedOverride,
   compact,
+  expanded = false,
 }: PlannedActivityCardProps) {
   const Icon = getActivityIcon(activity.type);
   const color = resolveColor({
@@ -408,14 +415,52 @@ export function PlannedActivityCard({
       ? activityRelatedRecord(activity)
       : relatedOverride;
 
+  // Same de-duplication the log feed does: subjects were auto-generated
+  // from the body at create time ("Call: I spoke to Mrs Ndlovu…"), so
+  // printing both showed the same sentence twice — once clipped. When the
+  // subject is only a clipped copy of the body, show the TYPE and let the
+  // body below carry the words.
+  const plannedTypeLabel = getActivityVisual(activity.type).label;
+
+  // The planned item's own words, read from whichever field its type
+  // uses — same resolver as the log feed.
+  const plannedBody =
+    (activity.type === "note" && activity.note?.content) ||
+    (activity.type === "call" && activity.call?.summary) ||
+    (activity.type === "whatsapp" && activity.whatsapp?.message) ||
+    (activity.type === "email" && activity.email?.body) ||
+    (activity.type === "meeting" &&
+      (activity.meeting?.minutes_notes || activity.meeting?.agenda)) ||
+    activity.description;
+
+  const plannedStrippedSubject = (activity.subject ?? "")
+    .replace(/^(call|whatsapp|note|email|meeting|task)\s*:\s*/i, "")
+    .replace(/[.…]+$/, "")
+    .trim();
+  const plannedSubjectIsRedundant =
+    !!plannedBody &&
+    plannedStrippedSubject.length > 0 &&
+    plannedBody
+      .trim()
+      .toLowerCase()
+      .startsWith(
+        plannedStrippedSubject
+          .toLowerCase()
+          .slice(0, Math.min(24, plannedStrippedSubject.length)),
+      );
+
   return (
     <div
       className={cn(
-        "rounded-md border bg-background p-4 shadow-sm transition-shadow hover:shadow",
+        "rounded-md border bg-background shadow-sm transition-shadow hover:shadow",
+        // Padding moves onto the inner header so the expanded document
+        // can sit flush beneath it.
+        expanded ? "p-0" : "p-4",
         color === "red" && "border-red-200 dark:border-red-900",
         color === "green" && "border-emerald-200 dark:border-emerald-900",
       )}
     >
+      <div className={cn(expanded && "p-4")}>
       <div className="flex items-start gap-3">
         {!compact && (
           <Tooltip>
@@ -444,7 +489,9 @@ export function PlannedActivityCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="truncate font-semibold">
-                  {activity.subject || "Untitled next step"}
+                  {plannedSubjectIsRedundant
+                    ? plannedTypeLabel
+                    : activity.subject || "Untitled next step"}
                 </span>
                 <Badge
                   variant="outline"
@@ -531,6 +578,32 @@ export function PlannedActivityCard({
       <span className="hidden">
         <Icon />
       </span>
+      </div>
+
+      {plannedBody && (
+        <div className="px-4 pb-4">
+          {/* Same reading pattern as the log: the content is there, click
+              to open the rest. */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(activity)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen(activity);
+              }
+            }}
+            className={cn(
+              "cursor-pointer whitespace-pre-wrap rounded-md bg-amber-50/70 px-3 py-2 text-sm leading-6 text-foreground transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
+              !expanded && "line-clamp-2",
+            )}
+            title={expanded ? "Click to collapse" : "Click to read all"}
+          >
+            {plannedBody}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -539,14 +612,130 @@ export function PlannedActivityCard({
 // CompletedActivityFeedItem
 // =====================================================================
 
+/**
+ * The activity's own words, wherever its type keeps them.
+ */
+export function activityBodyText(activity: Activity): string | undefined {
+  return (
+    (activity.type === "note" && activity.note?.content) ||
+    (activity.type === "call" && activity.call?.summary) ||
+    (activity.type === "whatsapp" && activity.whatsapp?.message) ||
+    (activity.type === "email" && activity.email?.body) ||
+    (activity.type === "meeting" &&
+      (activity.meeting?.minutes_notes || activity.meeting?.agenda)) ||
+    activity.description ||
+    undefined
+  );
+}
+
+/**
+ * What to show as an activity's heading.
+ *
+ * Subjects were auto-generated from the body at create time — e.g. a
+ * WhatsApp saved as `"WhatsApp: checking if they've had a chance to disc…"`
+ * — so any surface showing subject AND body printed the same sentence
+ * twice, the heading version clipped mid-word. When the subject is only a
+ * clipped copy of the body we show the activity TYPE instead and let the
+ * body carry the words. Genuine, rep-written subjects are untouched.
+ */
+export function activityHeading(activity: Activity): string {
+  const body = activityBodyText(activity);
+  const stripped = (activity.subject ?? "")
+    .replace(/^(call|whatsapp|note|email|meeting|task)\s*:\s*/i, "")
+    .replace(/[.…]+$/, "")
+    .trim();
+  const redundant =
+    !!body &&
+    stripped.length > 0 &&
+    body
+      .trim()
+      .toLowerCase()
+      .startsWith(stripped.toLowerCase().slice(0, Math.min(24, stripped.length)));
+  return redundant
+    ? getActivityVisual(activity.type).label
+    : activity.subject || getActivityVisual(activity.type).label;
+}
+
+/**
+ * A stage or value change, sitting on the same rail as the activity cards.
+ *
+ * Deliberately quiet: one line, muted, no card. A rep scanning the feed
+ * should read these as punctuation between the things they actually did —
+ * "I called them, the deal moved to Quote Submitted, then I emailed" —
+ * not as competing entries. The `left-[30px]` rail position and `px-4`
+ * gutter match CompletedActivityFeedItem exactly so the hairline stays
+ * continuous through both kinds of row.
+ */
+export function TimelineChangeItem({
+  change,
+  formatValue,
+}: {
+  change: TimelineChange;
+  formatValue: (c: TimelineChange) => { from: string | null; to: string };
+}) {
+  const { from, to } = formatValue(change);
+  const Icon = change.field === "value" ? DollarSign : ArrowRight;
+  return (
+    <li className="group relative">
+      <span
+        aria-hidden
+        className="absolute bottom-0 left-[30px] top-0 w-px bg-border"
+      />
+      <div className="relative flex items-center gap-3 px-4 py-2">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground ring-4 ring-background">
+          <Icon className="h-3 w-3" />
+        </span>
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground/80">
+            {change.label}
+          </span>
+          {": "}
+          {from && (
+            <>
+              <span className="line-through">{from}</span>
+              <span className="mx-1">→</span>
+            </>
+          )}
+          <span className="font-medium text-foreground">{to}</span>
+          <span className="ml-2 whitespace-nowrap">
+            · {format(new Date(change.at), "MMM d, yyyy")}
+            {change.actor ? ` · ${change.actor}` : ""}
+          </span>
+        </p>
+      </div>
+    </li>
+  );
+}
+
 export function CompletedActivityFeedItem({
   activity,
   onOpen,
   onReopen,
+  expanded = false,
+  selected,
+  onToggleSelect,
+  onToggleComplete,
+  pending = false,
 }: {
   activity: Activity;
   onOpen: (a: Activity) => void;
   onReopen?: () => void;
+  /** When true the entry's body text is shown in full rather than clipped. */
+  expanded?: boolean;
+  /**
+   * Bulk-select checkbox. Only the global Activities module passes these —
+   * it's a work queue where "mark 20 done" matters. Record pages omit them
+   * and the row renders identically to before.
+   */
+  selected?: boolean;
+  onToggleSelect?: () => void;
+  /**
+   * Inline "mark done" for an open entry, with its in-flight spinner.
+   * Also module-only: on a record page completion runs through the
+   * Planned card, but a queue needs to tick things off where they sit.
+   */
+  onToggleComplete?: () => void;
+  pending?: boolean;
 }) {
   const owner = fullName(activity.assigned_to ?? activity.created_by);
   const completedAt = activity.completed_at ?? activity.created_at;
@@ -556,11 +745,51 @@ export function CompletedActivityFeedItem({
   );
   const isNote = activity.type === "note";
   // eea1c4ae: a task completed through the outcome dialog stores its
-  // note on the activity itself — show it so it isn't invisible.
+  // note on the activity itself — keep it visible in the feed.
   const completionNote = (activity as { completion_note?: string })
     .completion_note;
-  const noteBody =
-    (isNote && activity.note?.content) || completionNote || activity.description;
+  // Open (not-yet-completed) items live in this feed too, so mark them clearly
+  // — a due/scheduled chip instead of a "logged at" timestamp — so a scheduled
+  // task never reads as if it were already done.
+  const isOpen =
+    activity.status !== "completed" && activity.status !== "cancelled";
+  const openWhen = activity.due_at
+    ? `Due ${format(new Date(activity.due_at), "MMM d")}`
+      : activity.scheduled_at
+        ? `Scheduled ${format(new Date(activity.scheduled_at), "MMM d")}`
+        : // Was "Open", which collided with the row's Open button.
+          "Not scheduled";
+  // Every type keeps its substance in a different field. The log used to
+  // read only note.content / description, so a call's summary or a
+  // meeting's minutes showed as a bare title with nothing under it — the
+  // rep had to open each one to find out what happened. The feed now
+  // shows the actual content, so it reads like a story you scroll.
+  const note =
+    (activity.type === "note" && activity.note?.content) ||
+    (activity.type === "call" && activity.call?.summary) ||
+    (activity.type === "whatsapp" && activity.whatsapp?.message) ||
+    (activity.type === "email" && activity.email?.body) ||
+    (activity.type === "meeting" &&
+      (activity.meeting?.minutes_notes || activity.meeting?.agenda)) ||
+    completionNote ||
+    activity.description;
+
+  const typeLabel = getActivityVisual(activity.type).label;
+  // A subject is "redundant" when it is just the body clipped and
+  // prefixed with the type — which is how the create modal generated it.
+  const strippedSubject = (activity.subject ?? "")
+    .replace(/^(call|whatsapp|note|email|meeting|task)\s*:\s*/i, "")
+    .replace(/[.…]+$/, "")
+    .trim();
+  const subjectIsRedundant =
+    !!note &&
+    strippedSubject.length > 0 &&
+    note
+      .trim()
+      .toLowerCase()
+      .startsWith(
+        strippedSubject.toLowerCase().slice(0, Math.min(24, strippedSubject.length)),
+      );
 
   // Outcome surfacing — calls and meetings carry an outcome blob; we
   // pull whatever short label exists so the feed reads like a sales
@@ -584,31 +813,97 @@ export function CompletedActivityFeedItem({
     : completionNote || (outcome ? String(outcome).replace(/_/g, " ") : null);
 
   return (
-    <li className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30">
+    <li className="group relative transition-colors hover:bg-muted/20">
+      {/* Timeline rail — a continuous hairline behind the icons so the
+          feed reads as one thread rather than a stack of rows. */}
+      <span
+        aria-hidden
+        className="absolute bottom-0 left-[30px] top-0 w-px bg-border"
+      />
+      <div className="relative flex items-start gap-3 px-4 py-3">
+      {onToggleSelect && (
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggleSelect}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${activity.subject}`}
+          className="mt-2 shrink-0"
+        />
+      )}
       <ActivityTypeIcon
         type={activity.type}
         size="md"
-        className="mt-0.5 shrink-0 opacity-80"
+        className="mt-0.5 shrink-0 rounded-full bg-background opacity-90 ring-4 ring-background"
       />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
+          {/* Most subjects were auto-generated from the body when the
+              activity was logged ("Call: I spoke to Mrs Ndlovu…"), so
+              showing both printed the same sentence twice — once
+              truncated. When the subject is just a clipped copy of the
+              body we show the activity TYPE instead and let the body
+              carry the words, the way a timeline should read. */}
           <button
             type="button"
             onClick={() => onOpen(activity)}
             className="truncate text-sm font-medium text-foreground hover:underline"
+            aria-expanded={expanded}
           >
-            {activity.subject || "Untitled"}
+            {subjectIsRedundant ? typeLabel : activity.subject || typeLabel}
           </button>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {completedClock}
-          </span>
+          {/* Every activity except a note is meant to schedule the next
+              action. The document view saves field-by-field so there is no
+              submit to block on — instead the gap is surfaced here, where a
+              manager scanning the log can actually see it. */}
+          {isMissingNextAction(activity) && (
+            <span
+              className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+              title="No follow-up date — nothing is scheduled after this"
+            >
+              No follow-up
+            </span>
+          )}
+          {isOpen ? (
+            <span className="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+              {openWhen}
+            </span>
+          ) : (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {completedClock}
+            </span>
+          )}
         </div>
 
-        {(outcomeText || noteBody) && (
-          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-            {outcomeText || noteBody}
+        {/* OUT-DUBE (Mr Dube, 5 Aug): a completed, non-note activity reads
+            its outcome inline — never hidden behind a click. */}
+        {outcomeText && (
+          <p className="mt-1 text-sm font-medium text-foreground">
+            Outcome: {outcomeText}
           </p>
+        )}
+        {note && note !== outcomeText && (
+          // Collapsed shows the opening lines; clicking the entry opens
+          // the rest in place. No separate button — the entry itself is
+          // the control, so the feed stays quiet.
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(activity)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen(activity);
+              }
+            }}
+            className={cn(
+              "mt-1.5 cursor-pointer whitespace-pre-wrap rounded-md bg-amber-50/70 px-3 py-2 text-sm leading-6 text-foreground transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
+              !expanded && "line-clamp-2",
+            )}
+            title={expanded ? "Click to collapse" : "Click to read all"}
+          >
+            {note}
+          </div>
         )}
 
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -633,22 +928,54 @@ export function CompletedActivityFeedItem({
         </div>
       </div>
 
-      {onReopen && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="opacity-0 transition-opacity group-hover:opacity-100"
-              onClick={onReopen}
-              aria-label="Reopen activity"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Reopen</TooltipContent>
-        </Tooltip>
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {onToggleComplete && isOpen && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={onToggleComplete}
+                aria-label="Mark done"
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-full border transition-colors",
+                  pending
+                    ? "text-muted-foreground"
+                    : "text-muted-foreground hover:border-emerald-500 hover:text-emerald-600",
+                )}
+              >
+                {pending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {pending ? "Saving…" : "Mark done"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {onReopen && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100"
+                onClick={onReopen}
+                aria-label="Reopen activity"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reopen</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      </div>
+
+
     </li>
   );
 }

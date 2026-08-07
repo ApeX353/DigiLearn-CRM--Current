@@ -77,6 +77,8 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
         const v = form.getValues();
         return {
           subject: v.subject,
+          // Next-action date for the logged email — required so the lead
+          // is never left without a scheduled follow-up.
           due_at: v.follow_up_date?.toISOString(),
           email: {
             to_recipients: v.to_recipients,
@@ -201,12 +203,14 @@ export const EmailTabForm = forwardRef<TabFormHandle, MultiContactTabFormProps>(
             name="follow_up_date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Follow Up Date</FormLabel>
+                <FormLabel>
+                  Follow Up Date <span className="text-destructive">*</span>
+                </FormLabel>
                 <FormControl>
                   <DateTimePicker
                     value={field.value}
                     onChange={field.onChange}
-                    placeholder="When should this be followed up?"
+                    placeholder="Select follow up date and time"
                   />
                 </FormControl>
                 <FormMessage />

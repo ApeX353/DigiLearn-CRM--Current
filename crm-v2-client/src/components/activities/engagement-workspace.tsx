@@ -16,7 +16,7 @@
  * page (lead, deal, school, contact, …) and the global Activities
  * page draw from the same visual + behavioural language.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { AlertTriangle, CalendarPlus, FileText, History, Loader2 } from "lucide-react";
 import {
@@ -26,15 +26,26 @@ import {
   type ActivityType,
 } from "~/api/activities";
 import { useEntityActivityLogs, type ActivityLog } from "~/api/activity-logs";
+import { useCurrency } from "~/hooks/use-currency";
+import {
+  extractTimelineChanges,
+  formatChangeValue,
+  type TimelineChange,
+} from "~/lib/activity-timeline";
 import { useActivityCompletionStore } from "~/stores/use-activity-completion-store";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { CreateActivityModal } from "~/components/activities/create-activity-modal";
+import {
+  ActivityComposer,
+  type ComposerType,
+} from "~/components/activities/activity-composer";
 import { ActivityInspectorSheet } from "~/components/activities/activity-inspector-sheet";
 import { FilesTab } from "~/components/deals/tabs/files-tab";
 import {
   ActivityEmptyState,
   CompletedActivityFeedItem,
+  TimelineChangeItem,
   FeedFilterBar,
   PlannedActivityCard,
   activityIsOpen,
@@ -62,7 +73,21 @@ interface EngagementWorkspaceProps {
    * bar below it invites contradictory UI).
    */
   hideFilterBar?: boolean;
+  /**
+   * Open the inline composer on this type when the workspace mounts.
+   * The record page's Note / Call / Email tabs use this: they compose,
+   * they do NOT filter the log below.
+   */
+  composeType?: ComposerType | null;
+  /** Prefilled onto the composer from the record's primary contact. */
+  composeDefaultPhone?: string;
+  composeDefaultEmail?: string;
 }
+
+/** One rail, two kinds of entry. */
+type TimelineItem =
+  | { kind: "activity"; key: string; at: string; activity: Activity }
+  | { kind: "change"; key: string; at: string; change: TimelineChange };
 
 const CHANGELOG_ENTITY_BY_SCOPE: Record<EngagementWorkspaceProps["scope"], string> = {
   lead: "Lead",
@@ -80,7 +105,15 @@ export function EngagementWorkspace({
   isReadonly,
   initialFilter,
   hideFilterBar,
+  composeType = null,
+  composeDefaultPhone,
+  composeDefaultEmail,
 }: EngagementWorkspaceProps) {
+  const [composer, setComposer] = useState<ComposerType | null>(composeType);
+  useEffect(() => setComposer(composeType), [composeType]);
+  /** The activity currently expanded in the log (one at a time). */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { formatCurrency } = useCurrency();
   const [feedFilter, setFeedFilter] = useState<FeedFilter>(
     initialFilter ?? { kind: "all" },
   );
@@ -106,7 +139,24 @@ export function EngagementWorkspace({
     [leadId, dealId, contactId, schoolId],
   );
   const hasParent = !!(leadId || dealId || contactId || schoolId);
-  const activeEntityId = leadId ?? dealId ?? schoolId ?? contactId ?? "";
+  /**
+   * Which record's changelog/files we're looking at.
+   *
+   * This used to prefer `leadId` unconditionally — but a deal page passes
+   * BOTH `dealId` and its originating `leadId`, so on every deal created
+   * from a lead we asked for `/activity-logs/entity/deal/<lead id>` and
+   * got nothing back. Deal stage and value history existed and was simply
+   * never shown. Resolve by scope instead of by whichever id is present.
+   */
+  const activeEntityId =
+    (scope === "deal" ? dealId : undefined) ??
+    (scope === "school" ? schoolId : undefined) ??
+    (scope === "contact" ? contactId : undefined) ??
+    leadId ??
+    dealId ??
+    schoolId ??
+    contactId ??
+    "";
   const activePane =
     feedFilter.kind === "content" && feedFilter.value === "files"
       ? "files"
@@ -185,13 +235,28 @@ export function EngagementWorkspace({
   // can only appear in one of the two source queries.
   const feedActivities = useMemo<Activity[]>(() => {
     const done = doneData?.data ?? [];
+    const open = openData?.data ?? [];
+    // Full timeline: every activity on this record EXCEPT the items shown as
+    // Planned cards above the feed (we keep ALL planned items as cards, not
+    // just the soonest — so nothing a rep logs or schedules can disappear).
+    //
+    // De-duplicate by id first. `done` (status=completed) and `open`
+    // (open_only) are two independent queries against the same /activities
+    // endpoint, so the SAME activity can arrive in both lists — e.g. on a deal
+    // page the backend widens its match when both deal_id and lead_id are
+    // supplied and returns open items under the "completed" query too, and
+    // there is also a brief window right after a status change while both
+    // cached lists are still warm. Concatenating blindly then rendered two
+    // <li>s with the same key={activity.id}, tripping React's "two children
+    // with the same key" warning and risking an activity being dropped from
+    // the feed. Collapsing on id keeps exactly one copy of every distinct
+    // activity, so the log stays complete and each key is unique.
     const plannedIds = new Set(plannedActivities.map((a) => a.id));
-    const openLogged = (openData?.data ?? []).filter(
-      (a) => !plannedIds.has(a.id),
-    );
     const byId = new Map<string, Activity>();
-    for (const a of [...done, ...openLogged]) byId.set(a.id, a);
-    const combined = [...byId.values()];
+    for (const a of [...done, ...open]) {
+      if (!byId.has(a.id)) byId.set(a.id, a);
+    }
+    const combined = [...byId.values()].filter((a) => !plannedIds.has(a.id));
     return applyFeedFilter(combined, feedFilter).sort((a, b) => {
       const at = new Date(
         a.completed_at ?? a.scheduled_at ?? a.created_at,
@@ -202,6 +267,53 @@ export function EngagementWorkspace({
       return bt - at;
     });
   }, [doneData, openData, plannedActivities, feedFilter]);
+
+  /**
+   * Stage and value changes, woven into the same rail as the activities.
+   *
+   * The changelog was previously fetched only inside <ChangelogPanel>,
+   * which mounts when the "Changelog" chip is active — so in the default
+   * view no change data was loaded at all. Hoisting the query here lets a
+   * stage move sit chronologically between the call that caused it and
+   * the follow-up it triggered, which is the whole point.
+   */
+  const { data: changeLogs } = useEntityActivityLogs(
+    CHANGELOG_ENTITY_BY_SCOPE[scope],
+    activeEntityId,
+  );
+
+  const timelineChanges = useMemo(() => {
+    // Only woven into the unfiltered feed. Once a rep narrows to "Calls"
+    // or "Notes" they're looking for activities, and stage rows would be
+    // noise; the dedicated Changelog pane still shows everything.
+    if (feedFilter.kind !== "all") return [];
+    return extractTimelineChanges(changeLogs?.data);
+  }, [changeLogs, feedFilter]);
+
+  /**
+   * One chronological list of both kinds of entry. Sorting here (rather
+   * than rendering two lists) is what makes the rail read as a single
+   * thread.
+   */
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [
+      ...feedActivities.map((activity) => ({
+        kind: "activity" as const,
+        key: activity.id,
+        at: activity.completed_at ?? activity.created_at,
+        activity,
+      })),
+      ...timelineChanges.map((change) => ({
+        kind: "change" as const,
+        key: change.id,
+        at: change.at,
+        change,
+      })),
+    ];
+    return items.sort(
+      (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
+    );
+  }, [feedActivities, timelineChanges]);
 
   const requestCompletion = useActivityCompletionStore((s) => s.request);
 
@@ -217,12 +329,36 @@ export function EngagementWorkspace({
     await updateStatus.mutateAsync({ id: a.id, status: "scheduled" });
   }
 
+  /**
+   * Toggles the row open in place rather than floating an overlay over
+   * the log. Only one activity stays expanded at a time so the feed
+   * doesn't turn into a wall of open documents.
+   */
   function openInspector(a: Activity) {
-    setInspectorActivity(a);
+    setExpandedId((current) => (current === a.id ? null : a.id));
   }
 
   return (
     <div className="space-y-4">
+      {/* Inline composer — opened by the record page's Note / Call /
+          Email / … tabs, or by "Schedule next". Writing happens here in
+          place; the log below is never filtered by it. */}
+      {composer && !isReadonly && (
+        <div className="mb-4">
+          <ActivityComposer
+            leadId={leadId}
+            dealId={dealId}
+            schoolId={schoolId}
+            contactId={contactId}
+            type={composer}
+            onTypeChange={setComposer}
+            onClose={() => setComposer(null)}
+            defaultPhone={composeDefaultPhone}
+            defaultEmail={composeDefaultEmail}
+          />
+        </div>
+      )}
+
       {/* PLANNED section — the header uses a 3-column grid so the
           section label (Planned pill + "Next step" title) sits in
           the centre column while the Schedule-next action anchors
@@ -247,10 +383,7 @@ export function EngagementWorkspace({
             size="sm"
             variant="outline"
             disabled={isReadonly}
-            onClick={() => {
-              setCreateDefaultType("task");
-              setCreateOpen(true);
-            }}
+            onClick={() => setComposer("task")}
             className="justify-self-stretch sm:justify-self-end"
           >
             <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
@@ -278,6 +411,7 @@ export function EngagementWorkspace({
               <PlannedActivityCard
                 key={planned.id}
                 activity={planned}
+                expanded={expandedId === planned.id}
                 onComplete={toggleComplete}
                 onOpen={openInspector}
                 disabled={isReadonly}
@@ -361,25 +495,34 @@ export function EngagementWorkspace({
               </p>
             </div>
           </div>
-          ) : feedActivities.length === 0 ? (
+          ) : timelineItems.length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-            No activity logged yet for this {scope}. Notes and completed
-            calls, meetings, or follow-ups will show up here.
+            No activity yet for this {scope}. Everything you log or schedule —
+            notes, calls, WhatsApps, tasks, meetings — shows up here.
           </div>
           ) : (
           <ul className="divide-y">
-            {feedActivities.map((activity) => (
-              <CompletedActivityFeedItem
-                key={activity.id}
-                activity={activity}
-                onOpen={openInspector}
-                onReopen={
-                  activity.status === "completed"
-                    ? () => toggleComplete(activity)
-                    : undefined
-                }
-              />
-            ))}
+            {timelineItems.map((item) =>
+              item.kind === "activity" ? (
+                <CompletedActivityFeedItem
+                  key={item.key}
+                  activity={item.activity}
+                  expanded={expandedId === item.activity.id}
+                  onOpen={openInspector}
+                  onReopen={
+                    item.activity.status === "completed"
+                      ? () => toggleComplete(item.activity)
+                      : undefined
+                  }
+                />
+              ) : (
+                <TimelineChangeItem
+                  key={item.key}
+                  change={item.change}
+                  formatValue={(c) => formatChangeValue(c, formatCurrency)}
+                />
+              ),
+            )}
           </ul>
           )}
         </div>

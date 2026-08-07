@@ -38,6 +38,7 @@ import {
 } from "~/components/ui/sheet";
 import { Textarea } from "~/components/ui/textarea";
 import { useAuthStore } from "~/stores/use-auth-store";
+import { getActivityVisual } from "~/lib/activity-visuals";
 
 interface ActivityMeetingSheetProps {
   activityId: string | null;
@@ -205,6 +206,9 @@ export function ActivityMeetingSheet({
     );
   };
 
+  const visual = getActivityVisual("meeting");
+  const Icon = visual.icon;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
@@ -222,11 +226,29 @@ export function ActivityMeetingSheet({
           </div>
         ) : (
           <>
-            <SheetHeader>
-              <SheetTitle>Edit Meeting</SheetTitle>
-              <SheetDescription>
-                Update core scheduling details for this meeting activity.
-              </SheetDescription>
+            <SheetHeader className="border-b pb-4">
+              <div className="flex items-start gap-3.5 pr-8">
+                <div
+                  className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${visual.tile}`}
+                >
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="text-lg font-semibold leading-snug">
+                    {activity.meeting.title || activity.subject || "Meeting"}
+                  </SheetTitle>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${visual.chip}`}
+                    >
+                      {visual.label}
+                    </span>
+                  </div>
+                  <SheetDescription className="mt-2">
+                    Update core scheduling details for this meeting activity.
+                  </SheetDescription>
+                </div>
+              </div>
             </SheetHeader>
 
             <Form {...form}>

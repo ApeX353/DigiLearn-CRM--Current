@@ -20,6 +20,7 @@ import {
   Calendar,
   GitMerge,
   ArrowRight,
+  ScanSearch,
 } from "lucide-react";
 import { toast } from "sonner";
 import Container from "~/components/container";
@@ -40,9 +41,22 @@ import {
   TabsTrigger,
 } from "~/components/ui/tabs";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "~/components/ui/alert-dialog";
+import {
   useDuplicateQueue,
   useReviewDuplicate,
   useRebuildDuplicates,
+  useScanDuplicates,
+  useMergeDuplicate,
   describeSignal,
   type DuplicateRecordType,
   type DuplicateSuspicion,
@@ -71,6 +85,28 @@ export default function DuplicatesQueuePage() {
   // it view the review queue in the UI too, so support can scope duplicates.
   const canAccess = useAnyRole(["admin", "admin_support", "sales_manager"]);
   const rebuild = useRebuildDuplicates();
+  const scan = useScanDuplicates();
+
+  const runScan = () => {
+    scan.mutate(undefined, {
+      onSuccess: (res) => {
+        toast.success(
+          res.created > 0
+            ? `Scan complete — ${res.created} new duplicate${
+                res.created === 1 ? "" : "s"
+              } added to the queue`
+            : "Scan complete — no new duplicates found",
+        );
+      },
+      onError: (err) =>
+        toast.error(
+          (err as { response?: { data?: { message?: string } } })?.response
+            ?.data?.message || "Scan failed. Please try again.",
+        ),
+    });
+  };
+
+
   if (!canAccess) {
     return (
       <div>
@@ -90,18 +126,27 @@ export default function DuplicatesQueuePage() {
     <div>
       <PageHeader
         title="Duplicate suspicions"
-        subtitle="Records flagged during creation — merge, keep separate, or dismiss."
+        subtitle="Flagged when a record is created, or found by scanning existing records — merge, keep separate, or dismiss."
       />
       <Container className="p-4">
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            Rebuild re-scans the whole book with the current rules (clears stale
-            staff-email <span className="font-mono">@clearhue.co.zw</span> false
-            matches). Runs in the background.
-          </p>
+        {/* Queue maintenance. Scan sweeps existing records for duplicates
+            that predate the entry-time guard (older records, CSV imports,
+            saves that overrode the warning) and adds new matches below.
+            Rebuild (DUP-EMAIL1) purges pending rows and re-scans the whole
+            book with the current rules — clears stale staff-email
+            @clearhue.co.zw false matches. Both safe to re-run. */}
+        <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium">Queue maintenance</p>
+            <p className="text-xs text-muted-foreground">
+              Scan sweeps every current lead, school and contact and adds new
+              matches below (reviewed pairs are not re-flagged). Rebuild clears
+              the pending queue and re-scans with the current rules.
+            </p>
+          </div>
           <Button
-            size="sm"
             variant="outline"
+            className="shrink-0"
             disabled={rebuild.isPending}
             onClick={() =>
               rebuild.mutate(undefined, {
@@ -117,6 +162,18 @@ export default function DuplicatesQueuePage() {
             }
           >
             {rebuild.isPending ? "Rebuilding…" : "Rebuild queue"}
+          </Button>
+          <Button
+            onClick={runScan}
+            disabled={scan.isPending}
+            className="shrink-0"
+          >
+            {scan.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <ScanSearch className="mr-2 h-4 w-4" />
+            )}
+            {scan.isPending ? "Scanning…" : "Scan existing records"}
           </Button>
         </div>
         <Tabs defaultValue="pending" className="w-full">
@@ -185,11 +242,54 @@ function QueueSection({
   );
 }
 
+/** Detail page for a flagged record, or null for types without one. */
+function recordPath(type: DuplicateRecordType, id: string): string | null {
+  if (type === "lead") return `/leads/${id}`;
+  if (type === "school") return `/schools/${id}`;
+  return null; // contacts have no standalone page
+}
+
+/** One record line in a suspicion card: name (linked when possible) +
+ *  optional sub-label, falling back to a short id if the record is gone. */
+function RecordLine({
+  prefix,
+  type,
+  id,
+  label,
+  sublabel,
+}: {
+  prefix: string;
+  type: DuplicateRecordType;
+  id: string;
+  label?: string | null;
+  sublabel?: string | null;
+}) {
+  const path = recordPath(type, id);
+  const text = label || `${id.slice(0, 8)}… (record unavailable)`;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
+        {prefix}
+      </span>
+      {path && label ? (
+        <Link
+          to={path}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          {text}
+        </Link>
+      ) : (
+        <span className="text-sm font-medium">{text}</span>
+      )}
+      {sublabel && (
+        <span className="text-xs text-muted-foreground">· {sublabel}</span>
+      )}
+    </div>
+  );
+}
+
 function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
   const review = useReviewDuplicate();
-  const [pendingAction, setPendingAction] = useState<
-    "merged" | "kept_separate" | "false_positive" | null
-  >(null);
   const [expanded, setExpanded] = useState(false);
 
   // Only pending lead suspicions get the richer detail + merge-preview panel;
@@ -207,24 +307,41 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
     row.reviewed_by?.email ||
     null;
 
-  const decide = (status: "merged" | "kept_separate" | "false_positive") => {
-    setPendingAction(status);
+  const merge = useMergeDuplicate();
+  const runMerge = () => {
+    merge.mutate(
+      { id: row.id },
+      {
+        onSuccess: (res) => {
+          const total = res.merged.moved.reduce((s, m) => s + m.moved, 0);
+          toast.success(
+            `Merged — ${total} record${total === 1 ? "" : "s"} moved to “${
+              row.existing_record_label ?? "the surviving record"
+            }”; duplicate archived`,
+          );
+        },
+        onError: (err) =>
+          toast.error(
+            (err as { response?: { data?: { message?: string } } })?.response
+              ?.data?.message || "Merge failed. Please try again.",
+          ),
+      },
+    );
+  };
+
+  const decide = (status: "kept_separate" | "false_positive") => {
     review.mutate(
       { id: row.id, data: { status } },
       {
         onSuccess: () => {
           toast.success(
-            status === "merged"
-              ? "Marked as merged"
-              : status === "kept_separate"
-                ? "Both records kept"
-                : "Marked as false positive",
+            status === "kept_separate"
+              ? "Both records kept"
+              : "Marked as false positive",
           );
-          setPendingAction(null);
         },
         onError: () => {
           toast.error("Failed to record decision");
-          setPendingAction(null);
         },
       },
     );
@@ -289,21 +406,21 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <span>
-            New record:{" "}
-            <span className="text-foreground font-medium">
-              {row.new_record_name ?? `${row.new_record_id.slice(0, 8)}…`}
-            </span>
-          </span>
-          <span>·</span>
-          <span>
-            Matches:{" "}
-            <span className="text-foreground font-medium">
-              {row.existing_record_name ??
-                `${row.existing_record_id.slice(0, 8)}…`}
-            </span>
-          </span>
+        <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
+          <RecordLine
+            prefix="This record"
+            type={row.record_type}
+            id={row.new_record_id}
+            label={row.new_record_label ?? row.new_record_name}
+            sublabel={row.new_record_sublabel}
+          />
+          <RecordLine
+            prefix="Duplicate of"
+            type={row.record_type}
+            id={row.existing_record_id}
+            label={row.existing_record_label ?? row.existing_record_name}
+            sublabel={row.existing_record_sublabel}
+          />
         </div>
 
         {row.status === "pending" ? (
@@ -311,18 +428,52 @@ function SuspicionCard({ row }: { row: DuplicateSuspicion }) {
             className="flex flex-wrap gap-2 pt-1"
             onClick={(e) => e.stopPropagation()}
           >
-            <Button
-              size="sm"
-              onClick={() => decide("merged")}
-              disabled={review.isPending}
-            >
-              {pendingAction === "merged" && review.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <SplitSquareVertical className="mr-2 h-4 w-4" />
-              )}
-              Merge new → existing
-            </Button>
+            {/* Leads merge through the survivor-choice panel below (DUP2 —
+                true field-level merge with a chosen survivor); the one-click
+                generic merge here is for school/contact suspicions only. */}
+            {row.record_type !== "lead" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    disabled={merge.isPending || review.isPending}
+                  >
+                    {merge.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <SplitSquareVertical className="mr-2 h-4 w-4" />
+                    )}
+                    Merge
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Merge this {row.record_type}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Everything attached to{" "}
+                      <span className="font-medium text-foreground">
+                        {row.new_record_label ?? "the duplicate"}
+                      </span>{" "}
+                      (activities, deals, contacts, quotes, invoices…) will be
+                      moved onto{" "}
+                      <span className="font-medium text-foreground">
+                        {row.existing_record_label ?? "the surviving record"}
+                      </span>
+                      , and the duplicate will be archived. An admin can restore
+                      it if this was a mistake.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={runMerge}>
+                      Merge &amp; archive
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             <Button
               size="sm"
               variant="outline"

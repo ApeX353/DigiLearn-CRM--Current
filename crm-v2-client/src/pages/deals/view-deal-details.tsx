@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { format } from "date-fns";
-import { AuditTimeline } from "~/components/audit/audit-timeline";
 import {
   Plus,
   Loader2,
@@ -606,9 +605,9 @@ export default function ViewDealDetailsPage() {
                   type — reps usually want to jump straight to "show
                   me the calls" or "show me the notes" rather than
                   open Activities and then click the Type chip. */}
+              {/* Calls / Emails are activity types — they live in the
+                  composer's type strip under Activity now. */}
               <TabsTrigger value="notes">Notes</TabsTrigger>
-              <TabsTrigger value="emails">Emails</TabsTrigger>
-              <TabsTrigger value="calls">Calls</TabsTrigger>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
               <TabsTrigger value="installments">
@@ -616,7 +615,6 @@ export default function ViewDealDetailsPage() {
               </TabsTrigger>
               <TabsTrigger value="costs">Costs</TabsTrigger>
               <TabsTrigger value="files">Files</TabsTrigger>
-              <TabsTrigger value="audit">Audit</TabsTrigger>
             </TabsList>
           </div>
 
@@ -1164,10 +1162,12 @@ export default function ViewDealDetailsPage() {
           </TabsContent>
 
           <TabsContent value="activities">
+            {/* Composer opens on Call, matching the lead and school pages. */}
             <DealActivitiesTab
               dealId={deal.id}
               leadId={deal.lead_id}
               isReadonly={isReadonly}
+              composeType="call"
               onLogActivity={() => {
                 if (isReadonly) return;
                 setCreateActivityOpen(true);
@@ -1175,41 +1175,24 @@ export default function ViewDealDetailsPage() {
             />
           </TabsContent>
 
-          {/* Notes / Emails / Calls — all three reuse the shared
-              EngagementWorkspace with a locked type filter, so every
-              surface draws from the same Planned/Done data and the
-              same visual language. Previously this area carried two
-              orphaned custom tabs (Tasks + Notes) with their own
-              fetching, empty states, and card layouts — all now
-              superseded by the filtered workspace. */}
+          {/* Notes / Emails / Calls used to lock the workspace to a
+              single type, which left the separate create modal as the
+              only way to write anything. They now open the inline
+              composer on that type instead — same as the lead page — so
+              the log underneath stays complete while the rep writes.
+              Saved work lands in Planned. */}
           <TabsContent value="notes">
             <DealActivitiesTab
               dealId={deal.id}
               leadId={deal.lead_id}
               isReadonly={isReadonly}
-              initialFilter={{ kind: "type", value: "note" }}
-              hideFilterBar
+              composeType="note"
             />
           </TabsContent>
 
-          <TabsContent value="emails">
-            <DealActivitiesTab
-              dealId={deal.id}
-              leadId={deal.lead_id}
-              isReadonly={isReadonly}
-              initialFilter={{ kind: "type", value: "email" }}
-              hideFilterBar
-            />
-          </TabsContent>
 
-          <TabsContent value="calls">
-            <DealActivitiesTab
-              dealId={deal.id}
-              leadId={deal.lead_id}
-              isReadonly={isReadonly}
-              initialFilter={{ kind: "type", value: "call" }}
-              hideFilterBar
-            />
+          <TabsContent value="costs">
+            <DealCostsSection dealId={deal.id} />
           </TabsContent>
 
           <TabsContent value="costs">
@@ -1224,9 +1207,6 @@ export default function ViewDealDetailsPage() {
             />
           </TabsContent>
 
-          <TabsContent value="audit">
-            <AuditTimeline entityType="Deal" entityId={deal.id} />
-          </TabsContent>
         </Tabs>
         }
       />

@@ -1,4 +1,5 @@
 import { useLead, useLeadStakeholders } from "~/api/leads";
+import { useSchool } from "~/api/schools";
 import type { Contact } from "~/api/contacts";
 import {
   Select,
@@ -16,6 +17,13 @@ import { User, Loader2 } from "lucide-react";
 interface PersonPickerBaseProps {
   leadId?: string;
   dealId?: string;
+  /**
+   * School-scoped fallback. School pages have no lead or deal, so the
+   * picker used to show "Select a lead or deal first" and left calls and
+   * emails uncomposable there. Schools own contacts directly, so we read
+   * those instead.
+   */
+  schoolId?: string;
   error?: string;
   disabled?: boolean;
   required?: boolean;
@@ -45,6 +53,7 @@ export function PersonPicker(props: PersonPickerProps) {
   const {
     leadId,
     dealId,
+    schoolId,
     error,
     disabled,
     required,
@@ -57,9 +66,26 @@ export function PersonPicker(props: PersonPickerProps) {
   const { data: leadResponse, isLoading: isLeadLoading } = useLead(
     leadId || "",
   );
+  // Only fetched when there's no lead/deal to resolve contacts from.
+  const { data: schoolResponse, isLoading: isSchoolLoading } = useSchool(
+    !leadId && !dealId ? schoolId || "" : "",
+  );
 
   const directStakeholders = stakeholdersResponse?.data || [];
   const primaryContact = leadResponse?.data?.primary_contact;
+
+  /** School contacts reshaped to the stakeholder shape the list renders. */
+  const schoolStakeholders = (schoolResponse?.data?.contacts ?? []).map(
+    (contact) => ({
+      id: `school-${contact.id}`,
+      contact_id: contact.id,
+      contact,
+      role: contact.role ?? "Other",
+      decision_role: "decision_maker",
+      is_primary: false,
+    }),
+  );
+
   const stakeholders =
     directStakeholders.length > 0
       ? directStakeholders
@@ -74,11 +100,11 @@ export function PersonPicker(props: PersonPickerProps) {
               is_primary: true,
             },
           ]
-        : [];
+        : schoolStakeholders;
 
   const displayLabel = label || "Person Contacted";
 
-  if (!leadId && !dealId) {
+  if (!leadId && !dealId && !schoolId) {
     return (
       <div>
         <Label className="text-muted-foreground">
@@ -91,7 +117,7 @@ export function PersonPicker(props: PersonPickerProps) {
     );
   }
 
-  if (isLoading || isLeadLoading) {
+  if (isLoading || isLeadLoading || isSchoolLoading) {
     return (
       <div>
         <Label>

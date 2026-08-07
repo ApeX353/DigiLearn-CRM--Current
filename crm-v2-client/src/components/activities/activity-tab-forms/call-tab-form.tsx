@@ -59,11 +59,10 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
         const v = form.getValues();
         return {
           subject: `Call: ${v.summary.substring(0, 40)}`,
-          // ACT2 — the form has always RENDERED a follow-up date
-          // picker, but this payload dropped the value on the floor,
-          // so every call was created with due_at NULL no matter what
-          // the rep typed. That single omission accounts for the bulk
-          // of the undated calls on production.
+          // ACT2: the follow-up date is sent BOTH as the activity's
+          // next-action date (due_at) and as call.follow_up_date — the
+          // latter is what makes the server spawn the open follow-up task.
+          // It used to be dropped here entirely.
           due_at: v.follow_up_date?.toISOString(),
           // DURATION1: carry the call length onto the activity so the
           // Duration field shows a real number instead of "--".
@@ -218,7 +217,9 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
             name="follow_up_date"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Follow Up Date</FormLabel>
+                <FormLabel>
+                  Follow Up Date <span className="text-destructive">*</span>
+                </FormLabel>
                 <FormControl>
                   <DateTimePicker
                     value={field.value}

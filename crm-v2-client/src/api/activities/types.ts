@@ -301,6 +301,9 @@ export interface WhatsappDetails {
   thumbnail_url?: string;
   status: WhatsappStatus;
   thread_id?: string;
+  /** Set when the message schedules a follow-up; spawns a follow-up task. */
+  follow_up_required?: boolean;
+  follow_up_date?: string;
 }
 
 export interface ActivityComment {
@@ -411,6 +414,13 @@ export interface CreateWhatsappDto {
   thumbnail_url?: string;
   status?: WhatsappStatus;
   thread_id?: string;
+  /**
+   * Follow-up date for the message. The server already accepts these
+   * (CreateWhatsAppDetailsDto) and spawns an open follow-up task from
+   * follow_up_date — they were just missing from the client type.
+   */
+  follow_up_required?: boolean;
+  follow_up_date?: string;
 }
 
 /**
@@ -465,7 +475,27 @@ export interface CreateActivityDto {
   demo?: CreateDemoDto;
 }
 
-export type UpdateActivityDto = Partial<CreateActivityDto>;
+/**
+ * `Partial<CreateActivityDto>` only loosens the TOP-LEVEL fields — the
+ * nested sub-objects kept their required members, so a single-field patch
+ * like `{ call: { summary } }` would not typecheck (and, until the server
+ * DTO was fixed to match, returned a 400). The document view saves one
+ * field at a time, so the sub-objects are partial here too.
+ */
+export type UpdateActivityDto = Partial<
+  Omit<
+    CreateActivityDto,
+    "task" | "note" | "call" | "email" | "meeting" | "whatsapp" | "demo"
+  >
+> & {
+  task?: Partial<CreateTaskDto>;
+  note?: Partial<CreateNoteDto>;
+  call?: Partial<CreateCallDto>;
+  email?: Partial<CreateEmailDto>;
+  meeting?: Partial<CreateMeetingDto>;
+  whatsapp?: Partial<CreateWhatsappDto>;
+  demo?: Partial<CreateDemoDto>;
+};
 
 export interface CreateActivityCommentDto {
   comment: string;

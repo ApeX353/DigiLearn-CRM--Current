@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Calendar, Check, ExternalLink, GitMerge, MapPin, Phone, Plus, Users } from "lucide-react";
 import { useLeads, type Lead } from "~/api/leads";
 import { Badge } from "~/components/ui/badge";
@@ -18,6 +18,12 @@ interface RelatedLeadsSectionProps {
   schoolId: string;
   schoolName: string;
   currentLeadId?: string | null;
+  /**
+   * When provided, clicking a lead calls this instead of navigating to the
+   * lead page — lets the host (e.g. the school page) show the lead's
+   * activities in-place. Falls back to navigation when omitted.
+   */
+  onSelectLead?: (leadId: string, leadName: string) => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -35,7 +41,13 @@ export function RelatedLeadsSection({
   schoolId,
   schoolName,
   currentLeadId,
+  onSelectLead,
 }: RelatedLeadsSectionProps) {
+  const navigate = useNavigate();
+  const openLead = (lead: Lead) =>
+    onSelectLead
+      ? onSelectLead(lead.id, lead.lead_name)
+      : navigate(`/leads/${lead.id}`);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [selectedLeadForMerge, setSelectedLeadForMerge] = useState<string | null>(
     null,
@@ -130,17 +142,34 @@ export function RelatedLeadsSection({
                 const isCurrentLead = lead.id === currentLeadId;
                 const canMergeThisLead = hasMergeTargets && !isCurrentLead;
 
+                // Card body is a MOUSE convenience: clicking anywhere (except
+                // the real controls below) peeks the lead's activities in
+                // place. Intentionally NOT a role=button/tabIndex/keydown
+                // target — that made the whole card an ARIA button wrapping
+                // the name link + Merge button, and its keydown handler
+                // hijacked Enter/Space on those nested controls (the name link
+                // stopped navigating for keyboard users, Merge became
+                // unreachable). Keyboard/AT users use the real controls: the
+                // name link navigates, Merge merges.
                 return (
                   <div
                     key={lead.id}
-                    className={`flex items-start justify-between gap-4 rounded-lg border p-3 ${
+                    onClick={() => openLead(lead)}
+                    className={`flex cursor-pointer items-start justify-between gap-4 rounded-lg border p-3 transition-colors hover:border-primary/50 hover:bg-accent/40 ${
                       isCurrentLead ? "border-primary bg-primary/5" : ""
                     }`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
+                        {/* The name is always a real link to the lead
+                            detail page — clicking it navigates away.
+                            stopPropagation keeps it from also firing the
+                            card's in-place activity focus. Body clicks
+                            (anywhere else on the card) still focus the
+                            lead's activities in place. */}
                         <Link
                           to={`/leads/${lead.id}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 font-medium text-primary hover:underline"
                         >
                           {lead.lead_name}
@@ -182,7 +211,10 @@ export function RelatedLeadsSection({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleOpenMerge(lead.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenMerge(lead.id);
+                          }}
                         >
                           <GitMerge className="mr-1 h-3.5 w-3.5" />
                           Merge

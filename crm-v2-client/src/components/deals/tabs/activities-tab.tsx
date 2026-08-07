@@ -11,6 +11,7 @@
  * the readonly flag.
  */
 import { EngagementWorkspace } from "~/components/activities/engagement-workspace";
+import type { ComposerType } from "~/components/activities/activity-composer";
 import type { FeedFilter } from "~/components/activities/activity-kit";
 
 interface DealActivitiesTabProps {
@@ -24,6 +25,8 @@ interface DealActivitiesTabProps {
   initialFilter?: FeedFilter;
   /** Hide the in-pane filter bar when the tab IS the filter. */
   hideFilterBar?: boolean;
+  /** Open the inline composer on this type (Note / Call / Email tabs). */
+  composeType?: ComposerType | null;
 }
 
 export function DealActivitiesTab({
@@ -32,6 +35,7 @@ export function DealActivitiesTab({
   isReadonly,
   initialFilter,
   hideFilterBar,
+  composeType = null,
 }: DealActivitiesTabProps) {
   // Prefer dealId scope on the workspace so the API filter narrows on
   // deal_id; we still pass leadId so the planned/done feed surfaces
@@ -45,6 +49,7 @@ export function DealActivitiesTab({
       isReadonly={isReadonly}
       initialFilter={initialFilter}
       hideFilterBar={hideFilterBar}
+      composeType={composeType}
     />
   );
 }

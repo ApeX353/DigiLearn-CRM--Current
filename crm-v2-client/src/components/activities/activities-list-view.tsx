@@ -30,6 +30,8 @@ import {
 import {
   ActivityStateBadge,
   ActivityTypeIcon,
+  activityBodyText,
+  activityHeading,
   fullName,
   userInitials,
 } from "~/components/activities/activity-kit";
@@ -297,9 +299,9 @@ export function ActivitiesListView({
                                 isDone &&
                                   "line-through text-muted-foreground",
                               )}
-                              title={activity.subject}
+                              title={activityBodyText(activity) || activity.subject}
                             >
-                              {activity.subject || "Untitled activity"}
+                              {activityHeading(activity)}
                             </span>
                             {activity.is_pinned && (
                               <Pin className="h-3 w-3 text-amber-500" />

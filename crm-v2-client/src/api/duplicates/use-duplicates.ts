@@ -98,6 +98,32 @@ export function useRecordDuplicateSuspicion() {
   });
 }
 
+export interface DuplicateScanResult {
+  created: number;
+  by_type: Record<
+    DuplicateRecordType,
+    { flagged: number; created: number; already_known: number }
+  >;
+}
+
+/**
+ * Sweep the EXISTING leads/schools/contacts for duplicate pairs and add
+ * any new ones to the suspicion queue. Idempotent — pairs already in the
+ * queue (any status) are skipped, so it's safe to re-run.
+ */
+export function useScanDuplicates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload?: { record_types?: DuplicateRecordType[] }) =>
+      apiClientAuth
+        .post(`/duplicates/scan`, payload ?? {})
+        .then((res) => unwrap<DuplicateScanResult>(res)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: duplicatesKeys.all });
+    },
+  });
+}
+
 export function useDuplicateQueue(
   record_type?: DuplicateRecordType,
   status: DuplicateSuspicionStatus | "all" = "pending",
@@ -123,6 +149,37 @@ export function useRebuildDuplicates() {
       apiClientAuth.post(`/duplicates/rebuild`).then((res) => res.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: duplicatesKeys.all });
+    },
+  });
+}
+
+export interface DuplicateMergeResult {
+  suspicion: DuplicateSuspicion;
+  merged: {
+    winner_id: string;
+    loser_id: string;
+    moved: { table: string; column: string; moved: number }[];
+  };
+}
+
+/**
+ * EXECUTE a merge: re-point the duplicate's records onto the surviving
+ * record and archive the duplicate. Destructive (but reversible — the
+ * loser is soft-deleted). Invalidates the queue plus the affected entity
+ * lists so the moved records show up in their new home.
+ */
+export function useMergeDuplicate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string | null }) =>
+      apiClientAuth
+        .post(`/duplicates/${id}/merge`, { note: note ?? null })
+        .then((res) => unwrap<DuplicateMergeResult>(res)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: duplicatesKeys.all });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      qc.invalidateQueries({ queryKey: ["schools"] });
+      qc.invalidateQueries({ queryKey: ["contacts"] });
     },
   });
 }

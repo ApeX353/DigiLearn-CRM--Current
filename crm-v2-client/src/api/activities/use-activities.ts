@@ -243,6 +243,14 @@ export function useUpdateActivity() {
     mutationFn: ({ id, data }: { id: string; data: UpdateActivityDto }) =>
       api.update(id, data),
     onSuccess: (updatedActivity, variables) => {
+      // Read the pre-update value BEFORE overwriting the cache so we can
+      // tell a genuine completion TRANSITION from an unrelated edit.
+      const previous = qc.getQueryData<Activity>(
+        activitiesKeys.byId(variables.id),
+      );
+      const wasCompleted =
+        previous?.status === "completed" || Boolean(previous?.completed_at);
+
       qc.setQueryData(activitiesKeys.byId(variables.id), updatedActivity);
       qc.invalidateQueries({
         queryKey: activitiesKeys.byId(variables.id),
@@ -250,14 +258,22 @@ export function useUpdateActivity() {
       });
       qc.invalidateQueries({ queryKey: activitiesKeys.lists() });
       qc.invalidateQueries({ queryKey: activitiesKeys.leadStatsRoot() });
+
       // A generic update can also flip an activity to completed —
       // e.g. editing a task and setting task.status = "done" in the
       // sheet. Apply the same auto-enqueue as the dedicated status
       // mutation so no completion site can skip the discipline rule.
-      if (
+      //
+      // Only on the TRANSITION though. This used to fire whenever the
+      // saved activity came back completed, which meant every autosave on
+      // an already-completed record re-opened the follow-up dialog — once
+      // per keystroke-blur on the document view. `previous` being absent
+      // (cold cache) is treated as "not completed" so a real completion
+      // still prompts.
+      const isCompleted =
         updatedActivity.status === "completed" ||
-        updatedActivity.completed_at
-      ) {
+        Boolean(updatedActivity.completed_at);
+      if (isCompleted && !wasCompleted) {
         enqueue(updatedActivity, {
           required: shouldRequireFollowUp(updatedActivity),
         });

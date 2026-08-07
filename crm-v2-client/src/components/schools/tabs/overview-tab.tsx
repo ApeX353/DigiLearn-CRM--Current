@@ -9,6 +9,12 @@ import { SchoolCityCell } from "~/components/schools/school-city-cell";
 
 interface OverviewTabProps {
   school: School;
+  /**
+   * Forwarded to the always-visible Related Leads card. When provided,
+   * clicking a lead shows its activities in-place on the school page
+   * instead of navigating to the lead detail page.
+   */
+  onSelectLead?: (leadId: string, leadName: string) => void;
 }
 
 /**
@@ -27,7 +33,7 @@ interface OverviewTabProps {
  * defaults (`px-4 py-4`) so the whole summary reads as a tight CRM
  * side-column.
  */
-export function OverviewTab({ school }: OverviewTabProps) {
+export function OverviewTab({ school, onSelectLead }: OverviewTabProps) {
   // SCH3: surface the school's decision maker (the head contact) on the
   // summary. The data is already loaded via school.contacts — it just was
   // never shown here; only the free-text principal_name was. Prefer the
@@ -53,7 +59,11 @@ export function OverviewTab({ school }: OverviewTabProps) {
 
   return (
     <div className="space-y-3">
-      <RelatedLeadsSection schoolId={school.id} schoolName={school.name} />
+      <RelatedLeadsSection
+        schoolId={school.id}
+        schoolName={school.name}
+        onSelectLead={onSelectLead}
+      />
 
       <Card>
         <CardHeader className="pb-2">

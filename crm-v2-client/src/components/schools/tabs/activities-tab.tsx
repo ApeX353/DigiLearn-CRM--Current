@@ -12,6 +12,7 @@
  */
 import type { School } from "~/api/schools";
 import { EngagementWorkspace } from "~/components/activities/engagement-workspace";
+import type { ComposerType } from "~/components/activities/activity-composer";
 import type { FeedFilter } from "~/components/activities/activity-kit";
 
 interface ActivitiesTabProps {
@@ -20,12 +21,15 @@ interface ActivitiesTabProps {
   initialFilter?: FeedFilter;
   /** Hide the filter bar when the tab itself is the filter. */
   hideFilterBar?: boolean;
+  /** Open the inline composer on this type (Note / Call / Email tabs). */
+  composeType?: ComposerType | null;
 }
 
 export function ActivitiesTab({
   school,
   initialFilter,
   hideFilterBar,
+  composeType = null,
 }: ActivitiesTabProps) {
   return (
     <EngagementWorkspace
@@ -34,6 +38,7 @@ export function ActivitiesTab({
       isReadonly={!school.is_active}
       initialFilter={initialFilter}
       hideFilterBar={hideFilterBar}
+      composeType={composeType}
     />
   );
 }

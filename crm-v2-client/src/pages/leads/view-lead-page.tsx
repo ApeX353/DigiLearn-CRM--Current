@@ -11,8 +11,6 @@ import {
   TimelineTab,
 } from "~/components/leads/tabs";
 import { ActivitiesTab } from "~/components/activities/activities-tab";
-import { AuditTimeline } from "~/components/audit/audit-timeline";
-import { WhatsAppComposer } from "~/components/activities/whatsapp-composer";
 import { LeadAtAGlance } from "~/components/leads/lead-at-a-glance";
 import {
   Loader2,
@@ -668,9 +666,12 @@ const ViewLead = ({ id }: { id: string }) => {
                     straight to a single conversation surface. Same
                     pattern used on Deal detail so the bar reads the
                     same across record pages. */}
+                {/* Calls / Emails used to sit here too, but they are
+                    activity types — they now live in the composer's own
+                    type strip under Activity, so there is exactly one
+                    place to log them. Notes keep their own tab because a
+                    note isn't an activity (no follow-up, no outcome). */}
                 <TabsTrigger value="notes">Notes</TabsTrigger>
-                <TabsTrigger value="emails">Emails</TabsTrigger>
-                <TabsTrigger value="calls">Calls</TabsTrigger>
               <TabsTrigger value="files">
                 <Paperclip className="h-4 w-4 mr-2" />
                 Files
@@ -681,42 +682,35 @@ const ViewLead = ({ id }: { id: string }) => {
               </TabsTrigger>
               <TabsTrigger value="timeline">Qualification</TabsTrigger>
               <TabsTrigger value="costs">Costs</TabsTrigger>
-              <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-              <TabsTrigger value="audit">Audit History</TabsTrigger>
               </TabsList>
             </div>
 
             <div className="mt-3">
+              {/* Activity opens the composer with the type strip visible
+                  so a rep can pick what they're logging, exactly like the
+                  Pipedrive detail view. The full log sits underneath. */}
               <TabsContent value="activity">
-                <ActivitiesTab leadId={lead.id} isReadonly={isReadonly} />
+                <ActivitiesTab
+                  leadId={lead.id}
+                  isReadonly={isReadonly}
+                  composeType="call"
+                />
               </TabsContent>
 
+              {/* These tabs used to FILTER the activity log to a single
+                  type, which meant the only way to write anything was the
+                  separate create modal. They now open the inline composer
+                  on that type instead — the log below stays complete, so
+                  the rep keeps the whole conversation in view while
+                  writing. Saved work lands in the Planned section. */}
               <TabsContent value="notes">
                 <ActivitiesTab
                   leadId={lead.id}
                   isReadonly={isReadonly}
-                  initialFilter={{ kind: "type", value: "note" }}
-                  hideFilterBar
+                  composeType="note"
                 />
               </TabsContent>
 
-              <TabsContent value="emails">
-                <ActivitiesTab
-                  leadId={lead.id}
-                  isReadonly={isReadonly}
-                  initialFilter={{ kind: "type", value: "email" }}
-                  hideFilterBar
-                />
-              </TabsContent>
-
-              <TabsContent value="calls">
-                <ActivitiesTab
-                  leadId={lead.id}
-                  isReadonly={isReadonly}
-                  initialFilter={{ kind: "type", value: "call" }}
-                  hideFilterBar
-                />
-              </TabsContent>
 
               <TabsContent value="files">
                 <FilesTab
@@ -748,18 +742,7 @@ const ViewLead = ({ id }: { id: string }) => {
                 />
               </TabsContent>
 
-              <TabsContent value="whatsapp">
-                <WhatsAppComposer
-                  leadId={lead.id}
-                  contactPhone={lead.primary_contact?.phone || ""}
-                  contactName={lead.primary_contact ? `${lead.primary_contact.first_name} ${lead.primary_contact.last_name}` : ""}
-                  schoolName={lead.school?.name || ""}
-                />
-              </TabsContent>
 
-              <TabsContent value="audit">
-                <AuditTimeline entityType="Lead" entityId={lead.id} />
-              </TabsContent>
             </div>
           </Tabs>
         }
