@@ -517,13 +517,20 @@ export function PlannedActivityCard({
                   {getActivityLabel(activity.type)}
                 </Badge>
               </div>
-              {!compact && activity.description && (
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                  {/* Clamped to two lines, so the words matter and the markup
+              {/* For tasks, plannedBody falls back to this same description,
+                  so rendering it here too printed the identical text twice on
+                  one card. The subtitle only earns its row when it says
+                  something the body block below doesn't. */}
+              {!compact &&
+                activity.description &&
+                richTextToPlain(activity.description).trim() !==
+                  richTextToPlain(plannedBody || "").trim() && (
+                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                    {/* Clamped to two lines, so the words matter and the markup
                       does not — line-clamp cannot clip across block children. */}
-                  {richTextToPlain(activity.description)}
-                </p>
-              )}
+                    {richTextToPlain(activity.description)}
+                  </p>
+                )}
             </div>
 
             {!compact && (

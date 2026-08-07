@@ -212,6 +212,9 @@ export function ActivityCompletionDialog() {
     : activity.lead_id
       ? "lead"
       : "none";
+  // A lead already parked in Nurture isn't "moved" there again — completing
+  // its re-engagement touch with no next step just sets the NEXT wake-up.
+  const alreadyNurture = activity.lead?.status === "Nurture";
 
   /**
    * Whether this completion needs a step 2 at all. Uses the same policy
@@ -431,7 +434,11 @@ export function ActivityCompletionDialog() {
     if (decisionKind === "deal")
       return dealPath === "won" ? "Mark deal won" : "Mark deal lost";
     if (decisionKind === "lead")
-      return leadPath === "nurture" ? "Move to Nurture" : "Disqualify lead";
+      return leadPath === "nurture"
+        ? alreadyNurture
+          ? "Keep in Nurture"
+          : "Move to Nurture"
+        : "Disqualify lead";
     return "Mark done";
   })();
 
@@ -626,8 +633,9 @@ export function ActivityCompletionDialog() {
             ) : decisionKind === "lead" ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  An active lead can't sit with nothing planned. Park it
-                  with a wake-up date, or close it with a reason.
+                  {alreadyNurture
+                    ? "This lead is parked in Nurture. Still not ready? Set the next wake-up date — or disqualify it if it's truly dead."
+                    : "An active lead can't sit with nothing planned. Park it with a wake-up date, or close it with a reason."}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
