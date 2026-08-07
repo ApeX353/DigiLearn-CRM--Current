@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FileText } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group";
-import { Textarea } from "~/components/ui/textarea";
+import { RichTextEditor } from "~/components/ui/rich-text-editor";
+import { richTextToPlain } from "~/lib/rich-text";
 import { Label } from "~/components/ui/label";
 import {
   Form,
@@ -29,9 +30,12 @@ export const NoteTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
       getValues: (): TabFormPayload => {
         const v = form.getValues();
         return {
-          subject:
-            v.content.substring(0, 50) +
-            (v.content.length > 50 ? "..." : ""),
+          // Plain text: the subject is a bare label, so a bolded first
+          // word must not put "<b>" in the activity's title.
+          subject: (() => {
+            const plain = richTextToPlain(v.content);
+            return plain.substring(0, 50) + (plain.length > 50 ? "..." : "");
+          })(),
           note: { content: v.content, visibility: v.visibility },
         };
       },
@@ -50,10 +54,11 @@ export const NoteTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                   Note <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
-                  <Textarea
+                  <RichTextEditor
                     placeholder="Write your note here..."
-                    rows={6}
-                    {...field}
+                    minHeight={132}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />

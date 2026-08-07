@@ -72,6 +72,8 @@ import { ArrowRight, DollarSign, Loader2, RotateCcw } from "lucide-react";
 import { getActivityVisual } from "~/lib/activity-visuals";
 import type { TimelineChange } from "~/lib/activity-timeline";
 import { isMissingNextAction } from "~/lib/activity-next-action";
+import { RichTextView } from "~/components/ui/rich-text-editor";
+import { richTextToPlain } from "~/lib/rich-text";
 import { cn } from "~/lib/utils";
 
 // =====================================================================
@@ -317,12 +319,27 @@ function resolveColor(activity: ActivityStateInput): ActivityColor | null {
   });
 }
 
-function formatDueClock(a: ActivityStateInput): string {
-  const raw = a.dueAt ?? a.scheduledAt;
-  if (!raw) return "";
-  const d = new Date(raw);
+/**
+ * The one date format used across every activity surface.
+ *
+ * Activities are appointments, not diary entries — "Due Aug 15" tells a rep
+ * nothing about whether to call before or after lunch, so the time is always
+ * shown. The year is added only when it is not the current one, which keeps
+ * the common case short while stopping a 2025 straggler from reading as
+ * this year's work.
+ */
+export function formatActivityMoment(
+  value?: string | Date | null,
+): string {
+  if (!value) return "";
+  const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return "";
-  return format(d, "MMM d · h:mm a");
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return format(d, sameYear ? "MMM d · h:mm a" : "MMM d, yyyy · h:mm a");
+}
+
+function formatDueClock(a: ActivityStateInput): string {
+  return formatActivityMoment(a.dueAt ?? a.scheduledAt);
 }
 
 // =====================================================================
@@ -502,7 +519,9 @@ export function PlannedActivityCard({
               </div>
               {!compact && activity.description && (
                 <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                  {activity.description}
+                  {/* Clamped to two lines, so the words matter and the markup
+                      does not — line-clamp cannot clip across block children. */}
+                  {richTextToPlain(activity.description)}
                 </p>
               )}
             </div>
@@ -595,12 +614,24 @@ export function PlannedActivityCard({
               }
             }}
             className={cn(
-              "cursor-pointer whitespace-pre-wrap rounded-md bg-amber-50/70 px-3 py-2 text-sm leading-6 text-foreground transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
-              !expanded && "line-clamp-2",
+              "cursor-pointer rounded-md bg-amber-50/70 px-3 py-2 text-sm leading-6 text-foreground transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
             )}
             title={expanded ? "Click to collapse" : "Click to read all"}
           >
-            {plannedBody}
+            {/* Collapsed rows clamp, and line-clamp only bites on inline text —
+                so the preview is flattened and the markup waits for the
+                expanded view.
+
+                The clamp sits on an inner element on purpose: -webkit-line-clamp
+                hides the overflow at the content box, so on a padded element a
+                sliver of the third line still shows through the bottom padding. */}
+            {expanded ? (
+              <RichTextView value={plannedBody} />
+            ) : (
+              <div className="line-clamp-2 whitespace-pre-wrap">
+                {richTextToPlain(plannedBody)}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -639,7 +670,9 @@ export function activityBodyText(activity: Activity): string | undefined {
  * body carry the words. Genuine, rep-written subjects are untouched.
  */
 export function activityHeading(activity: Activity): string {
-  const body = activityBodyText(activity);
+  // Compared against a plain-text subject, so the body has to be flattened
+  // first — otherwise a bolded first word makes every subject look distinct.
+  const body = richTextToPlain(activityBodyText(activity));
   const stripped = (activity.subject ?? "")
     .replace(/^(call|whatsapp|note|email|meeting|task)\s*:\s*/i, "")
     .replace(/[.…]+$/, "")
@@ -739,10 +772,7 @@ export function CompletedActivityFeedItem({
 }) {
   const owner = fullName(activity.assigned_to ?? activity.created_by);
   const completedAt = activity.completed_at ?? activity.created_at;
-  const completedClock = format(
-    new Date(completedAt),
-    "MMM d, yyyy · h:mm a",
-  );
+  const completedClock = format(new Date(completedAt), "MMM d, yyyy · h:mm a");
   const isNote = activity.type === "note";
   // eea1c4ae: a task completed through the outcome dialog stores its
   // note on the activity itself — keep it visible in the feed.
@@ -754,11 +784,22 @@ export function CompletedActivityFeedItem({
   const isOpen =
     activity.status !== "completed" && activity.status !== "cancelled";
   const openWhen = activity.due_at
-    ? `Due ${format(new Date(activity.due_at), "MMM d")}`
-      : activity.scheduled_at
-        ? `Scheduled ${format(new Date(activity.scheduled_at), "MMM d")}`
-        : // Was "Open", which collided with the row's Open button.
-          "Not scheduled";
+    ? `Due ${formatActivityMoment(activity.due_at)}`
+    : activity.scheduled_at
+      ? `Scheduled ${formatActivityMoment(activity.scheduled_at)}`
+      : // Was "Open", which collided with the row's Open button.
+        "Not scheduled";
+  // An overdue row in a work queue has to be visible without reading the date.
+  // Uses the shared colour rule rather than its own clock comparison, so
+  // "overdue" means the same thing here as on every other activity surface —
+  // notably, something due later today is not yet late.
+  const openIsOverdue =
+    resolveColor({
+      dueAt: activity.due_at ?? undefined,
+      scheduledAt: activity.scheduled_at ?? undefined,
+      completedAt: activity.completed_at ?? undefined,
+      status: activity.status ?? undefined,
+    }) === "red";
   // Every type keeps its substance in a different field. The log used to
   // read only note.content / description, so a call's summary or a
   // meeting's minutes showed as a bare title with nothing under it — the
@@ -872,8 +913,15 @@ export function CompletedActivityFeedItem({
               </span>
             )}
             {isOpen ? (
-              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                {openWhen}
+              <span
+                className={cn(
+                  "whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                  openIsOverdue
+                    ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                    : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+                )}
+              >
+                {openIsOverdue ? `Overdue · ${openWhen.replace(/^Due /, "")}` : openWhen}
               </span>
             ) : (
               <span className="whitespace-nowrap text-xs text-muted-foreground">
@@ -905,12 +953,18 @@ export function CompletedActivityFeedItem({
               }
             }}
             className={cn(
-              "mt-1.5 cursor-pointer whitespace-pre-wrap rounded-md bg-amber-50/70 px-3 py-2 text-sm leading-6 text-foreground transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
-              !expanded && "line-clamp-2",
+              "mt-1.5 cursor-pointer rounded-md bg-amber-50/70 px-3 py-2 text-sm leading-6 text-foreground transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30",
             )}
             title={expanded ? "Click to collapse" : "Click to read all"}
           >
-            {note}
+            {/* Clamp on the inner element — see PlannedActivityCard. */}
+            {expanded ? (
+              <RichTextView value={note} />
+            ) : (
+              <div className="line-clamp-2 whitespace-pre-wrap">
+                {richTextToPlain(note)}
+              </div>
+            )}
           </div>
         )}
 

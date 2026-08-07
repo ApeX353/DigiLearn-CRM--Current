@@ -8,10 +8,20 @@ import {
   WHATSAPP_DIRECTIONS,
   WHATSAPP_MESSAGE_TYPES,
 } from "~/api/activities/types";
+import { isRichTextEmpty } from "~/lib/rich-text";
+
+/**
+ * "Required" for a rich-text field means it has words, not that the string is
+ * non-empty. A contenteditable that has been typed into and cleared still holds
+ * `<br>` or an empty paragraph, which sails past `min(1)` while showing the rep
+ * a blank box — so the check runs on the rendered text instead.
+ */
+const requiredRichText = (message: string) =>
+  z.string().refine((value) => !isRichTextEmpty(value), { message });
 
 // --- Note Tab ---
 export const noteTabSchema = z.object({
-  content: z.string().min(1, "Note content is required"),
+  content: requiredRichText("Note content is required"),
   visibility: z.enum(NOTE_VISIBILITIES),
 });
 export type NoteTabValues = z.infer<typeof noteTabSchema>;
@@ -34,7 +44,7 @@ export type TaskTabValues = z.infer<typeof taskTabSchema>;
 export const callTabSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),
   outcome: z.enum(CALL_OUTCOMES, "Outcome is required"),
-  summary: z.string().min(1, "Summary is required"),
+  summary: requiredRichText("Summary is required"),
   next_steps: z.string().optional(),
   follow_up_date: z.date("Follow-up date is required"),
   // DURATION1: how long the call ran (minutes). Optional — the input maps an
@@ -48,8 +58,8 @@ export const emailTabSchema = z.object({
   to_recipients: z.string().min(1, "Recipient is required"),
   cc_recipients: z.string().optional(),
   subject: z.string().min(1, "Subject is required"),
-  body: z.string().min(1, "Body is required"),
-  // ACT2 — every open activity needs a "when"; now required at the form.
+  body: requiredRichText("Body is required"),
+  // ACT2 — every open activity needs a "when"; required at the form.
   follow_up_date: z.date("Follow-up date is required"),
 });
 export type EmailTabValues = z.infer<typeof emailTabSchema>;

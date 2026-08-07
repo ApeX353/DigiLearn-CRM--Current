@@ -2,7 +2,8 @@ import { forwardRef, useImperativeHandle, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
+import { RichTextEditor } from "~/components/ui/rich-text-editor";
+import { richTextToPlain } from "~/lib/rich-text";
 import {
   Select,
   SelectContent,
@@ -58,7 +59,7 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
       getValues: (): TabFormPayload => {
         const v = form.getValues();
         return {
-          subject: `Call: ${v.summary.substring(0, 40)}`,
+          subject: `Call: ${richTextToPlain(v.summary).substring(0, 40)}`,
           // ACT2: the follow-up date is sent BOTH as the activity's
           // next-action date (due_at) and as call.follow_up_date — the
           // latter is what makes the server spawn the open follow-up task.
@@ -155,10 +156,11 @@ export const CallTabForm = forwardRef<TabFormHandle, SingleContactTabFormProps>(
                   Summary <span className="text-destructive">*</span>
                 </FormLabel>
                 <FormControl>
-                  <Textarea
+                  <RichTextEditor
                     placeholder="Brief summary of the call..."
-                    rows={2}
-                    {...field}
+                    minHeight={64}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
                   />
                 </FormControl>
                 <FormMessage />

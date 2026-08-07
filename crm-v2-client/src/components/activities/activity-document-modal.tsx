@@ -20,6 +20,10 @@ import {
 import { TASK_PRIORITIES, TASK_STATUSES } from "~/api/activities/types";
 import { useStaff } from "~/api/users";
 import { Button } from "~/components/ui/button";
+import {
+  RichTextEditor,
+  RichTextView,
+} from "~/components/ui/rich-text-editor";
 import { Calendar } from "~/components/ui/calendar";
 import {
   Dialog,
@@ -93,6 +97,7 @@ function InlineText({
   inputClassName = "",
   multiline = false,
   rows = 6,
+  rich = false,
 }: {
   value?: string | null;
   onSave: (next: string) => void;
@@ -102,6 +107,12 @@ function InlineText({
   inputClassName?: string;
   multiline?: boolean;
   rows?: number;
+  /**
+   * Body fields carry composer markup. Editing one through a plain textarea
+   * would show the reader raw tags and save them back as literal text, so the
+   * rich fields get the same editor that wrote them.
+   */
+  rich?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
@@ -130,10 +141,49 @@ function InlineText({
     return (
       <div className={className}>
         {value?.trim() ? (
-          <span className="whitespace-pre-wrap">{value}</span>
+          rich ? (
+            <RichTextView value={value} />
+          ) : (
+            <span className="whitespace-pre-wrap">{value}</span>
+          )
         ) : (
           <span className="text-muted-foreground">{placeholder}</span>
         )}
+      </div>
+    );
+  }
+
+  if (editing && rich) {
+    // Blur-to-save cannot work here: every toolbar button and popover blurs
+    // the surface, so the field would commit half-formatted the first time
+    // someone reached for Bold. Rich fields commit explicitly instead.
+    return (
+      <div className={className}>
+        <RichTextEditor
+          autoFocus
+          value={draft}
+          onChange={setDraft}
+          placeholder={placeholder}
+          minHeight={rows * 22}
+          className="border-primary/40 ring-2 ring-primary/15"
+        />
+        <div className="mt-1.5 flex justify-end gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7"
+            onClick={() => {
+              setDraft(value ?? "");
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button type="button" size="sm" className="h-7" onClick={commit}>
+            Save
+          </Button>
+        </div>
       </div>
     );
   }
@@ -188,7 +238,11 @@ function InlineText({
       title="Click to edit"
     >
       {value?.trim() ? (
-        <span className="whitespace-pre-wrap">{value}</span>
+        rich ? (
+          <RichTextView value={value} />
+        ) : (
+          <span className="whitespace-pre-wrap">{value}</span>
+        )
       ) : (
         <span className="text-muted-foreground">{placeholder}</span>
       )}
@@ -484,6 +538,7 @@ export function ActivityDocumentModal({
                         disabled={readonly}
                         onSave={body.onSave}
                         multiline
+                        rich
                         rows={8}
                         className="min-h-[7rem] text-[15px] leading-7"
                         inputClassName="text-[15px] leading-7"

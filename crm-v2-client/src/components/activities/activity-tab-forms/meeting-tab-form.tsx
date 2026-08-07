@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "~/components/ui/input";
-import { Textarea } from "~/components/ui/textarea";
+import { RichTextEditor } from "~/components/ui/rich-text-editor";
 import { Label } from "~/components/ui/label";
 import {
   Select,
@@ -228,7 +228,12 @@ export const MeetingTabForm = forwardRef<
             <FormItem>
               <FormLabel>Agenda</FormLabel>
               <FormControl>
-                <Textarea placeholder="Meeting agenda..." rows={3} {...field} />
+                <RichTextEditor
+                  placeholder="Meeting agenda..."
+                  minHeight={80}
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

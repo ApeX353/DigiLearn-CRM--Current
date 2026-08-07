@@ -222,6 +222,12 @@ export default function ActivitiesPage() {
     // Searched by the API across the whole table, not in the browser over
     // whatever page is loaded — see the note on `visibleActivities`.
     search: debouncedSearch.trim() || undefined,
+    // This module is a work queue, not a diary. A rep opens it to answer
+    // "what do I do next", so the list is ordered by urgency — most overdue
+    // first, then due soonest, undated last, and anything already closed
+    // below the lot. Record-page feeds keep the default newest-first order,
+    // where the question is "what happened".
+    sort: "work_queue",
   });
 
   const allActivities = activitiesData?.data ?? [];

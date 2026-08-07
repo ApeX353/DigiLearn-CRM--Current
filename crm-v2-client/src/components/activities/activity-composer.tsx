@@ -34,7 +34,12 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  RichTextEditor,
+  type MentionOption,
+} from "~/components/ui/rich-text-editor";
 import { PersonPicker } from "~/components/activities/person-picker";
+import { isRichTextEmpty, richTextToPlain } from "~/lib/rich-text";
 import { handleApiError } from "~/api/axios";
 
 /**
@@ -118,6 +123,33 @@ export function ActivityComposer({
   });
   const staff = staffData?.data ?? [];
 
+  /**
+   * WhatsApp bodies stay plain. The stored `message` is the text a rep pastes
+   * into WhatsApp, and WhatsApp renders neither HTML nor our markup — offering
+   * a Bold button there would promise formatting that silently disappears.
+   */
+  const supportsRichText = type !== "whatsapp";
+
+  const mentionOptions: MentionOption[] = useMemo(
+    () =>
+      staff.map((m) => ({
+        id: m.id,
+        name:
+          `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim() || m.email,
+        hint: m.email,
+      })),
+    [staff],
+  );
+
+  // Uses `type` rather than `isNote`, which is declared further down.
+  const bodyPlaceholder = type === "note"
+    ? "Write a note…"
+    : type === "call"
+      ? "What was discussed / what to cover…"
+      : type === "whatsapp"
+        ? "The message to send…"
+        : "Notes (optional)";
+
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [due, setDue] = useState<Date | undefined>(undefined);
@@ -155,8 +187,16 @@ export function ActivityComposer({
   };
 
   const submit = () => {
+    // The editor leaves `<br>` and empty paragraphs behind after a select-all
+    // delete, so emptiness is decided on the rendered text, not the markup.
+    const bodyIsEmpty = supportsRichText
+      ? isRichTextEmpty(body)
+      : !body.trim();
+    // Subjects and message payloads want the words without the markup.
+    const bodyPlain = richTextToPlain(body).trim();
+
     if (isNote) {
-      if (!body.trim()) {
+      if (bodyIsEmpty) {
         toast.error("Write the note before saving.");
         return;
       }
@@ -191,9 +231,7 @@ export function ActivityComposer({
 
     const payload: CreateActivityDto = {
       type: (isNote ? "note" : type) as ActivityType,
-      subject: isNote
-        ? `Note: ${body.trim().slice(0, 40)}`
-        : subject.trim(),
+      subject: isNote ? `Note: ${bodyPlain.slice(0, 40)}` : subject.trim(),
       lead_id: leadId,
       deal_id: dealId,
       // The activity is pinned to the chosen contact so the log always
@@ -206,19 +244,20 @@ export function ActivityComposer({
       ...(markDone && !isNote && { status: "completed" as const }),
       ...(isNote && { note: { content: body.trim() } }),
       ...(type === "task" && {
-        description: body.trim() || undefined,
+        description: bodyIsEmpty ? undefined : body,
         task: { status: "todo", priority: "medium" },
       }),
       ...(type === "call" && {
         call: {
           phone_number: phone.trim(),
-          summary: body.trim() || undefined,
+          summary: bodyIsEmpty ? undefined : body,
           follow_up_date: dueIso,
         },
       }),
       ...(type === "whatsapp" && {
         whatsapp: {
           phone_number: phone.trim(),
+          // Plain by design — see `supportsRichText`.
           message: body.trim() || subject.trim(),
           direction: "outbound",
           message_type: "text",
@@ -229,7 +268,7 @@ export function ActivityComposer({
         email: {
           to_recipients: recipients.trim(),
           subject: subject.trim(),
-          body: body.trim() || subject.trim(),
+          body: bodyIsEmpty ? subject.trim() : body,
         },
       }),
       ...(type === "meeting" && {
@@ -237,6 +276,11 @@ export function ActivityComposer({
           title: subject.trim(),
           platform: "in_person",
           start_time: dueIso as string,
+          // The composer has always collected a body for meetings and then
+          // dropped it on the floor. Before the meeting the body is the
+          // agenda; ticking "mark as done" makes it the minutes.
+          ...(!bodyIsEmpty &&
+            (markDone ? { minutes_notes: body } : { agenda: body })),
         },
       }),
     };
@@ -343,20 +387,26 @@ export function ActivityComposer({
           </div>
         )}
 
-        <Textarea
-          autoFocus={isNote}
-          rows={isNote ? 5 : 3}
-          placeholder={
-            isNote
-              ? "Write a note…"
-              : type === "call"
-                ? "What was discussed / what to cover…"
-                : "Notes (optional)"
-          }
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          className={isNote ? "bg-amber-50/60 dark:bg-amber-950/20" : ""}
-        />
+        {supportsRichText ? (
+          <RichTextEditor
+            autoFocus={isNote}
+            minHeight={isNote ? 120 : 76}
+            placeholder={bodyPlaceholder}
+            value={body}
+            onChange={setBody}
+            mentions={mentionOptions}
+            surfaceClassName={
+              isNote ? "bg-amber-50/60 dark:bg-amber-950/20" : ""
+            }
+          />
+        ) : (
+          <Textarea
+            rows={3}
+            placeholder={bodyPlaceholder}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+          />
+        )}
 
         {!isNote && (
           <div className="flex flex-wrap items-center gap-2">

@@ -46,6 +46,19 @@ export type ActivityListQuery = PaginationParams & {
   created_to?: string;
   open_only?: boolean;
   include_details?: boolean;
+  /**
+   * Result ordering.
+   *
+   * - `recent` (the API default): newest-logged first. Correct for a record
+   *   page, where the feed is read as a history of what happened.
+   * - `work_queue`: what to do next, first. Open work above closed, most
+   *   overdue at the top, undated last. Correct for the Activities module,
+   *   which is a to-do list rather than a diary.
+   *
+   * Ordering is applied server-side because the list is paginated — sorting
+   * in the browser would only ever reorder the 50 rows that happened to load.
+   */
+  sort?: "recent" | "work_queue";
 };
 
 export const activitiesKeys = {
