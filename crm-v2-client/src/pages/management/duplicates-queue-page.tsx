@@ -42,6 +42,7 @@ import {
 import {
   useDuplicateQueue,
   useReviewDuplicate,
+  useRebuildDuplicates,
   describeSignal,
   type DuplicateRecordType,
   type DuplicateSuspicion,
@@ -69,6 +70,7 @@ export default function DuplicatesQueuePage() {
   // RolesGuard, which already admits it to the duplicates endpoints) — let
   // it view the review queue in the UI too, so support can scope duplicates.
   const canAccess = useAnyRole(["admin", "admin_support", "sales_manager"]);
+  const rebuild = useRebuildDuplicates();
   if (!canAccess) {
     return (
       <div>
@@ -91,6 +93,32 @@ export default function DuplicatesQueuePage() {
         subtitle="Records flagged during creation — merge, keep separate, or dismiss."
       />
       <Container className="p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Rebuild re-scans the whole book with the current rules (clears stale
+            staff-email <span className="font-mono">@clearhue.co.zw</span> false
+            matches). Runs in the background.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={rebuild.isPending}
+            onClick={() =>
+              rebuild.mutate(undefined, {
+                onSuccess: () =>
+                  toast.success(
+                    "Rebuild started — the queue refreshes as it re-scans.",
+                  ),
+                onError: (e: any) =>
+                  toast.error(
+                    e?.response?.data?.message || "Could not start rebuild",
+                  ),
+              })
+            }
+          >
+            {rebuild.isPending ? "Rebuilding…" : "Rebuild queue"}
+          </Button>
+        </div>
         <Tabs defaultValue="pending" className="w-full">
           <TabsList>
             <TabsTrigger value="pending">Pending</TabsTrigger>

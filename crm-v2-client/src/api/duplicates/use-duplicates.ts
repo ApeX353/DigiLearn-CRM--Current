@@ -111,6 +111,22 @@ export function useDuplicateQueue(
   });
 }
 
+/**
+ * DUP1/DUP-EMAIL1: rebuild the queue — purges pending suspicions and re-scans
+ * the current book with the live rules (so the old @clearhue staff-email false
+ * matches are cleared). Background job; suspicions reappear as the sweep runs.
+ */
+export function useRebuildDuplicates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClientAuth.post(`/duplicates/rebuild`).then((res) => res.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: duplicatesKeys.all });
+    },
+  });
+}
+
 export function useReviewDuplicate() {
   const qc = useQueryClient();
   return useMutation({
