@@ -192,6 +192,19 @@ export function EngagementWorkspace({
     enabled: hasParent,
   });
 
+  // Cancelled activities stay in the log as history. Disqualifying a lead
+  // (or losing a deal) auto-cancels its open queue, and several of those
+  // rows carry real written accounts — hiding them would erase what the
+  // rep observed just because the record died.
+  const { data: cancelledData } = useActivityList({
+    ...queryParent,
+    status: "cancelled",
+    limit: 50,
+    page: 1,
+    include_details: true,
+    enabled: hasParent,
+  });
+
   const updateStatus = useUpdateActivityStatus();
 
   // The planned card surfaces the rep's NEXT actionable step. Notes
@@ -227,18 +240,23 @@ export function EngagementWorkspace({
     return dated;
   }, [openData]);
 
-  // The historical feed is every logged interaction EXCEPT the single
-  // upcoming Planned card: completed activities plus all open items
-  // (calls / WhatsApps / emails / notes logged as "scheduled" with no due
-  // date). Restricting it to completed + notes was the regression that
-  // hid the bulk of every rep's history. De-duped by id since a record
-  // can only appear in one of the two source queries.
+  // Open actionable items beyond the Planned cards (undated open items —
+  // they live in the feed below; this chip says how many).
+  const otherOpenCount = useMemo(() => {
+    const planned = new Set(plannedActivities.map((a) => a.id));
+    return (openData?.data ?? []).filter(
+      (a) => a.type !== "note" && !planned.has(a.id),
+    ).length;
+  }, [openData, plannedActivities]);
+
+  // The historical feed is every logged interaction EXCEPT the items shown
+  // as Planned cards above the feed (we keep ALL open dated steps as cards,
+  // not just the soonest — NEXT4). Completed + cancelled + undated open
+  // items all render here, de-duped by id.
   const feedActivities = useMemo<Activity[]>(() => {
     const done = doneData?.data ?? [];
     const open = openData?.data ?? [];
-    // Full timeline: every activity on this record EXCEPT the items shown as
-    // Planned cards above the feed (we keep ALL planned items as cards, not
-    // just the soonest — so nothing a rep logs or schedules can disappear).
+    const cancelled = cancelledData?.data ?? [];
     //
     // De-duplicate by id first. `done` (status=completed) and `open`
     // (open_only) are two independent queries against the same /activities
@@ -253,7 +271,7 @@ export function EngagementWorkspace({
     // activity, so the log stays complete and each key is unique.
     const plannedIds = new Set(plannedActivities.map((a) => a.id));
     const byId = new Map<string, Activity>();
-    for (const a of [...done, ...open]) {
+    for (const a of [...done, ...open, ...cancelled]) {
       if (!byId.has(a.id)) byId.set(a.id, a);
     }
     const combined = [...byId.values()].filter((a) => !plannedIds.has(a.id));
@@ -266,7 +284,7 @@ export function EngagementWorkspace({
       ).getTime();
       return bt - at;
     });
-  }, [doneData, openData, plannedActivities, feedFilter]);
+  }, [doneData, openData, cancelledData, plannedActivities, feedFilter]);
 
   /**
    * Stage and value changes, woven into the same rail as the activities.
@@ -417,6 +435,16 @@ export function EngagementWorkspace({
                 disabled={isReadonly}
               />
             ))}
+            {/* Undated open items can't be a dated "next step" card —
+                name where they live so they never read as missing. */}
+            {otherOpenCount > 0 && (
+              <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                +{otherOpenCount} more open{" "}
+                {otherOpenCount === 1 ? "activity" : "activities"} without a
+                date on this record — find {otherOpenCount === 1 ? "it" : "them"}{" "}
+                in the log below.
+              </p>
+            )}
           </div>
         ) : (
           <ActivityEmptyState

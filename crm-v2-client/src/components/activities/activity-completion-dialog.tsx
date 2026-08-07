@@ -227,6 +227,25 @@ export function ActivityCompletionDialog() {
     completion_outcome: (outcome || undefined) as Activity["completion_outcome"],
   });
 
+  /**
+   * When step 2 is skipped, say WHY. A rep on a disqualified lead sees
+   * "Step 1 of 1" where yesterday they saw two steps — without this line
+   * that reads as the dialog being broken, not as the record being closed.
+   */
+  const noFollowUpReason = followUpNeeded
+    ? null
+    : activity.type === "note"
+      ? "Notes are context, not work — no next step needed."
+      : activity.lead?.status === "Disqualified" ||
+          activity.lead?.status === "Converted"
+        ? `This lead is ${activity.lead?.status} — work is still logged, but a closed record needs no next step.`
+        : activity.deal?.closeStatus === "won" ||
+            activity.deal?.closeStatus === "lost"
+          ? `This deal is ${activity.deal?.closeStatus} — work is still logged, but a closed record needs no next step.`
+          : outcome
+            ? "This outcome closes the interaction — nothing further is owed, so there is no next step to schedule."
+            : "This activity isn't linked to an active record, so no next step is required.";
+
   const step1Valid = Boolean(outcome) && !isRichTextEmpty(note);
   const scheduleValid =
     nsSubject.trim().length > 0 && Boolean(nsDue);
@@ -527,6 +546,11 @@ export function ActivityCompletionDialog() {
                 history.
               </p>
             </div>
+            {noFollowUpReason && (
+              <p className="rounded-md border border-amber-200/70 bg-amber-50/60 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                {noFollowUpReason}
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-3 py-2">

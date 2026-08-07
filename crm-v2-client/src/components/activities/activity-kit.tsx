@@ -919,6 +919,11 @@ export function CompletedActivityFeedItem({
                 No follow-up
               </span>
             )}
+            {activity.status === "cancelled" && (
+              <span className="whitespace-nowrap rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                Cancelled
+              </span>
+            )}
             {isOpen ? (
               <span
                 className={cn(
