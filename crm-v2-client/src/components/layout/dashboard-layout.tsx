@@ -18,7 +18,6 @@ import { useNotificationSocket } from "~/hooks/use-notification-socket";
 import { useIsMobile } from "~/hooks/use-mobile";
 import { QuickAdd } from "../navigation/quick-add";
 import { GlobalSearch } from "../navigation/global-search";
-import { FollowUpPromptDialog } from "../activities/follow-up-prompt-dialog";
 import { ActivityCompletionDialog } from "../activities/activity-completion-dialog";
 
 /**
@@ -128,8 +127,9 @@ export default function DashboardLayout() {
        * outcome dialog resolves FIRST, then the follow-up dialog
        * picks up the newly-completed activity via its auto-enqueue.
        */}
+      {/* Close-the-loop dialog: outcome + next step in one flow. The old
+          separate follow-up prompt dialog was folded into it. */}
       <ActivityCompletionDialog />
-      <FollowUpPromptDialog />
     </main>
   );
 }

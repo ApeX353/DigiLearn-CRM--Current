@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  ACTIVITY_OUTCOMES,
+  ACTIVITY_OUTCOME_LABELS,
   useCreateActivity,
+  type ActivityOutcome,
   type ActivityType,
   type CreateActivityDto,
 } from "~/api/activities";
@@ -160,6 +163,7 @@ export function ActivityComposer({
   /** The contact the call/WhatsApp/email is with — chosen, never typed. */
   const [personId, setPersonId] = useState<string | undefined>(contactId);
   const [markDone, setMarkDone] = useState(false);
+  const [doneOutcome, setDoneOutcome] = useState<ActivityOutcome | "">("");
 
   // Switching composer type keeps what the rep already typed — only the
   // type-specific bits reset.
@@ -200,7 +204,21 @@ export function ActivityComposer({
         toast.error("Write the note before saving.");
         return;
       }
-    } else {
+    } else if (markDone) {
+      // Logging past work carries completion discipline: an outcome and a
+      // readable account of what happened (the body doubles as the note).
+      if (!doneOutcome) {
+        toast.error("Pick an outcome — how did it go?");
+        return;
+      }
+      if (bodyIsEmpty) {
+        toast.error(
+          "Describe what happened before logging this as done.",
+        );
+        return;
+      }
+    }
+    if (!isNote) {
       if (!subject.trim()) {
         toast.error("Give it a short subject.");
         return;
@@ -241,7 +259,13 @@ export function ActivityComposer({
       ...(assignee !== "unassigned" && { assigned_to_id: assignee }),
       // Saved work starts PLANNED so it becomes the record's next step;
       // outcome + follow-up are captured when it is ticked off.
-      ...(markDone && !isNote && { status: "completed" as const }),
+      ...(markDone &&
+        !isNote && {
+          status: "completed" as const,
+          completion_outcome: doneOutcome as ActivityOutcome,
+          // The body is the account of what happened — one field, not two.
+          completion_note: body,
+        }),
       ...(isNote && { note: { content: body.trim() } }),
       ...(type === "task" && {
         description: bodyIsEmpty ? undefined : body,
@@ -452,6 +476,32 @@ export function ActivityComposer({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {/* Logging past work is a completion like any other, so it carries
+            the same discipline: an outcome, actively picked. The body text
+            doubles as the account of what happened — no second note field. */}
+        {markDone && !isNote && (
+          <div className="flex items-center gap-2">
+            <Select
+              value={doneOutcome}
+              onValueChange={(v) => setDoneOutcome(v as ActivityOutcome)}
+            >
+              <SelectTrigger className="h-8 w-56">
+                <SelectValue placeholder="Outcome — how did it go?" />
+              </SelectTrigger>
+              <SelectContent>
+                {ACTIVITY_OUTCOMES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {ACTIVITY_OUTCOME_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">
+              Required when logging as done
+            </span>
           </div>
         )}
 

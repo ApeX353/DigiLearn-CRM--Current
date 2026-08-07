@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import type { Activity, ActivityType } from "~/api/activities";
-import { ACTIVITY_TYPES } from "~/api/activities";
+import { ACTIVITY_TYPES, ACTIVITY_OUTCOME_LABELS } from "~/api/activities";
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -773,11 +773,6 @@ export function CompletedActivityFeedItem({
   const owner = fullName(activity.assigned_to ?? activity.created_by);
   const completedAt = activity.completed_at ?? activity.created_at;
   const completedClock = format(new Date(completedAt), "MMM d, yyyy · h:mm a");
-  const isNote = activity.type === "note";
-  // eea1c4ae: a task completed through the outcome dialog stores its
-  // note on the activity itself — keep it visible in the feed.
-  const completionNote = (activity as { completion_note?: string })
-    .completion_note;
   // Open (not-yet-completed) items live in this feed too, so mark them clearly
   // — a due/scheduled chip instead of a "logged at" timestamp — so a scheduled
   // task never reads as if it were already done.
@@ -812,7 +807,6 @@ export function CompletedActivityFeedItem({
     (activity.type === "email" && activity.email?.body) ||
     (activity.type === "meeting" &&
       (activity.meeting?.minutes_notes || activity.meeting?.agenda)) ||
-    completionNote ||
     activity.description;
 
   const typeLabel = getActivityVisual(activity.type).label;
@@ -832,26 +826,32 @@ export function CompletedActivityFeedItem({
         strippedSubject.toLowerCase().slice(0, Math.min(24, strippedSubject.length)),
       );
 
-  // Outcome surfacing — calls and meetings carry an outcome blob; we
-  // pull whatever short label exists so the feed reads like a sales
-  // log instead of a plain timeline. Falls back to the activity-level
-  // `completion_outcome` (set by the outcome dialog on task/other
-  // completions) so a recorded outcome always shows.
+  // Outcome surfacing. The canonical field is completion_outcome — the
+  // one the close-the-loop dialog forces — with the legacy type-level
+  // outcome (call.outcome / meeting.outcome) as fallback for rows written
+  // before the discipline existed.
+  const completionOutcome = activity.completion_outcome
+    ? ACTIVITY_OUTCOME_LABELS[activity.completion_outcome] ??
+      String(activity.completion_outcome).replace(/_/g, " ")
+    : undefined;
   const outcome =
+    completionOutcome ??
     (activity.type === "call"
       ? activity.call?.outcome ??
         (activity.call as { outcome_label?: string } | undefined)?.outcome_label
       : activity.type === "meeting"
         ? (activity.meeting as { outcome?: string } | undefined)?.outcome
-        : undefined) ??
-    (activity as { completion_outcome?: string }).completion_outcome;
+        : undefined);
 
-  // OUT-DUBE (Mr Dube, 5 Aug): a completed, non-note activity must read its
-  // outcome inline — "Outcome: <text>" — not hide it behind a click. Prefer
-  // the free-text note the rep typed, else the humanised outcome category.
-  const outcomeText = isNote
-    ? null
-    : completionNote || (outcome ? String(outcome).replace(/_/g, " ") : null);
+  // The outcome NOTE is the readable half of the record. The composer's
+  // "log as done" path reuses the body as the note, so only render it
+  // separately when it genuinely differs — no double text.
+  const completionNote =
+    activity.completion_note &&
+    richTextToPlain(activity.completion_note).trim() !==
+      richTextToPlain(note || "").trim()
+      ? activity.completion_note
+      : undefined;
 
   return (
     <li className="group relative transition-colors hover:bg-muted/20">
@@ -931,14 +931,10 @@ export function CompletedActivityFeedItem({
           </div>
         </div>
 
-        {/* OUT-DUBE (Mr Dube, 5 Aug): a completed, non-note activity reads
-            its outcome inline — never hidden behind a click. */}
-        {outcomeText && (
-          <p className="mt-1 text-sm font-medium text-foreground">
-            Outcome: {outcomeText}
-          </p>
-        )}
-        {note && note !== outcomeText && (
+        {/* OUT-DUBE (Mr Dube, 5 Aug) is satisfied by the blocks below: the
+            outcome note renders inline with an "Outcome · <label>" header,
+            and outcome-only rows get the badge in the meta row. */}
+        {note && (
           // Collapsed shows the opening lines; clicking the entry opens
           // the rest in place. No separate button — the entry itself is
           // the control, so the feed stays quiet.
@@ -968,6 +964,36 @@ export function CompletedActivityFeedItem({
           </div>
         )}
 
+        {completionNote && (
+          // The outcome record — what the rep said happened when they
+          // closed this. Read-only like the rest of the log; the header
+          // carries the picked outcome so result + account read as one.
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(activity)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen(activity);
+              }
+            }}
+            className="mt-1.5 cursor-pointer rounded-md border bg-muted/40 px-3 py-2 text-sm leading-6 transition-colors hover:bg-muted/60"
+            title={expanded ? "Click to collapse" : "Click to read all"}
+          >
+            <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Outcome{completionOutcome ? ` · ${completionOutcome}` : ""}
+            </span>
+            {expanded ? (
+              <RichTextView value={completionNote} />
+            ) : (
+              <div className="line-clamp-2 whitespace-pre-wrap">
+                {richTextToPlain(completionNote)}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {owner && (
             <span className="flex items-center gap-1.5">
@@ -979,7 +1005,10 @@ export function CompletedActivityFeedItem({
               {owner}
             </span>
           )}
-          {outcome && completionNote && (
+          {/* The badge covers rows whose outcome has no separate note —
+              when the note block above renders, it already carries the
+              outcome in its header. */}
+          {outcome && !completionNote && (
             <Badge
               variant="outline"
               className="rounded-full px-1.5 py-0 text-[10px]"

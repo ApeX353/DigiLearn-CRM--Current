@@ -17,7 +17,11 @@ import {
   type Activity,
   type UpdateActivityDto,
 } from "~/api/activities";
-import { TASK_PRIORITIES, TASK_STATUSES } from "~/api/activities/types";
+import {
+  ACTIVITY_OUTCOME_LABELS,
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+} from "~/api/activities/types";
 import { useStaff } from "~/api/users";
 import { Button } from "~/components/ui/button";
 import {
@@ -546,6 +550,41 @@ export function ActivityDocumentModal({
                     </div>
                   );
                 })()}
+
+                {/* ---------- Outcome (completed activities only) ----------
+                    Read-only by design: the outcome is a record of what
+                    happened, captured through the close-the-loop dialog.
+                    Rendered prominently so a manager reading the document
+                    sees the result before the logistics. */}
+                {(activity.completion_outcome ||
+                  activity.completion_note) && (
+                  <div className="mt-7 rounded-md border bg-muted/40 px-4 py-3">
+                    <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Outcome
+                      {activity.completion_outcome
+                        ? ` · ${
+                            ACTIVITY_OUTCOME_LABELS[
+                              activity.completion_outcome
+                            ] ??
+                            String(activity.completion_outcome).replace(
+                              /_/g,
+                              " ",
+                            )
+                          }`
+                        : ""}
+                    </h2>
+                    {activity.completion_note ? (
+                      <RichTextView
+                        value={activity.completion_note}
+                        className="text-[15px] leading-7"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No outcome note was recorded.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <hr className="my-8 border-dashed" />
 

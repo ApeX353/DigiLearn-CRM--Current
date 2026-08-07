@@ -455,6 +455,13 @@ export interface CreateDemoDto {
 export interface CreateActivityDto {
   type: ActivityType;
   status?: ActivityStatus;
+  /**
+   * For "log a past interaction" creates (status=completed): the outcome
+   * and the account of what happened. The server strips both from
+   * scheduled creates.
+   */
+  completion_outcome?: ActivityOutcome;
+  completion_note?: string;
   subject: string;
   description?: string;
   lead_id?: string;

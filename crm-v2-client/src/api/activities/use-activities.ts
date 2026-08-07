@@ -13,7 +13,7 @@ import type {
   LeadActivityStats,
 } from "./types";
 import { leadsKeys } from "../leads";
-import { useFollowUpPromptStore } from "~/stores/use-follow-up-prompt-store";
+import { useActivityCompletionStore } from "~/stores/use-activity-completion-store";
 import { shouldRequireFollowUp } from "~/lib/follow-up-policy";
 
 /**
@@ -25,6 +25,19 @@ import { shouldRequireFollowUp } from "~/lib/follow-up-policy";
  *   by the date-context tabs (Overdue, Today, This week, …).
  * - open_only: hides completed + cancelled — used by the "To-do" tab.
  */
+/**
+ * Follow-up scheduled by the server in the same transaction as a
+ * completion — mirrors NextStepPayloadDto. The server copies lead/deal/
+ * contact/assignee from the source activity, so only the work itself is
+ * described here.
+ */
+export type NextStepPayload = {
+  type: ActivityType;
+  subject: string;
+  due_at: string;
+  description?: string;
+};
+
 export type ActivityListQuery = PaginationParams & {
   type?: ActivityType;
   status?: ActivityStatus;
@@ -154,16 +167,16 @@ const api = {
     status: ActivityStatus,
     outcome?: import("./types").ActivityOutcome,
     completionNote?: string,
-    nextStep?: NextStepInput,
+    nextStep?: NextStepPayload,
   ): Promise<Activity> =>
     apiClientAuth
       .patch(`/activities/${id}/status`, {
         status,
         outcome,
         completion_note: completionNote,
-        // NEXT2: when the caller collects the next step up-front, send it in
-        // the SAME request so the server's next-step-on-completion gate is
-        // satisfied atomically (the gate runs before persistence).
+        // Scheduled server-side in the same request as the completion, so
+        // the rep can never end up completed-but-not-scheduled if the
+        // browser dies between the two steps.
         next_step: nextStep,
       })
       .then((r) => unwrapData<Activity>(r.data)),
@@ -251,7 +264,7 @@ export function useCreateActivity() {
 
 export function useUpdateActivity() {
   const qc = useQueryClient();
-  const enqueue = useFollowUpPromptStore((s) => s.enqueue);
+  const requestCompletion = useActivityCompletionStore((s) => s.request);
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateActivityDto }) =>
       api.update(id, data),
@@ -286,10 +299,8 @@ export function useUpdateActivity() {
       const isCompleted =
         updatedActivity.status === "completed" ||
         Boolean(updatedActivity.completed_at);
-      if (isCompleted && !wasCompleted) {
-        enqueue(updatedActivity, {
-          required: shouldRequireFollowUp(updatedActivity),
-        });
+      if (isCompleted && !wasCompleted && shouldRequireFollowUp(updatedActivity)) {
+        requestCompletion({ activity: updatedActivity, stage: "next-step" });
       }
     },
   });
@@ -356,7 +367,7 @@ export function useLeadActivityStats(leadId: string) {
  */
 export function useUpdateActivityStatus() {
   const qc = useQueryClient();
-  const enqueue = useFollowUpPromptStore((s) => s.enqueue);
+  const requestCompletion = useActivityCompletionStore((s) => s.request);
   return useMutation({
     mutationFn: ({
       id,
@@ -369,20 +380,33 @@ export function useUpdateActivityStatus() {
       status: ActivityStatus;
       outcome?: import("./types").ActivityOutcome;
       completionNote?: string;
-      nextStep?: NextStepInput;
+      /** Follow-up scheduled atomically with the completion, server-side. */
+      nextStep?: NextStepPayload;
+      /**
+       * Set by the close-the-loop dialog, which has already walked the
+       * user through the next-step decision — suppresses the safety-net
+       * re-enqueue below so completing from the dialog can't re-open it.
+       */
+      loopHandled?: boolean;
     }) => api.updateStatus(id, status, outcome, completionNote, nextStep),
     onSuccess: (updated, variables) => {
       qc.setQueryData(activitiesKeys.byId(updated.id), updated);
       qc.invalidateQueries({ queryKey: activitiesKeys.lists() });
       qc.invalidateQueries({ queryKey: activitiesKeys.leadStatsRoot() });
-      // NEXT2: if the caller already captured the next step and sent it in
-      // this same request, the follow-up is scheduled server-side — don't
-      // re-prompt for one.
+      // Safety net for completion paths that did NOT run through the
+      // close-the-loop dialog (e.g. programmatic callers): the record
+      // still needs its next-step decision, so enqueue the dialog at
+      // the next-step stage.
+      // Status alone, NOT completed_at: on reopen the status flips back
+      // to scheduled, and keying on a (possibly stale) completed_at made
+      // reopening summon the un-dismissable next-step dialog.
       if (
+        !variables.loopHandled &&
         !variables.nextStep &&
-        (updated.status === "completed" || updated.completed_at)
+        updated.status === "completed" &&
+        shouldRequireFollowUp(updated)
       ) {
-        enqueue(updated, { required: shouldRequireFollowUp(updated) });
+        requestCompletion({ activity: updated, stage: "next-step" });
       }
     },
   });
@@ -395,7 +419,7 @@ export function useUpdateActivityStatus() {
  */
 export function useBulkUpdateActivityStatus() {
   const qc = useQueryClient();
-  const enqueueMany = useFollowUpPromptStore((s) => s.enqueueMany);
+  const requestCompletion = useActivityCompletionStore((s) => s.request);
   return useMutation({
     mutationFn: ({
       ids,
@@ -418,13 +442,13 @@ export function useBulkUpdateActivityStatus() {
       // required flag. A bulk action that spans both active and
       // terminal records therefore queues required prompts for the
       // active ones and skippable prompts for the terminal ones.
-      if (result.followUpCandidates.length > 0) {
-        enqueueMany(
-          result.followUpCandidates.map((activity) => ({
-            activity,
-            required: shouldRequireFollowUp(activity),
-          })),
-        );
+      // Each active record in the batch still needs its own next-step
+      // decision — outcomes can be batched, futures can't. Queue one
+      // next-step-stage dialog per candidate; the store de-dupes by id.
+      for (const activity of result.followUpCandidates) {
+        if (shouldRequireFollowUp(activity)) {
+          requestCompletion({ activity, stage: "next-step" });
+        }
       }
     },
   });
