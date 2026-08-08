@@ -29,7 +29,16 @@ import { Lead } from '../leads/entities/lead.entity';
 import { School } from '../schools/entities/schools.entity';
 import { User } from '../users/entities/user.entity';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
-import { Activity, ActivityType } from '../activities/entities/activity.entity';
+import {
+  Activity,
+  ActivityStatus,
+  ActivityType,
+} from '../activities/entities/activity.entity';
+import {
+  Task,
+  TaskPriority,
+  TaskStatus,
+} from '../activities/entities/tasks.entity';
 import { CreateDealDto } from './dto/create-deal.dto';
 import { UpdateDealDto } from './dto/update-deal.dto';
 import { CloseDealDto } from './dto/close-deal.dto';
@@ -306,6 +315,35 @@ export class DealsService {
         );
         await manager.save(DealCompetitor, competitors);
       }
+
+      // Rulebook §5: "First deal task is created with due date." A deal
+      // born with nothing planned starts life already violating the
+      // every-record-has-a-next-step rule, and until now that's exactly
+      // how every deal was born. Due in 5 days, mirroring the SLA
+      // "Qualified lead → book demo within 5 business days".
+      const firstDue = addDays(new Date(), 5);
+      firstDue.setHours(9, 0, 0, 0);
+      const firstTask = manager.create(Activity, {
+        type: ActivityType.TASK,
+        subject: `Book the demo — ${dto.title}`,
+        description:
+          'Auto-created on conversion: every new deal starts with a next step. Reschedule or replace it, but do not leave the deal with nothing planned.',
+        status: ActivityStatus.SCHEDULED,
+        due_at: firstDue,
+        deal_id: dealId,
+        lead_id: dto.lead_id,
+        assigned_to_id: dto.assigned_to || userId,
+        created_by_id: userId,
+      });
+      const savedFirstTask = await manager.save(Activity, firstTask);
+      await manager.save(
+        Task,
+        manager.create(Task, {
+          priority: TaskPriority.HIGH,
+          status: TaskStatus.TODO,
+          activity_id: savedFirstTask.id,
+        }),
+      );
 
       // Mark lead as converted through the shared transition service so
       // SLA history and status audit stay in lockstep with lead updates.
