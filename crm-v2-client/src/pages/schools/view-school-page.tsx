@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useParams, Link } from "react-router";
 import Container from "~/components/container";
 import PageHeader from "~/components/page-header";
+import { CircleAlert } from "lucide-react";
+import { useActivityList } from "~/api/activities";
 import { RecordDetailLayout } from "~/components/layout/record-detail-layout";
 import { KpiPill } from "~/components/layout/kpi-pill";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -96,10 +98,29 @@ const ViewSchool = ({ id }: { id: string }) => {
 
   const { data: statsData } = useSchoolStats(id);
 
+  // Discipline check: a school with live leads and NOTHING scheduled
+  // anywhere under it is a school quietly going cold. Same rule as
+  // leads and deals — every active record owes a next step.
+  const { data: openActs } = useActivityList({
+    school_id: id,
+    open_only: true,
+    limit: 25,
+    page: 1,
+  });
+
   const school = schoolData?.data;
   const stats = statsData?.data;
   const quotes = quotesData?.data || [];
   const invoices = invoicesData?.data || [];
+
+  const activeLeadCount = (school?.leads ?? []).filter(
+    (l) => l.status !== "Disqualified" && l.status !== "Converted",
+  ).length;
+  const hasOpenNextStep = (openActs?.data ?? []).some(
+    (a) => a.type !== "note",
+  );
+  const schoolIdle =
+    !!school && school.is_active && activeLeadCount > 0 && !hasOpenNextStep;
 
   if (isLoading) {
     return (
@@ -152,6 +173,17 @@ const ViewSchool = ({ id }: { id: string }) => {
           </Button>
         }
       />
+      {schoolIdle && (
+        <div className="mx-4 mb-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Nothing is planned for this school — {activeLeadCount} active{" "}
+            {activeLeadCount === 1 ? "lead" : "leads"} with no next step
+            anywhere. Schedule a call, visit or follow-up in the Activity
+            tab before it goes cold.
+          </span>
+        </div>
+      )}
       <RecordDetailLayout
         fillViewport={false}
         className="flex-1 min-h-0"
