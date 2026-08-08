@@ -1,3 +1,4 @@
+import { LeadsModule } from '../leads/leads.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QuotesController } from './quotes.controller';
@@ -24,6 +25,7 @@ import { DealsModule } from '../deals/deals.module';
     FileManagerModule,
     SettingsModule,
     AuditModule,
+    LeadsModule,
     forwardRef(() => AuthModule),
     // QUOTE6: issuing a quote advances its linked deal — cycle with DealsModule.
     forwardRef(() => DealsModule),

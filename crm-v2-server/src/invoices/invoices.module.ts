@@ -1,3 +1,4 @@
+import { LeadsModule } from '../leads/leads.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { InvoicesController } from './invoices.controller';
@@ -23,6 +24,7 @@ import { SettingsModule } from '../settings/settings.module';
     DocumentGeneratorModule,
     FileManagerModule,
     SettingsModule,
+    LeadsModule,
     forwardRef(() => AuthModule),
   ],
   controllers: [InvoicesController],

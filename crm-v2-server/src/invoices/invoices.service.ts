@@ -24,6 +24,7 @@ import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { QueryInvoiceDto } from './dto/query-invoice.dto';
 import { UpdateInvoiceItemDto } from './dto/update-invoice-item.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { LeadsService } from '../leads/leads.service';
 import {
   PaymentTermsService,
   type GeneratedChildInvoiceSummary,
@@ -82,6 +83,7 @@ export class InvoicesService {
     private readonly notificationsService: NotificationsService,
     private readonly appSettingsService: SettingsService,
     private readonly abilityScopeService: AbilityScopeService,
+    private readonly leadsService: LeadsService,
   ) {}
 
   // ========================
@@ -219,6 +221,27 @@ export class InvoicesService {
         userId,
         `Created invoice: ${refreshedMasterInvoice.invoice_number}`,
       );
+
+      // Commercial intent: an invoice moves the deal to PO/Contract
+      // Received (auto-converting the school's lead if no deal exists)
+      // and files itself on the deal. Same transaction — all or nothing.
+      const intentDealId = await this.leadsService.registerCommercialIntent(
+        manager,
+        {
+          schoolId: refreshedMasterInvoice.school_id,
+          dealId: refreshedMasterInvoice.deal_id,
+          documentType: 'invoice',
+          documentId: refreshedMasterInvoice.id,
+          documentNumber: refreshedMasterInvoice.invoice_number,
+          total: Number(refreshedMasterInvoice.total),
+          userId,
+        },
+      );
+      if (intentDealId && !refreshedMasterInvoice.deal_id) {
+        await manager.update(Invoice, { id: refreshedMasterInvoice.id }, {
+          deal_id: intentDealId,
+        });
+      }
 
       return {
         master_invoice: refreshedMasterInvoice,

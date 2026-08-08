@@ -72,6 +72,8 @@ describe('LeadsService', () => {
         peekLead: async () => [],
         recordSuspicion: async () => ({}),
       } as any,
+      // f9d8ced — LeadQualificationService mock (BANT auto-tick signals).
+      { autoTickFromSignals: jest.fn() } as any,
     );
   });
 

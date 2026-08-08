@@ -4,11 +4,16 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import {
   LeadQualificationCriteria,
   QualificationChecklist,
 } from '../entities/lead-qualification-criteria.entity';
+import { Lead } from '../entities/lead.entity';
+import {
+  LeadStakeholder,
+  DecisionRole,
+} from '../entities/lead-stakeholders.entity';
 import {
   CreateLeadQualificationDto,
   UpdateLeadQualificationDto,
@@ -36,6 +41,88 @@ export class LeadQualificationService {
    */
   private async getQualificationThreshold(): Promise<number> {
     return this.complianceSettings.getNumber('qualification_score_min');
+  }
+
+  /**
+   * Auto-tick BANT flags from evidence already in the CRM, so reps don't
+   * re-type what the record has proven:
+   *
+   *   Authority — a stakeholder with decision_role 'decision_maker'
+   *     exists (their name/title copied in when the manual fields are
+   *     empty).
+   *   Budget + Need — the lead states a value (estimated_value > 0):
+   *     naming a quantity they want and can afford communicates both.
+   *     A quote on the record is the same signal, stronger.
+   *
+   * Ticks only from false → true; a human's tick is never removed, and
+   * timeline stays fully manual (nothing in the record proves a date).
+   * Score and is_qualified are recomputed with the same formula and
+   * threshold as the manual paths.
+   */
+  async autoTickFromSignals(
+    leadId: string,
+    manager?: EntityManager,
+    extra?: { hasCommercialDocument?: boolean },
+  ): Promise<LeadQualificationCriteria | null> {
+    const repo = manager
+      ? manager.getRepository(LeadQualificationCriteria)
+      : this.qualificationRepo;
+    const qualification = await repo.findOne({ where: { lead_id: leadId } });
+    if (!qualification) return null;
+
+    const em = manager ?? this.qualificationRepo.manager;
+    const lead = await em.findOne(Lead, { where: { id: leadId } });
+    if (!lead) return null;
+
+    const decisionMaker = await em.findOne(LeadStakeholder, {
+      where: { lead_id: leadId, decision_role: DecisionRole.DECISION_MAKER },
+      relations: ['contact'],
+    });
+
+    let changed = false;
+
+    if (decisionMaker && !qualification.has_influential_contact) {
+      qualification.has_influential_contact = true;
+      if (!qualification.decision_maker_name && decisionMaker.contact) {
+        qualification.decision_maker_name = [
+          decisionMaker.contact.first_name,
+          decisionMaker.contact.last_name,
+        ]
+          .filter(Boolean)
+          .join(' ');
+        qualification.decision_maker_title =
+          qualification.decision_maker_title ??
+          decisionMaker.contact.role ??
+          null;
+      }
+      if (!qualification.has_verified_contact) {
+        qualification.has_verified_contact = true;
+      }
+      changed = true;
+    }
+
+    const statedValue = Number(lead.estimated_value) > 0;
+    const commercial = statedValue || !!extra?.hasCommercialDocument;
+    if (commercial && !qualification.has_budget) {
+      qualification.has_budget = true;
+      if (qualification.budget_amount == null && statedValue) {
+        qualification.budget_amount = Number(lead.estimated_value);
+      }
+      changed = true;
+    }
+    if (commercial && !qualification.has_needs) {
+      qualification.has_needs = true;
+      changed = true;
+    }
+
+    if (!changed) return qualification;
+
+    qualification.qualification_score = this.calculateScore(qualification);
+    const threshold = await this.getQualificationThreshold();
+    qualification.is_qualified =
+      qualification.qualification_score >= threshold;
+
+    return repo.save(qualification);
   }
 
   /**

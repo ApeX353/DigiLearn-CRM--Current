@@ -67,6 +67,11 @@ const CONTACT_ACTIVITY_TYPES: ActivityType[] = [
   ActivityType.EMAIL,
   ActivityType.WHATSAPP,
   ActivityType.MEETING,
+  // A demo touchpoint is contact in every sense that matters to the
+  // New → Contacted rule: the school heard from us.
+  ActivityType.DEMO_BOOKING,
+  ActivityType.DEMO_DELIVERY,
+  ActivityType.DEMO_FOLLOWUP,
 ];
 
 @Injectable()
@@ -2197,7 +2202,11 @@ export class ActivitiesService {
 
     if (mode === 'complete') {
       // Contact actually happened. The completed_at the service just
-      // stamped is the canonical contact moment.
+      // stamped is the canonical contact moment — and THIS is when a New
+      // lead becomes Contacted (signal-driven, Mr Dube 8 Aug: REAL contact
+      // advances the lead; a scheduled call is a plan and does not).
+      // Ms Mpofu's rule holds through it: logging a completed call always
+      // flips New → Contacted.
       //
       // ACT4: the contact date only ever moves FORWARD. Completing old
       // history must neither claim the school was contacted today (the
@@ -2212,37 +2221,21 @@ export class ActivitiesService {
         update.last_contacted_at = contactMoment;
       }
       await manager.update(Lead, { id: lead.id }, update);
-    } else {
-      // mode === 'create' — schedule event. Don't touch
-      // `last_contacted_at`; the call hasn't happened yet.
-      await manager.update(Lead, { id: lead.id }, { last_action_at: now });
+      // transitionStatus() is a no-op when the status already matches, and
+      // it closes the SLA history record properly.
+      if (lead.status === 'New') {
+        await this.leadsService.updateStatusInTransaction(
+          manager,
+          lead.id,
+          'Contacted',
+          activity.created_by_id,
+        );
+      }
+      return;
     }
 
-    // A 'New' lead stops being New the moment a rep engages it — and that
-    // has to hold in BOTH modes.
-    //
-    // This used to sit in the 'create' branch only, after an early return
-    // in the 'complete' branch. The effect was backwards: SCHEDULING a
-    // call moved the lead to Contacted, but LOGGING a call you had already
-    // made did not — and logging-after-the-fact is the normal way a rep
-    // records real contact, because the activity is created already
-    // completed and therefore takes the 'complete' path.
-    //
-    // Reported by Ms Mpofu: "once a school is contacted it must auto move
-    // from new to contacted". Measured on production at the time: 587
-    // leads sat on New, 12 of them with a completed call, WhatsApp, email
-    // or meeting already logged against them.
-    //
-    // transitionStatus() is a no-op when the status already matches, and
-    // it closes the SLA history record properly, so calling it here is
-    // safe on both paths.
-    if (lead.status === 'New') {
-      await this.leadsService.updateStatusInTransaction(
-        manager,
-        lead.id,
-        'Contacted',
-        activity.created_by_id,
-      );
-    }
+    // mode === 'create' — schedule event. A scheduled call is a plan,
+    // not contact: only bump the action clock, leave the status alone.
+    await manager.update(Lead, { id: lead.id }, { last_action_at: now });
   }
 }

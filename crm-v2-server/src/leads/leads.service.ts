@@ -47,7 +47,7 @@ import type { AppAbility } from '../auth/casl/casl-ability.factory';
 import { AbilityScopeService } from '../auth/casl/ability-scope.service';
 import { Action } from '../auth/constants/permissions';
 import { User } from '../users/entities/user.entity';
-import { Deal } from '../deals/entities/deal.entity';
+import { Deal, DealCloseStatus } from '../deals/entities/deal.entity';
 import { Quote } from '../quotes/entities/quote.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
 import { Activity, ActivityType } from '../activities/entities/activity.entity';
@@ -59,10 +59,24 @@ import {
 } from '../automation/entities/lead-assignment-proposal.entity';
 import { EmailQueue } from '../email-sequences/entities/email-queue.entity';
 import { DuplicateSuspicion } from './entities/duplicate-suspicion.entity';
+import {
+  Activity,
+  ActivityStatus,
+  ActivityType,
+} from '../activities/entities/activity.entity';
+import {
+  Task,
+  TaskPriority,
+  TaskStatus,
+} from '../activities/entities/tasks.entity';
+import { DealStageHistory } from '../deals/entities/deal-stage-history.entity';
+import { Stage } from '../pipelines/entities/stage.entity';
+import { ManagedFile } from '../file-manager/entities/managed-file.entity';
 import { DocumentItem } from '../document-items/entities/document-item.entity';
 import { AppliedPaymentTerm } from '../payment-terms/entities/applied-payment-term.entity';
 import { EmailSequenceService } from '../email-sequences/email-sequence.service';
 import { ComplianceSettingsService } from '../settings/compliance-settings.service';
+import { LeadQualificationService } from './services/lead-qualification.service';
 import { isTacticalDisqualifyReason } from './constants/reasons';
 import { LEAD_STATUSES } from './constants/lead-statuses';
 import { canonName, canonCity, canonPhone } from './utils/record-normalization';
@@ -111,6 +125,7 @@ export class LeadsService {
     private readonly leadReversalRequestRepository: Repository<LeadReversalRequest>,
     private readonly complianceSettings: ComplianceSettingsService,
     private readonly duplicateDetection: DuplicateDetectionService,
+    private readonly leadQualificationService: LeadQualificationService,
     @Optional()
     @Inject(EmailSequenceService)
     private readonly emailSequenceService?: EmailSequenceService,
@@ -901,6 +916,13 @@ export class LeadsService {
         `Added stakeholder ${contact.first_name} ${contact.last_name} to lead: ${lead.lead_name}`,
       );
 
+      // A decision-maker stakeholder is Authority evidence — tick BANT
+      // from it rather than waiting for a rep to re-type the same fact.
+      await this.leadQualificationService.autoTickFromSignals(
+        lead.id,
+        manager,
+      );
+
       return stakeholderWithContact || savedStakeholder;
     });
   }
@@ -1040,6 +1062,9 @@ export class LeadsService {
         userId,
         `Updated lead: ${updatedLead.lead_name}`,
       );
+
+      // A stated value is Budget + Need evidence — see autoTickFromSignals.
+      await this.leadQualificationService.autoTickFromSignals(updatedLead.id);
     }
 
     if (statusChanged) {
@@ -1554,6 +1579,230 @@ export class LeadsService {
       await invoiceRepository.delete({ deal_id: In(dealIds) });
       await quoteRepository.delete({ deal_id: In(dealIds) });
       await dealRepository.delete({ id: In(dealIds) });
+    });
+  }
+
+  /**
+   * Commercial intent has been expressed: a quote or invoice now exists
+   * for a school. Called by QuotesService / InvoicesService inside THEIR
+   * transaction, so the whole reaction commits or rolls back with the
+   * document itself. Reaction:
+   *
+   *   1. Resolve the deal — the document's own deal, else the school's
+   *      ongoing deal, else AUTO-CONVERT the school's live lead into a
+   *      deal (valued at the document total, first follow-up task due
+   *      day 3 per the quote SLA).
+   *   2. Advance the deal to the stage the document implies (quote →
+   *      "Quote Submitted", invoice → "PO/Contract Received") — forwards
+   *      only, using stage probability as the pipeline-agnostic order.
+   *   3. File the document in the deal's Files tab.
+   *   4. Mark the lead's commercial intent + auto-tick Budget/Need.
+   *
+   * Returns the deal id the document ended up attached to (null when the
+   * school has no live lead or deal — e.g. paperwork for a school with
+   * no pipeline presence; nothing to react on).
+   */
+  async registerCommercialIntent(
+    manager: EntityManager,
+    input: {
+      schoolId: string;
+      dealId?: string | null;
+      documentType: 'quote' | 'invoice';
+      documentId: string;
+      documentNumber: string;
+      total: number;
+      userId: string;
+    },
+  ): Promise<string | null> {
+    const targetStageName =
+      input.documentType === 'quote' ? 'Quote Submitted' : 'PO/Contract Received';
+
+    // ---- 1. Resolve (or create) the deal -------------------------------
+    let deal = input.dealId
+      ? await manager.findOne(Deal, { where: { id: input.dealId } })
+      : null;
+
+    let lead: Lead | null = null;
+    if (!deal) {
+      // The school's ongoing deal, if one exists.
+      deal = await manager.findOne(Deal, {
+        where: { school_id: input.schoolId, closeStatus: DealCloseStatus.ONGOING },
+        order: { createdAt: 'DESC' },
+      });
+    }
+    if (!deal) {
+      lead = await manager.findOne(Lead, {
+        where: { school_id: input.schoolId },
+        order: { created_at: 'DESC' },
+      });
+      if (!lead || lead.status === 'Disqualified') return null;
+      if (lead.status === 'Converted') {
+        deal = await manager.findOne(Deal, {
+          where: { lead_id: lead.id },
+          order: { createdAt: 'DESC' },
+        });
+        if (!deal) return null;
+      } else {
+        // AUTO-CONVERT: the document IS the commercial signal.
+        const stage = await this.findStageByName(manager, targetStageName);
+        if (!stage) return null;
+        lead.commercial_intent = true;
+        const dealId = uuidv4();
+        deal = manager.create(Deal, {
+          id: dealId,
+          title: lead.lead_name,
+          value: input.total,
+          currency: 'USD',
+          lead_id: lead.id,
+          school_id: input.schoolId,
+          current_stage_id: stage.id,
+          pipeline_id: stage.pipeline_id,
+          assigned_to: lead.assigned_to ?? input.userId,
+          currentStatus: stage.name,
+          currentStageSince: new Date(),
+          probability: Number(stage.probability),
+          position: 1000,
+          closeStatus: DealCloseStatus.ONGOING,
+          source_campaign_id: lead.source_campaign_id ?? null,
+        });
+        await manager.save(Deal, deal);
+        await manager.save(
+          DealStageHistory,
+          manager.create(DealStageHistory, {
+            id: uuidv4(),
+            dealId,
+            fromStatus: undefined,
+            toStatus: stage.name,
+            movedAt: new Date(),
+            movedBy: input.userId,
+            slaCompliant: true,
+            notes: `Auto-converted: ${input.documentType} ${input.documentNumber} created`,
+          }),
+        );
+        // First follow-up per the quote SLA: day 3.
+        const due = new Date();
+        due.setDate(due.getDate() + 3);
+        due.setHours(9, 0, 0, 0);
+        const followUp = await manager.save(
+          Activity,
+          manager.create(Activity, {
+            type: ActivityType.TASK,
+            subject: `Follow up on ${input.documentType} ${input.documentNumber}`,
+            description:
+              'Auto-created: first follow-up is due day 3 after sending (SLA).',
+            status: ActivityStatus.SCHEDULED,
+            due_at: due,
+            deal_id: dealId,
+            lead_id: lead.id,
+            assigned_to_id: lead.assigned_to ?? input.userId,
+            created_by_id: input.userId,
+          }),
+        );
+        await manager.save(
+          Task,
+          manager.create(Task, {
+            priority: TaskPriority.HIGH,
+            status: TaskStatus.TODO,
+            activity_id: followUp.id,
+          }),
+        );
+        await this.updateStatusInTransaction(
+          manager,
+          lead.id,
+          'Converted',
+          input.userId,
+        );
+        await this.activityLogsService.logUpdate(
+          'Lead',
+          lead.id,
+          {},
+          { auto_converted_deal_id: dealId },
+          input.userId,
+          `Auto-converted to deal on ${input.documentType} ${input.documentNumber}`,
+        );
+      }
+    }
+
+    // ---- 2. Advance the stage (forwards only) --------------------------
+    if (deal.currentStatus !== targetStageName) {
+      const target = await this.findStageByName(
+        manager,
+        targetStageName,
+        deal.pipeline_id,
+      );
+      if (target && Number(target.probability) > Number(deal.probability)) {
+        const fromStatus = deal.currentStatus;
+        await manager.update(Deal, { id: deal.id }, {
+          current_stage_id: target.id,
+          currentStatus: target.name,
+          currentStageSince: new Date(),
+          probability: Number(target.probability),
+        });
+        await manager.save(
+          DealStageHistory,
+          manager.create(DealStageHistory, {
+            id: uuidv4(),
+            dealId: deal.id,
+            fromStatus,
+            toStatus: target.name,
+            movedAt: new Date(),
+            movedBy: input.userId,
+            slaCompliant: true,
+            notes: `Auto: ${input.documentType} ${input.documentNumber} created`,
+          }),
+        );
+      }
+    }
+
+    // ---- 3. File the document on the deal ------------------------------
+    const alreadyFiled = await manager.findOne(ManagedFile, {
+      where: {
+        entity_type: 'deal',
+        entity_id: deal.id,
+        file_url: `/${input.documentType}s?preview=${input.documentId}`,
+      },
+    });
+    if (!alreadyFiled) {
+      await manager.save(
+        ManagedFile,
+        manager.create(ManagedFile, {
+          file_name: `${
+            input.documentType === 'quote' ? 'Quote' : 'Invoice'
+          } ${input.documentNumber}`,
+          file_url: `/${input.documentType}s?preview=${input.documentId}`,
+          provider: 'other',
+          file_type: `application/x-crm-${input.documentType}`,
+          entity_type: 'deal',
+          entity_id: deal.id,
+          uploaded_by_id: input.userId,
+        }),
+      );
+    }
+
+    // ---- 4. Lead-side signals ------------------------------------------
+    if (deal.lead_id) {
+      await manager.update(Lead, { id: deal.lead_id }, {
+        commercial_intent: true,
+      });
+      await this.leadQualificationService.autoTickFromSignals(
+        deal.lead_id,
+        manager,
+        { hasCommercialDocument: true },
+      );
+    }
+
+    return deal.id;
+  }
+
+  /** Stage lookup by name; scoped to a pipeline when given, otherwise the
+   * first pipeline that has the stage. */
+  private async findStageByName(
+    manager: EntityManager,
+    name: string,
+    pipelineId?: string,
+  ): Promise<Stage | null> {
+    return manager.findOne(Stage, {
+      where: pipelineId ? { name, pipeline_id: pipelineId } : { name },
     });
   }
 

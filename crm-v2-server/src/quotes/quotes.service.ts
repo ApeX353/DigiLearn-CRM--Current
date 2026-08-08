@@ -22,6 +22,7 @@ import { UpdateQuoteDto } from './dto/update-quote.dto';
 import { QueryQuoteDto } from './dto/query-quote.dto';
 import { UpdateQuoteItemDto } from './dto/update-quote-item.dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { LeadsService } from '../leads/leads.service';
 import { PaymentTermsService } from '../payment-terms/payment-terms.service';
 import { DocumentGeneratorService } from '../document-generator/document-generator.service';
 import { FileManagerService } from '../file-manager/file-manager.service';
@@ -66,6 +67,7 @@ export class QuotesService {
     private readonly documentGeneratorService: DocumentGeneratorService,
     private readonly fileManagerService: FileManagerService,
     private readonly notificationsService: NotificationsService,
+    private readonly leadsService: LeadsService,
     private readonly appSettingsService: SettingsService,
     private readonly abilityScopeService: AbilityScopeService,
     // QUOTE6(a): issuing a quote advances its linked deal into the quoting
@@ -255,6 +257,29 @@ export class QuotesService {
         userId,
         `Created quote: ${savedQuote.quote_number}`,
       );
+
+      // Commercial intent: a quote moves the deal to Quote Submitted
+      // (auto-converting the school's lead when no deal exists yet) and
+      // files itself on the deal. Same transaction — all or nothing.
+      const intentDealId = await this.leadsService.registerCommercialIntent(
+        transactionManager,
+        {
+          schoolId: savedQuote.school_id,
+          dealId: savedQuote.deal_id,
+          documentType: 'quote',
+          documentId: savedQuote.id,
+          documentNumber: savedQuote.quote_number,
+          total: Number(savedQuote.total),
+          userId,
+        },
+      );
+      // A quote created straight from a lead page carries no deal_id;
+      // link it to the deal it just caused so the paper trail is whole.
+      if (intentDealId && !savedQuote.deal_id) {
+        await transactionManager.update(Quote, { id: savedQuote.id }, {
+          deal_id: intentDealId,
+        });
+      }
 
       const fullQuote = await transactionManager.findOne(Quote, {
         where: { id: savedQuote.id },
