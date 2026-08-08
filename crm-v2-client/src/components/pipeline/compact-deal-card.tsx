@@ -119,133 +119,130 @@ export default function CompactDealCard({
         aria-hidden="true"
       />
 
-      <div className="pl-3 pr-3 py-2.5 space-y-2">
-        {/* Title + value row */}
-        <div className="flex items-start justify-between gap-2">
+      {/* Three rows, matching the column summary card's height:
+            1. title …………………… value
+            2. school ………… badges · age chip
+            3. activity signal …… owner · date
+          Everything that used to have its own row (value, last-contact
+          line) now shares one; detail lives in tooltips and the deal
+          page, scanning speed lives here. */}
+      <div className="pl-3 pr-3 py-2 space-y-1">
+        {/* Row 1: title + value */}
+        <div className="flex items-baseline justify-between gap-2">
           <Link
             to={`/deals/${deal.id}`}
-            className="text-sm font-medium leading-snug text-foreground hover:text-primary transition-colors line-clamp-2"
+            className="min-w-0 truncate text-sm font-medium leading-snug text-foreground hover:text-primary transition-colors"
+            title={deal.deal_name || deal.title}
             onClick={(e) => e.stopPropagation()}
           >
             {deal.deal_name || deal.title}
           </Link>
-        </div>
-
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="text-[15px] font-semibold text-foreground tabular">
+          <span className="shrink-0 text-[13px] font-semibold text-foreground tabular">
             {formatCurrency(dealValue)}
-          </div>
-          {backwardMoves > 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] px-1.5 py-0 h-5 text-amber-700 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 flex items-center gap-1"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  {backwardMoves}
-                </Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                Shuffled back {backwardMoves}× in the pipeline
-              </TooltipContent>
-            </Tooltip>
-          )}
+          </span>
         </div>
 
-        {/* School row */}
-        {deal.school && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {/* Row 2: school + status chips */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
             <Building2 className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate" title={deal.school.name}>
-              {deal.school.name}
+            <span className="truncate" title={deal.school?.name}>
+              {deal.school?.name ?? "No school"}
             </span>
           </div>
-        )}
+          <div className="flex shrink-0 items-center gap-1">
+            {backwardMoves > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="flex h-4 items-center gap-0.5 border-amber-300 bg-amber-50 px-1 py-0 text-[10px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                  >
+                    <RotateCcw className="h-2.5 w-2.5" />
+                    {backwardMoves}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Shuffled back {backwardMoves}× in the pipeline
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {isCold && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="flex h-4 items-center gap-0.5 border-dashed px-1 py-0 text-[10px] text-muted-foreground"
+                  >
+                    <MessageCircleOff className="h-2.5 w-2.5" />
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Cold — last contact {daysSinceContact} days ago
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[10px] font-medium tabular whitespace-nowrap",
+                    overSLA &&
+                      "bg-destructive/10 text-destructive border border-destructive/20",
+                    atRisk &&
+                      !overSLA &&
+                      "bg-[oklch(0.78_0.15_67_/_0.12)] text-[oklch(0.45_0.15_60)] border border-[oklch(0.78_0.15_67_/_0.3)]",
+                    !overSLA &&
+                      !atRisk &&
+                      "bg-muted text-muted-foreground border border-border",
+                  )}
+                >
+                  {overSLA && <AlertTriangle className="h-2.5 w-2.5" />}
+                  {daysInStage}d
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {daysInStage} days in {stage.name}
+                {overSLA && " — SLA breached"}
+                {atRisk && !overSLA && " — approaching SLA"}
+                {deal.last_contacted_at &&
+                  !isCold &&
+                  ` · last contact ${formatDistanceToNowStrict(
+                    new Date(deal.last_contacted_at),
+                    { addSuffix: true },
+                  )}`}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
 
-        {/* Activity signal — "Next: Apr 19", "Overdue", or "No next
-            step". Driven entirely by props so the card stays cheap. */}
-        <DealActivitySignal nextActivity={nextActivity} />
-
-        {/* Footer: owner · due date · stage-age chip */}
-        <div className="flex items-center justify-between gap-2 pt-0.5">
-          <div className="flex items-center gap-2 min-w-0">
+        {/* Row 3: activity signal + owner/date */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <DealActivitySignal nextActivity={nextActivity} />
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {deal.expectedCloseDate && (
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground tabular">
+                <Calendar className="h-3 w-3" />
+                {new Date(deal.expectedCloseDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </span>
+            )}
             {owner && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-semibold shrink-0">
+                  <div className="flex size-4.5 items-center justify-center rounded-full bg-primary/10 text-[9px] font-semibold text-primary">
                     {initials(ownerName)}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>{ownerName || "Owner"}</TooltipContent>
               </Tooltip>
             )}
-
-            {deal.expectedCloseDate && (
-              <div className="flex items-center gap-1 text-[11px] text-muted-foreground tabular">
-                <Calendar className="h-3 w-3" />
-                {new Date(deal.expectedCloseDate).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                })}
-              </div>
-            )}
-
-            {isCold && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant="outline"
-                    className="h-5 text-[10px] px-1.5 gap-1 text-muted-foreground border-dashed"
-                  >
-                    <MessageCircleOff className="h-3 w-3" />
-                    Cold
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Last contact {daysSinceContact} days ago
-                </TooltipContent>
-              </Tooltip>
-            )}
           </div>
-
-          {/* Stage-age chip — color-coded */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 tabular whitespace-nowrap",
-                  overSLA &&
-                    "bg-destructive/10 text-destructive border border-destructive/20",
-                  atRisk &&
-                    !overSLA &&
-                    "bg-[oklch(0.78_0.15_67_/_0.12)] text-[oklch(0.45_0.15_60)] border border-[oklch(0.78_0.15_67_/_0.3)]",
-                  !overSLA &&
-                    !atRisk &&
-                    "bg-muted text-muted-foreground border border-border",
-                )}
-              >
-                {overSLA && <AlertTriangle className="h-2.5 w-2.5" />}
-                {daysInStage}d
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              {daysInStage} days in {stage.name}
-              {overSLA && " — SLA breached"}
-              {atRisk && !overSLA && " — approaching SLA"}
-            </TooltipContent>
-          </Tooltip>
         </div>
-
-        {/* Last contact line (only if very recent — otherwise Cold badge above handles it) */}
-        {deal.last_contacted_at && !isCold && (
-          <div className="text-[10px] text-muted-foreground tabular">
-            Last contact{" "}
-            {formatDistanceToNowStrict(new Date(deal.last_contacted_at), {
-              addSuffix: true,
-            })}
-          </div>
-        )}
       </div>
     </Card>
   );
