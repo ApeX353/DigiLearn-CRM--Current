@@ -84,15 +84,29 @@ export default function CreateInvoicePage() {
   const schools = schoolsData?.data || [];
   const products = productsData?.data || [];
 
-  const schoolOptions: AutocompleteOption[] = useMemo(
-    () =>
-      schools.map((school) => ({
-        value: school.id,
-        label: school.name,
-        subtitle: school.province || undefined,
-      })),
-    [schools],
-  );
+  const schoolOptions: AutocompleteOption[] = useMemo(() => {
+    const options = schools.map((school) => ({
+      value: school.id,
+      label: school.name,
+      subtitle: school.province || undefined,
+    }));
+    // The prefilled school (arriving via ?schoolId/?leadId/?dealId) is often
+    // not in the first page of options, and an Autocomplete can't display a
+    // value it has no option for — the field looked blank even though the
+    // form held the right school_id. Inject it.
+    if (
+      prepopData.school_id &&
+      prepopData.school_name &&
+      !options.some((o) => o.value === prepopData.school_id)
+    ) {
+      options.unshift({
+        value: prepopData.school_id,
+        label: prepopData.school_name,
+        subtitle: undefined,
+      });
+    }
+    return options;
+  }, [schools, prepopData.school_id, prepopData.school_name]);
 
   const form = useForm<CreateInvoiceFormValues>({
     resolver: zodResolver(createInvoiceFormSchema),

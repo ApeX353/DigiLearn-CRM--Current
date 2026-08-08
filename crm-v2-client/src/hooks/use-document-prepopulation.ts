@@ -25,6 +25,9 @@ interface PrepopulationData {
   isReady: boolean;
   isLoading: boolean;
   school_id?: string;
+  /** Display name for the resolved school, so pickers can render the
+   * selection even when the school isn't in their fetched option page. */
+  school_name?: string;
   deal_id?: string;
   person_id?: string;
   client_name: string;
@@ -155,13 +158,25 @@ export function useDocumentPrepopulation(
       notes = lead.notes;
     }
 
-    // Determine if data is ready (all requested entities have loaded)
-    const isReady = !isLoading;
+    // Ready only when every REQUESTED entity has actually arrived — not
+    // merely "nothing is in flight". On first render the queries haven't
+    // started fetching yet, so !isLoading was briefly true with no data,
+    // and the form got reset once with empty values before the real ones
+    // landed. Mostly invisible, but any keystroke in that window marked
+    // the form dirty and blocked the real prefill entirely.
+    const requestedLoaded = [
+      { id: dealId, loaded: !!deal },
+      { id: schoolId, loaded: !!school },
+      { id: leadId, loaded: !!lead },
+      { id: quoteId, loaded: !!quote },
+    ].every((check) => !check.id || check.loaded);
+    const isReady = !isLoading && requestedLoaded;
 
     return {
       isReady,
       isLoading,
       school_id: resolvedSchool?.id || quote?.school_id,
+      school_name: resolvedSchool?.name,
       // Carry the deal through quote→invoice. Without the quote
       // fallback an invoice created from a deal-linked quote lost the
       // deal_id, and "Mark Won" (which requires a deal invoice)
