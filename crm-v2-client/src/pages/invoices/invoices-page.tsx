@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import Container from "~/components/container";
 import PageHeader from "~/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -69,6 +69,15 @@ export default function InvoicesPage() {
   const [page, setPage] = useState(1);
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+
+  // Deep link from a deal's Files tab: quote/invoice records are filed as
+  // /…?preview=<id>, so honour the param and open the preview directly.
+  const [previewParams] = useSearchParams();
+  useEffect(() => {
+    const fromUrl = previewParams.get("preview");
+    if (fromUrl) setPreviewInvoiceId(fromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data, isLoading } = useInvoices({
     page,
