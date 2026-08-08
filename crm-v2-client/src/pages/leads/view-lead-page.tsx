@@ -264,7 +264,16 @@ const ViewLead = ({ id }: { id: string }) => {
     (isContacted || isNurtured) && !isQualificationComplete;
   const showQualify = (isContacted || isNurtured) && isQualificationComplete;
   const showNurture = isContacted || isNurtured || isQualified;
-  const showConvert = isQualified || isConverted;
+  // A Converted lead must never offer conversion again — the server would
+  // reject it ("already converted") and the button contradicts the status
+  // badge sitting right next to it. Converted leads link to their deal.
+  const showConvert = isQualified && !isConverted;
+  // Most recent deal, if several exist (re-conversions after reversal).
+  const convertedDeal = isConverted
+    ? [...(lead?.deals ?? [])].sort((a, b) =>
+        (b.created_at ?? "").localeCompare(a.created_at ?? ""),
+      )[0]
+    : undefined;
   const showDisqualify = !isTerminal;
   const showStandardActions = !isTerminal;
   const showHeaderActions = showStandardActions || isConverted;
@@ -546,6 +555,14 @@ const ViewLead = ({ id }: { id: string }) => {
 
               {isConverted && (
                 <>
+                  {convertedDeal && (
+                    <Button asChild>
+                      <Link to={`/deals/${convertedDeal.id}`}>
+                        <ArrowRightLeft className="mr-2 h-4 w-4" />
+                        View Deal
+                      </Link>
+                    </Button>
+                  )}
                   {canRequestReversal && !pendingReversalRequest && (
                     <Button
                       variant="outline"

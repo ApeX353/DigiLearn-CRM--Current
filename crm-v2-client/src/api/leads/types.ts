@@ -57,6 +57,15 @@ export interface Lead {
   school?: School;
   primary_contact?: Contact;
   assignee: User;
+  /** Deals this lead became. Loaded on the lead DETAIL endpoint only —
+   * a Converted lead's page links here instead of offering to convert. */
+  deals?: Array<{
+    id: string;
+    title?: string;
+    closeStatus?: string;
+    close_status?: string;
+    created_at?: string;
+  }>;
   assigned_to?: string | null;
   stage: Stage;
   notes: string;

@@ -107,7 +107,12 @@ export function LeadAtAGlance({
     ? isPast(nextActivityDateObj) && nextActivity?.status !== "completed"
     : false;
 
-  const hasNoNextActivity = !nextActivity;
+  // Terminal leads owe no next step: Converted leads continue on the deal,
+  // Disqualified leads are closed. Nagging "keep the lead moving" on either
+  // contradicts the status badge two rows up.
+  const isTerminalLead =
+    lead.status === "Converted" || lead.status === "Disqualified";
+  const hasNoNextActivity = !nextActivity && !isTerminalLead;
 
   const schoolName = lead.school?.name || "--";
   const schoolLocation = [lead.school?.city, lead.school?.province]
@@ -311,6 +316,12 @@ export function LeadAtAGlance({
                 date={nextActivityDateObj}
                 overdue={nextActivityOverdue}
               />
+            ) : isTerminalLead ? (
+              <EmptyHint>
+                {lead.status === "Converted"
+                  ? "Work continues on the deal"
+                  : "Closed — nothing scheduled"}
+              </EmptyHint>
             ) : (
               <div className="flex items-center gap-1.5">
                 <EmptyHint>No next activity</EmptyHint>
