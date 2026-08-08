@@ -155,6 +155,9 @@ export interface School {
   principal_name: string;
   student_count?: number;
   is_active: boolean;
+  /** List-endpoint computed flag: active leads exist but nothing is
+   * scheduled anywhere under this school. Ranked first in the list. */
+  is_idle?: boolean;
   created_at: Date;
   updated_at: Date;
   deleted_at?: Date | null;

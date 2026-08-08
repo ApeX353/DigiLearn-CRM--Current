@@ -33,13 +33,24 @@ const schoolColumns: ColumnDef<School>[] = [
     accessorKey: "name",
     header: "School Name",
     cell: ({ row }) => (
-      <Link
-        to={`/schools/${row.original.id}`}
-        className="font-medium hover:underline text-primary"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {row.original.name}
-      </Link>
+      <span className="flex items-center gap-2">
+        <Link
+          to={`/schools/${row.original.id}`}
+          className="font-medium hover:underline text-primary"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.original.name}
+        </Link>
+        {row.original.is_idle && (
+          <Badge
+            variant="outline"
+            className="border-amber-300 bg-amber-50 text-[10px] font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
+            title="Active leads but nothing scheduled anywhere under this school"
+          >
+            Nothing planned
+          </Badge>
+        )}
+      </span>
     ),
   },
   {
