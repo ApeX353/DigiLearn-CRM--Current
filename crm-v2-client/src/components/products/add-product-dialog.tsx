@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import Modal from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { Switch } from "~/components/ui/switch";
 import {
   Form,
@@ -50,6 +51,8 @@ export function AddProductDialog() {
     defaultValues: {
       product_type: "product",
       name: "",
+      sku: "",
+      description: "",
       category: "",
       price: 0,
       discount: 0,
@@ -94,6 +97,38 @@ export function AddProductDialog() {
                   <FormLabel>Product Name</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Digital Learning Platform" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="sku"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>SKU / Code</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., DLR-E-Y1" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="What the school reads on quotations, invoices and contracts…"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

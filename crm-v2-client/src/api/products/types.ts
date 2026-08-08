@@ -18,6 +18,10 @@ export interface Product {
   id: string;
   product_type: ProductType;
   name: string;
+  /** Catalogue code, e.g. DLR-E-Y1. */
+  sku: string | null;
+  /** Sales description — prefills document line items on selection. */
+  description: string | null;
   category: string | null;
   price: number;
   discount: number;
@@ -31,6 +35,8 @@ export interface Product {
 export const createProductSchema = z.object({
   product_type: z.enum(PRODUCT_TYPES),
   name: z.string().min(1, "Name is required").max(255),
+  sku: z.string().max(64).optional(),
+  description: z.string().optional(),
   category: z.string().max(100).optional(),
   price: z.number().min(0, "Price must be positive"),
   discount: z.number().min(0),

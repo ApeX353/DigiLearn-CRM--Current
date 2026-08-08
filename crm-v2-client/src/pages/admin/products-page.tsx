@@ -119,11 +119,27 @@ export default function ProductsPage() {
                         key={product.id}
                         className={!product.is_active ? "opacity-60" : ""}
                       >
-                        <TableCell>
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-sm text-muted-foreground capitalize">
-                            {product.unit}
+                        <TableCell className="max-w-md">
+                          <div className="font-medium">
+                            {product.name}
+                            {product.sku && (
+                              <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-normal text-muted-foreground">
+                                {product.sku}
+                              </span>
+                            )}
                           </div>
+                          {product.description ? (
+                            <div
+                              className="line-clamp-2 text-sm text-muted-foreground"
+                              title={product.description}
+                            >
+                              {product.description}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground capitalize">
+                              {product.unit}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize">

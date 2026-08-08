@@ -131,7 +131,9 @@ export const DocumentItems = ({
       (products || []).map((product) => ({
         value: product.id,
         label: product.name,
-        subtitle: formatCurrency(product.price),
+        subtitle: product.sku
+          ? `${product.sku} · ${formatCurrency(product.price)}`
+          : formatCurrency(product.price),
       })),
     [products, formatCurrency],
   );
@@ -168,9 +170,15 @@ export const DocumentItems = ({
                               (p) => p.id === value,
                             );
                             if (product) {
+                              // The line's description is what the school
+                              // reads on the quotation / invoice / contract —
+                              // use the product's sales description, with the
+                              // bare name only as a fallback for legacy rows.
                               form.setValue(
                                 `items.${index}.description`,
-                                product.name,
+                                product.description?.trim()
+                                  ? `${product.name} — ${product.description.trim()}`
+                                  : product.name,
                               );
                               form.setValue(
                                 `items.${index}.unit_price`,
