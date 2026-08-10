@@ -85,7 +85,7 @@ export default function CreateInvoicePage() {
   const products = productsData?.data || [];
 
   const schoolOptions: AutocompleteOption[] = useMemo(() => {
-    const options = schools.map((school) => ({
+    const options: AutocompleteOption[] = schools.map((school) => ({
       value: school.id,
       label: school.name,
       subtitle: school.province || undefined,
