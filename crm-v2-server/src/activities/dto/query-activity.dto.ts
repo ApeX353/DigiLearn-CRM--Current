@@ -5,6 +5,9 @@ import {
   IsDateString,
   IsNumberString,
   IsBoolean,
+  IsIn,
+  IsString,
+  MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
@@ -130,6 +133,25 @@ export class QueryActivityDto {
   @Transform(({ value }) => toBool(value))
   @IsBoolean()
   include_details?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Free-text search across the WHOLE table, not just the loaded page: subject, description, completion note, and each type's content (call summary, note body, WhatsApp message, email subject/body, meeting agenda/minutes). Case-insensitive substring match.",
+    maxLength: 200,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
+
+  @ApiPropertyOptional({
+    enum: ['recent', 'work_queue'],
+    description:
+      "Result ordering. 'recent' (default): newest effective date first — a record page reading its history. 'work_queue': what to do next, first — open work above closed, most-overdue at the top, undated open items after all dated ones. The Activities module's to-do ordering; applied server-side because the list is paginated.",
+  })
+  @IsOptional()
+  @IsIn(['recent', 'work_queue'])
+  sort?: 'recent' | 'work_queue';
 }
 
 export class ActivitySummaryQueryDto {

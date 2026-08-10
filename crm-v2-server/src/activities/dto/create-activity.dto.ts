@@ -12,7 +12,11 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ActivityType, ActivityStatus } from '../entities/activity.entity';
+import {
+  ActivityType,
+  ActivityStatus,
+  ActivityOutcome,
+} from '../entities/activity.entity';
 import { TaskStatus, TaskPriority } from '../entities/tasks.entity';
 import { CallOutcome } from '../entities/calls.entity';
 import { MeetingPlatform } from '../entities/meetings.entity';
@@ -444,6 +448,25 @@ export class CreateActivityDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional({
+    enum: ActivityOutcome,
+    description:
+      '"Log a past interaction" creates (status=completed) may record the outcome directly. Ignored — stripped, not errored — on scheduled creates, where no outcome can exist yet.',
+  })
+  @IsOptional()
+  @IsEnum(ActivityOutcome)
+  completion_outcome?: ActivityOutcome;
+
+  @ApiPropertyOptional({
+    description:
+      'Free-form account of what happened, recorded alongside the outcome. Same completed-creates-only rule as completion_outcome.',
+    maxLength: 2000,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  completion_note?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -493,11 +493,23 @@ export class ActivitiesService {
         meeting,
         whatsapp,
         demo,
+        completion_outcome,
+        completion_note,
         ...activityData
       } = dto;
 
       const activity = manager.create(Activity, {
         ...activityData,
+        // A "log a past interaction" create may carry the outcome and the
+        // account of what happened. A scheduled create cannot have an
+        // outcome yet, so both are stripped (not errored) unless the
+        // create arrives completed.
+        ...(dto.status === ActivityStatus.COMPLETED
+          ? {
+              completion_outcome: completion_outcome ?? null,
+              completion_note: completion_note ?? null,
+            }
+          : {}),
         created_by_id: userId,
         scheduled_at: dto.scheduled_at ? new Date(dto.scheduled_at) : undefined,
         due_at: dto.due_at ? new Date(dto.due_at) : undefined,
@@ -802,6 +814,8 @@ export class ActivitiesService {
       open_only,
       is_pinned,
       include_details,
+      search,
+      sort,
     } = query;
 
     const qb = this.activityRepository
@@ -967,7 +981,73 @@ export class ActivitiesService {
       qb.andWhere('activity.is_pinned = :is_pinned', { is_pinned });
     }
 
-    if (include_details) {
+    // Whole-table search. The client's search box sends this; matching only
+    // the loaded page in the browser missed everything past page one. The
+    // subtype content lives in the detail tables, so when the caller didn't
+    // ask for details we still JOIN (without selecting) purely to search.
+    if (search?.trim()) {
+      if (!include_details) {
+        qb.leftJoin('activity.task', 'task')
+          .leftJoin('activity.note', 'note')
+          .leftJoin('activity.call', 'call')
+          .leftJoin('activity.email', 'email')
+          .leftJoin('activity.meeting', 'meeting')
+          .leftJoin('activity.whatsapp_message', 'whatsapp_message');
+      }
+      qb.andWhere(
+        new Brackets((w) => {
+          w.where('activity.subject ILIKE :search', {
+            search: `%${search.trim()}%`,
+          })
+            .orWhere('activity.description ILIKE :search')
+            .orWhere('activity.completion_note ILIKE :search')
+            .orWhere('note.content ILIKE :search')
+            .orWhere('call.summary ILIKE :search')
+            .orWhere('email.subject ILIKE :search')
+            .orWhere('email.body ILIKE :search')
+            .orWhere('meeting.agenda ILIKE :search')
+            .orWhere('meeting.minutes_notes ILIKE :search')
+            .orWhere('whatsapp_message.message ILIKE :search');
+        }),
+      );
+    }
+
+    if (sort === 'work_queue') {
+      // Work-queue ordering — the Activities module is a to-do list, not a
+      // diary: open work above closed, the most-overdue open item first,
+      // undated open items after every dated one, closed history newest
+      // first underneath. (`recent` — the default — is the diary ordering
+      // below, unchanged.)
+      qb.orderBy(
+        `CASE WHEN activity.status IN ('completed','cancelled') THEN 1 ELSE 0 END`,
+        'ASC',
+      );
+      qb.addOrderBy(
+        `CASE WHEN activity.status IN ('completed','cancelled') THEN NULL ELSE COALESCE(activity.due_at, activity.scheduled_at) END`,
+        'ASC',
+        'NULLS LAST',
+      );
+      if (include_details) {
+        // Same-dated open tasks tie-break by urgency (see ACT1 note below).
+        qb.addOrderBy(
+          `CASE
+            WHEN activity.type = 'task' THEN
+              CASE task.priority
+                WHEN '${TaskPriority.URGENT}' THEN 1
+                WHEN '${TaskPriority.HIGH}'   THEN 2
+                WHEN '${TaskPriority.MEDIUM}' THEN 3
+                WHEN '${TaskPriority.LOW}'    THEN 4
+                ELSE 5
+              END
+            ELSE 5
+          END`,
+        );
+      }
+      qb.addOrderBy(
+        'COALESCE(activity.due_at, activity.scheduled_at, activity.created_at)',
+        'DESC',
+      );
+    } else if (include_details) {
       // ACT1 — the Activities page ("All" tab) reads this list.
       //
       // The previous clause ordered by
