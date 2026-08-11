@@ -50,7 +50,11 @@ import { User } from '../users/entities/user.entity';
 import { Deal, DealCloseStatus } from '../deals/entities/deal.entity';
 import { Quote } from '../quotes/entities/quote.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
-import { Activity, ActivityType } from '../activities/entities/activity.entity';
+import {
+  Activity,
+  ActivityStatus,
+  ActivityType,
+} from '../activities/entities/activity.entity';
 import { CashRequisition } from '../cash-requisitions/entities/cash-requisition.entity';
 import { LeadEscalation } from './entities/lead-escalation.entity';
 import {
@@ -59,11 +63,6 @@ import {
 } from '../automation/entities/lead-assignment-proposal.entity';
 import { EmailQueue } from '../email-sequences/entities/email-queue.entity';
 import { DuplicateSuspicion } from './entities/duplicate-suspicion.entity';
-import {
-  Activity,
-  ActivityStatus,
-  ActivityType,
-} from '../activities/entities/activity.entity';
 import {
   Task,
   TaskPriority,
