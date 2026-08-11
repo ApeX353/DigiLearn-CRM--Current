@@ -1168,6 +1168,7 @@ export default function ViewDealDetailsPage() {
               leadId={deal.lead_id}
               isReadonly={isReadonly}
               composeType="call"
+              defaultAssigneeId={assignedUserId || undefined}
               onLogActivity={() => {
                 if (isReadonly) return;
                 setCreateActivityOpen(true);
@@ -1187,6 +1188,7 @@ export default function ViewDealDetailsPage() {
               leadId={deal.lead_id}
               isReadonly={isReadonly}
               composeType="note"
+              defaultAssigneeId={assignedUserId || undefined}
             />
           </TabsContent>
 

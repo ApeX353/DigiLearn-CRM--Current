@@ -82,6 +82,8 @@ interface EngagementWorkspaceProps {
   /** Prefilled onto the composer from the record's primary contact. */
   composeDefaultPhone?: string;
   composeDefaultEmail?: string;
+  /** ASGN2: the record owner — new activities default their assignee here. */
+  defaultAssigneeId?: string | null;
 }
 
 /** One rail, two kinds of entry. */
@@ -108,6 +110,7 @@ export function EngagementWorkspace({
   composeType = null,
   composeDefaultPhone,
   composeDefaultEmail,
+  defaultAssigneeId,
 }: EngagementWorkspaceProps) {
   const [composer, setComposer] = useState<ComposerType | null>(composeType);
   useEffect(() => setComposer(composeType), [composeType]);
@@ -356,12 +359,19 @@ export function EngagementWorkspace({
     setExpandedId((current) => (current === a.id ? null : a.id));
   }
 
+  // SCH-ACT1: activities belong to leads/deals. School (and contact)
+  // rollup pages get no inline composer — a composer there would create a
+  // parentless activity the rollup itself can never show (the feed joins
+  // through leads). Scheduling from a rollup goes through the modal, which
+  // makes the user pick one of the record's leads/deals first.
+  const canCompose = !isReadonly && !!(leadId || dealId);
+
   return (
     <div className="space-y-4">
       {/* Inline composer — opened by the record page's Note / Call /
           Email / … tabs, or by "Schedule next". Writing happens here in
           place; the log below is never filtered by it. */}
-      {composer && !isReadonly && (
+      {composer && canCompose && (
         <div className="mb-4">
           <ActivityComposer
             leadId={leadId}
@@ -373,6 +383,7 @@ export function EngagementWorkspace({
             onClose={() => setComposer(null)}
             defaultPhone={composeDefaultPhone}
             defaultEmail={composeDefaultEmail}
+            defaultAssigneeId={defaultAssigneeId}
           />
         </div>
       )}
@@ -397,16 +408,19 @@ export function EngagementWorkspace({
               Next step
             </h3>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={isReadonly}
-            onClick={() => setComposer("task")}
-            className="justify-self-stretch sm:justify-self-end"
-          >
-            <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
-            Schedule next
-          </Button>
+          {canCompose ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setComposer("task")}
+              className="justify-self-stretch sm:justify-self-end"
+            >
+              <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+              Schedule next
+            </Button>
+          ) : (
+            <span className="hidden sm:block" aria-hidden />
+          )}
         </div>
 
         {loadingOpen ? (

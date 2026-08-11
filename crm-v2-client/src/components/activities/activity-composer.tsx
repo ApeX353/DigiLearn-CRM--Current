@@ -90,6 +90,13 @@ interface ActivityComposerProps {
   /** Prefilled from the record's primary contact where available. */
   defaultPhone?: string;
   defaultEmail?: string;
+  /**
+   * ASGN2: the record owner's user id. New activities default their
+   * assignee to whoever the lead/deal belongs to — an admin logging on a
+   * rep's lead should not have to hunt them out of the full staff list
+   * (and forgetting left the work assigned to nobody).
+   */
+  defaultAssigneeId?: string | null;
 }
 
 /**
@@ -117,6 +124,7 @@ export function ActivityComposer({
   onCreated,
   defaultPhone,
   defaultEmail,
+  defaultAssigneeId,
 }: ActivityComposerProps) {
   const create = useCreateActivity();
   const { data: staffData } = useStaff({
@@ -157,7 +165,14 @@ export function ActivityComposer({
   const [body, setBody] = useState("");
   const [due, setDue] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("09:00");
-  const [assignee, setAssignee] = useState<string>("unassigned");
+  // ASGN2: default to the record's owner; the picker stays editable for
+  // deliberate handoffs.
+  const [assignee, setAssignee] = useState<string>(
+    defaultAssigneeId ?? "unassigned",
+  );
+  useEffect(() => {
+    setAssignee(defaultAssigneeId ?? "unassigned");
+  }, [defaultAssigneeId]);
   const [phone, setPhone] = useState(defaultPhone ?? "");
   const [recipients, setRecipients] = useState(defaultEmail ?? "");
   /** The contact the call/WhatsApp/email is with — chosen, never typed. */
@@ -191,6 +206,18 @@ export function ActivityComposer({
   };
 
   const submit = () => {
+    // SCH-ACT1: activities must belong to a lead or deal — the rule the old
+    // create modal enforced and the composer dropped. A parentless activity
+    // is orphaned (the Activity row has no school column), so it never shows
+    // on the school page it was logged from, and timelines/SLA/reports all
+    // miss it. School pages are a read-only rollup; log on the lead itself.
+    if (!leadId && !dealId) {
+      toast.error("Select a lead or deal first", {
+        description:
+          "Activities must belong to a CRM record so timelines, SLA, and reports stay in sync. Open one of this school's leads and log it there.",
+      });
+      return;
+    }
     // The editor leaves `<br>` and empty paragraphs behind after a select-all
     // delete, so emptiness is decided on the rendered text, not the markup.
     const bodyIsEmpty = supportsRichText

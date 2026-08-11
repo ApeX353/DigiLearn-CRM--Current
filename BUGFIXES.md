@@ -6,6 +6,63 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-11 — SCH-ACT1: logging an activity from a school page created an orphan that the page itself could never show
+
+**Severity:** High · **Area:** Activities / schools · **Status:** FIXED on `port-dube-github` (staging pending redeploy) · **Reported by:** prince (staging walkthrough of the Dube port)
+
+**Symptom.** On a school detail page you could open the new inline
+composer and save an activity even when the school had no lead. The
+activity saved "successfully" — and then never appeared anywhere on that
+school page.
+
+**Root cause.** Activities have no school column — they belong to leads
+(and deals/contacts); the school page's feed joins through
+`lead.school_id`. The OLD create modal enforced exactly this: "Select a
+lead or deal first — activities must belong to a CRM record so timelines,
+SLA, and reports stay in sync." The new inline composer that arrived with
+the Dube GitHub port has no such guard, so on school (and contact) pages
+it created a parentless activity — invisible to the page it was logged
+from, and outside every SLA/discipline metric. **A port regression**, not
+inherited behaviour.
+
+**Fix (client, two layers).** (1) `engagement-workspace.tsx`: the inline
+composer and the "Schedule next" button no longer render on rollup pages
+(no lead/deal in scope) — scheduling from a school goes through the
+modal, which makes the user pick one of the school's leads first, as
+before. (2) `activity-composer.tsx`: defence in depth — submit refuses
+when neither lead nor deal is in scope, with the old modal's wording.
+
+**Data impact.** Any orphan activities created from school pages since
+the port went to staging (2026-08-11) are reachable only from the global
+Activities page. None can exist on prod (the port never shipped there).
+Check staging with: activities where lead_id, deal_id and contact_id are
+all NULL, created after the staging deploy.
+
+---
+
+## 2026-08-11 — ASGN2: new-activity assignee ignored the record owner; admins had to pick from the full staff list
+
+**Severity:** Medium · **Area:** Activities · **Status:** FIXED on `port-dube-github` (staging pending redeploy) · **Reported by:** prince (staging walkthrough)
+
+**Symptom.** On a lead's activity composer the assignee dropdown listed
+every user in the system and started at "unassigned" — as admin you had
+to know and hunt out the owning rep for every activity, and forgetting
+left the follow-up assigned to nobody.
+
+**Root cause.** `activity-composer.tsx` hard-codes
+`useState("unassigned")`; nothing ever consulted the lead/deal owner.
+
+**Fix.** The composer takes a `defaultAssigneeId` and initialises the
+picker with it; lead and deal pages pass their record's owner through
+(`ActivitiesTab` / `DealActivitiesTab` → `EngagementWorkspace` →
+`ActivityComposer`). The picker stays editable for deliberate handoffs.
+
+**Data impact.** None retroactively — existing unassigned activities
+stay as they are (finding them: open activities with `assigned_to_id`
+NULL whose lead has an assignee).
+
+---
+
 ## 2026-08-05 — DEAL-GHOST1: a *failed* deal create still appears on the pipeline, with no reason shown
 
 **Severity:** High · **Area:** Deals / pipeline · **Status:** OPEN (discovered, fix pending) · **Reported by:** Mrs Mpofu (Manake's attempt)

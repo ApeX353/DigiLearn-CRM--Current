@@ -711,6 +711,7 @@ const ViewLead = ({ id }: { id: string }) => {
                   leadId={lead.id}
                   isReadonly={isReadonly}
                   composeType="call"
+                  defaultAssigneeId={lead.assignee?.id}
                 />
               </TabsContent>
 
@@ -725,6 +726,7 @@ const ViewLead = ({ id }: { id: string }) => {
                   leadId={lead.id}
                   isReadonly={isReadonly}
                   composeType="note"
+                  defaultAssigneeId={lead.assignee?.id}
                 />
               </TabsContent>
 

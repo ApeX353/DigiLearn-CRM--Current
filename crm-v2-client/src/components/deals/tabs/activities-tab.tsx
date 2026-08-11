@@ -27,6 +27,8 @@ interface DealActivitiesTabProps {
   hideFilterBar?: boolean;
   /** Open the inline composer on this type (Note / Call / Email tabs). */
   composeType?: ComposerType | null;
+  /** ASGN2: the deal owner — new activities default their assignee here. */
+  defaultAssigneeId?: string | null;
 }
 
 export function DealActivitiesTab({
@@ -36,6 +38,7 @@ export function DealActivitiesTab({
   initialFilter,
   hideFilterBar,
   composeType = null,
+  defaultAssigneeId,
 }: DealActivitiesTabProps) {
   // Prefer dealId scope on the workspace so the API filter narrows on
   // deal_id; we still pass leadId so the planned/done feed surfaces
@@ -50,6 +53,7 @@ export function DealActivitiesTab({
       initialFilter={initialFilter}
       hideFilterBar={hideFilterBar}
       composeType={composeType}
+      defaultAssigneeId={defaultAssigneeId}
     />
   );
 }

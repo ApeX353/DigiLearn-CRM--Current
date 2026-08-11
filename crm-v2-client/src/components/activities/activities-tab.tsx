@@ -32,6 +32,8 @@ interface ActivitiesTabProps {
    * Email / WhatsApp tabs, which compose rather than filter.
    */
   composeType?: ComposerType | null;
+  /** ASGN2: the record owner — new activities default their assignee here. */
+  defaultAssigneeId?: string | null;
 }
 
 export function ActivitiesTab({
@@ -46,6 +48,7 @@ export function ActivitiesTab({
   initialFilter,
   hideFilterBar,
   composeType = null,
+  defaultAssigneeId,
 }: ActivitiesTabProps) {
   void _leadIdFromDeal;
   return (
@@ -57,6 +60,7 @@ export function ActivitiesTab({
       initialFilter={initialFilter}
       hideFilterBar={hideFilterBar}
       composeType={composeType}
+      defaultAssigneeId={defaultAssigneeId}
     />
   );
 }
