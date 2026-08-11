@@ -25,6 +25,18 @@ export class Product {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
+  /** Catalogue code, e.g. DLR-E-Y1. Unique when present; legacy rows stay NULL. */
+  @Column({ type: 'varchar', length: 64, nullable: true, unique: true })
+  sku: string | null;
+
+  /**
+   * Sales description — prefills document line items when the product is
+   * selected. PROD-BOARD rule: document_items snapshot this as text, so a
+   * later edit rewrites Draft lines only, never issued documents.
+   */
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   category: string | null;
 

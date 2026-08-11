@@ -197,7 +197,28 @@ export class SchoolsService {
       queryBuilder.andWhere('school.region = :region', { region });
     }
 
-    queryBuilder.orderBy('school.created_at', 'DESC');
+    // S5 (DUBE-GITHUB-PORT.md): the schools list doubles as the rep's
+    // worklist — a school with live (non-terminal) leads but NOTHING open
+    // scheduled anywhere under it is exactly the one being forgotten, so it
+    // ranks first. The same expression is stamped onto each returned row as
+    // `is_idle` (second query on just the page's ids — paginate() drops raw
+    // addSelect values, so the flag can't ride along in one query).
+    const IDLE_SQL = (alias: string) =>
+      `(EXISTS (
+          SELECT 1 FROM leads l
+          WHERE l.school_id = ${alias}.id
+            AND l.deleted_at IS NULL
+            AND l.status NOT IN ('Disqualified', 'Converted')
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM activities a
+          JOIN leads l2 ON a.lead_id = l2.id
+          WHERE l2.school_id = ${alias}.id
+            AND a.status NOT IN ('completed', 'cancelled')
+        ))`;
+    queryBuilder.addSelect(IDLE_SQL('school'), 'school_is_idle');
+    queryBuilder.orderBy('school_is_idle', 'DESC');
+    queryBuilder.addOrderBy('school.created_at', 'DESC');
     queryBuilder.addOrderBy('school.id', 'DESC'); // API2: deterministic tiebreaker
 
     const options: IPaginationOptions = {
@@ -205,7 +226,19 @@ export class SchoolsService {
       limit: parseInt(limit, 10),
     };
 
-    return paginate<School>(queryBuilder, options);
+    const result = await paginate<School>(queryBuilder, options);
+    const ids = result.items.map((s) => s.id);
+    if (ids.length) {
+      const idleRows: Array<{ id: string }> = await this.schoolRepository.query(
+        `SELECT s.id FROM schools s WHERE s.id = ANY($1::uuid[]) AND ${IDLE_SQL('s')}`,
+        [ids],
+      );
+      const idle = new Set(idleRows.map((r) => r.id));
+      for (const s of result.items) {
+        (s as School & { is_idle?: boolean }).is_idle = idle.has(s.id);
+      }
+    }
+    return result;
   }
 
   async findOne(id: string): Promise<School> {

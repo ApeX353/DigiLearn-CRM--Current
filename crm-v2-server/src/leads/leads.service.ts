@@ -723,7 +723,10 @@ export class LeadsService {
   async findOne(id: string, ability?: AppAbility): Promise<Lead> {
     const lead = await this.leadRepository.findOne({
       where: { id },
-      relations: ['school', 'primary_contact', 'assignee', 'stage'],
+      // S4: `deals` rides only on the DETAIL endpoint — a Converted lead's
+      // page links to the deal it became instead of offering to convert
+      // again. The list endpoint stays lean.
+      relations: ['school', 'primary_contact', 'assignee', 'stage', 'deals'],
     });
 
     if (!lead) {

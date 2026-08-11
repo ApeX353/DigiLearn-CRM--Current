@@ -24,6 +24,24 @@ export class CreateProductDto {
   @MaxLength(255)
   name: string;
 
+  @ApiPropertyOptional({
+    example: 'DLR-E-Y1',
+    maxLength: 64,
+    description: 'Catalogue code. Unique when present.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  sku?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Sales description — prefills document line items when the product is selected (Draft lines only).',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @ApiPropertyOptional({ example: 'Software', maxLength: 100 })
   @IsOptional()
   @IsString()

@@ -64,7 +64,7 @@ export class ProductsService {
 
     if (search) {
       queryBuilder.andWhere(
-        '(product.name LIKE :search OR product.category LIKE :search)',
+        '(product.name LIKE :search OR product.category LIKE :search OR product.sku LIKE :search)',
         { search: `%${search}%` },
       );
     }
