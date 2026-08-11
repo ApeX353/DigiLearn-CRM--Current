@@ -124,6 +124,37 @@ export class DuplicatesController {
     };
   }
 
+  @Post('scan')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary:
+      'S2: sweep EXISTING leads/schools/contacts for duplicate pairs and add new ones to the queue (synchronous; reviewed pairs are never re-flagged)',
+  })
+  async scan(
+    @Body() body: { record_types?: DuplicateRecordType[] } | undefined,
+    @Req() req: any,
+  ) {
+    const userId = req?.user?.id ?? req?.user?.sub;
+    const data = await this.service.scanAll(body?.record_types, userId);
+    return { success: true, data };
+  }
+
+  @Post(':id/merge')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({
+    summary:
+      'S2: execute a school/contact merge — re-point children onto the existing record, soft-delete the duplicate (leads use the lead-merge panel instead)',
+  })
+  async merge(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { note?: string | null } | undefined,
+    @Req() req: any,
+  ) {
+    const userId = req?.user?.id ?? req?.user?.sub;
+    const data = await this.service.mergeSuspicion(id, userId, body?.note);
+    return { success: true, data };
+  }
+
   @Get()
   @Roles('admin', 'sales_manager')
   @ApiOperation({ summary: 'Manager queue of pending duplicate suspicions' })

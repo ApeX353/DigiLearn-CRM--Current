@@ -1,9 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Lead } from '../entities/lead.entity';
+import { LeadStakeholder } from '../entities/lead-stakeholders.entity';
 import { School } from '../../schools/entities/schools.entity';
 import { Contact } from '../../contacts/entities/contact.entity';
+import { Deal } from '../../deals/entities/deal.entity';
+import { Quote } from '../../quotes/entities/quote.entity';
+import { Invoice } from '../../invoices/entities/invoice.entity';
+import { Activity } from '../../activities/entities/activity.entity';
+import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
 import {
   DuplicateSuspicion,
   type DuplicateSignal,
@@ -106,6 +112,8 @@ export class DuplicateDetectionService {
     private readonly contactRepo: Repository<Contact>,
     @InjectRepository(DuplicateSuspicion)
     private readonly dupRepo: Repository<DuplicateSuspicion>,
+    private readonly dataSource: DataSource,
+    private readonly activityLogsService: ActivityLogsService,
   ) {}
 
   // ==============================================================
@@ -493,6 +501,11 @@ export class DuplicateDetectionService {
    * DUP-NAMES (Mr Dube): the queue stores only record UUIDs, so it rendered
    * database codes. Resolve each suspicion's new/existing record id to a
    * human name (lead / school / contact) so the UI shows actual names.
+   *
+   * S2a extends this with label + sublabel pairs (the ported queue cards
+   * render "name · context"): school → city, province; lead → its school's
+   * name; contact → role · school name. `*_record_name` is kept for
+   * backward compatibility — label always equals name.
    */
   private async attachRecordNames(rows: DuplicateSuspicion[]) {
     const byType: Record<DuplicateRecordType, Set<string>> = {
@@ -505,38 +518,76 @@ export class DuplicateDetectionService {
       byType[r.record_type].add(r.existing_record_id);
     }
     const names = new Map<string, string>();
+    const sublabels = new Map<string, string | null>();
+    // School names double as lead/contact sublabels — resolved in one batch.
+    const schoolNameIds = new Set<string>();
+    const pendingSchoolSublabel: Array<{ id: string; school_id: string }> = [];
+
     if (byType.lead.size) {
       const leads = await this.leadRepo.find({
         where: { id: In([...byType.lead]) },
-        select: ['id', 'lead_name'],
+        select: ['id', 'lead_name', 'school_id'],
       });
-      for (const l of leads)
+      for (const l of leads) {
         names.set(l.id, l.lead_name?.trim() || '(unnamed lead)');
+        if (l.school_id) {
+          schoolNameIds.add(l.school_id);
+          pendingSchoolSublabel.push({ id: l.id, school_id: l.school_id });
+        }
+      }
     }
     if (byType.school.size) {
       const schools = await this.schoolRepo.find({
         where: { id: In([...byType.school]) },
-        select: ['id', 'name'],
+        select: ['id', 'name', 'city', 'province'],
       });
-      for (const s of schools)
+      for (const s of schools) {
         names.set(s.id, s.name?.trim() || '(unnamed school)');
+        const where = [s.city?.trim(), s.province?.trim()]
+          .filter(Boolean)
+          .join(', ');
+        sublabels.set(s.id, where || null);
+      }
     }
     if (byType.contact.size) {
       const contacts = await this.contactRepo.find({
         where: { id: In([...byType.contact]) },
-        select: ['id', 'first_name', 'last_name'],
+        select: ['id', 'first_name', 'last_name', 'role', 'school_id'],
       });
-      for (const c of contacts)
+      for (const c of contacts) {
         names.set(
           c.id,
           `${c.first_name ?? ''} ${c.last_name ?? ''}`.trim() ||
             '(unnamed contact)',
         );
+        if (c.role) sublabels.set(c.id, String(c.role));
+        if (c.school_id) {
+          schoolNameIds.add(c.school_id);
+          pendingSchoolSublabel.push({ id: c.id, school_id: c.school_id });
+        }
+      }
+    }
+    if (schoolNameIds.size) {
+      const schools = await this.schoolRepo.find({
+        where: { id: In([...schoolNameIds]) },
+        select: ['id', 'name'],
+      });
+      const schoolNames = new Map(schools.map((s) => [s.id, s.name?.trim()]));
+      for (const p of pendingSchoolSublabel) {
+        const school = schoolNames.get(p.school_id);
+        if (!school) continue;
+        const existing = sublabels.get(p.id);
+        sublabels.set(p.id, existing ? `${existing} · ${school}` : school);
+      }
     }
     return rows.map((r) => ({
       ...r,
       new_record_name: names.get(r.new_record_id) ?? null,
       existing_record_name: names.get(r.existing_record_id) ?? null,
+      new_record_label: names.get(r.new_record_id) ?? null,
+      new_record_sublabel: sublabels.get(r.new_record_id) ?? null,
+      existing_record_label: names.get(r.existing_record_id) ?? null,
+      existing_record_sublabel: sublabels.get(r.existing_record_id) ?? null,
     }));
   }
 
@@ -553,5 +604,316 @@ export class DuplicateDetectionService {
     row.reviewed_at = new Date();
     row.review_note = note ?? null;
     return this.dupRepo.save(row);
+  }
+
+  /**
+   * S2b — sweep the EXISTING book (leads, schools, contacts) for duplicate
+   * pairs that predate the entry-time guard and record any NEW pairs as
+   * pending suspicions. Unlike rebuildLeadSuspicions this never purges, and
+   * a pair that already has a suspicion in ANY status (either direction) is
+   * skipped — a manager's kept_separate / false_positive ruling is never
+   * re-litigated by a re-run. Synchronous by design: the button shows a
+   * spinner and reports "N new duplicates found".
+   */
+  async scanAll(
+    recordTypes?: DuplicateRecordType[],
+    raisedById?: string | null,
+  ): Promise<{
+    created: number;
+    by_type: Record<
+      DuplicateRecordType,
+      { flagged: number; created: number; already_known: number }
+    >;
+  }> {
+    const wanted = new Set<DuplicateRecordType>(
+      recordTypes?.length ? recordTypes : ['lead', 'school', 'contact'],
+    );
+    const by_type = {
+      lead: { flagged: 0, created: 0, already_known: 0 },
+      school: { flagged: 0, created: 0, already_known: 0 },
+      contact: { flagged: 0, created: 0, already_known: 0 },
+    };
+
+    const pairKnown = async (
+      type: DuplicateRecordType,
+      a: string,
+      b: string,
+    ): Promise<boolean> =>
+      !!(await this.dupRepo.findOne({
+        where: [
+          { record_type: type, new_record_id: a, existing_record_id: b },
+          { record_type: type, new_record_id: b, existing_record_id: a },
+        ],
+      }));
+
+    // Each sweep mirrors rebuildLeadSuspicions: strongest candidate only,
+    // one row per pair (higher id plays the "new" duplicate), best-effort
+    // per record so one bad row never aborts the sweep.
+    if (wanted.has('lead')) {
+      const leads = await this.leadRepo
+        .createQueryBuilder('l')
+        .leftJoinAndSelect('l.primary_contact', 'pc')
+        .where('l.deleted_at IS NULL')
+        .getMany();
+      for (const lead of leads) {
+        try {
+          const pc = (
+            lead as { primary_contact?: { phone?: string; email?: string } }
+          ).primary_contact;
+          const candidates = await this.peekLead({
+            lead_name: lead.lead_name,
+            school_id: lead.school_id,
+            primary_contact_id: lead.primary_contact_id,
+            phone: pc?.phone ?? null,
+            email: pc?.email ?? null,
+          });
+          const top = candidates.find((c) => c.record.id !== lead.id);
+          if (!top || lead.id <= top.record.id) continue;
+          by_type.lead.flagged += 1;
+          if (await pairKnown('lead', lead.id, top.record.id)) {
+            by_type.lead.already_known += 1;
+            continue;
+          }
+          await this.recordSuspicion({
+            record_type: 'lead',
+            new_record_id: lead.id,
+            existing_record_id: top.record.id,
+            score: top.score,
+            signals: top.signals,
+            raised_by_id: raisedById ?? null,
+          });
+          by_type.lead.created += 1;
+        } catch {
+          // best-effort per lead
+        }
+      }
+    }
+
+    if (wanted.has('school')) {
+      const schools = await this.schoolRepo.find();
+      for (const school of schools) {
+        try {
+          const candidates = await this.peekSchool({
+            name: school.name,
+            city: school.city,
+            district: school.district,
+            province: school.province,
+          });
+          const top = candidates.find((c) => c.record.id !== school.id);
+          if (!top || school.id <= top.record.id) continue;
+          by_type.school.flagged += 1;
+          if (await pairKnown('school', school.id, top.record.id)) {
+            by_type.school.already_known += 1;
+            continue;
+          }
+          await this.recordSuspicion({
+            record_type: 'school',
+            new_record_id: school.id,
+            existing_record_id: top.record.id,
+            score: top.score,
+            signals: top.signals,
+            raised_by_id: raisedById ?? null,
+          });
+          by_type.school.created += 1;
+        } catch {
+          // best-effort per school
+        }
+      }
+    }
+
+    if (wanted.has('contact')) {
+      const contacts = await this.contactRepo.find();
+      for (const contact of contacts) {
+        try {
+          const candidates = await this.peekContact({
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            phone: contact.phone,
+            email: contact.email,
+            school_id: contact.school_id,
+          });
+          const top = candidates.find((c) => c.record.id !== contact.id);
+          if (!top || contact.id <= top.record.id) continue;
+          by_type.contact.flagged += 1;
+          if (await pairKnown('contact', contact.id, top.record.id)) {
+            by_type.contact.already_known += 1;
+            continue;
+          }
+          await this.recordSuspicion({
+            record_type: 'contact',
+            new_record_id: contact.id,
+            existing_record_id: top.record.id,
+            score: top.score,
+            signals: top.signals,
+            raised_by_id: raisedById ?? null,
+          });
+          by_type.contact.created += 1;
+        } catch {
+          // best-effort per contact
+        }
+      }
+    }
+
+    const created =
+      by_type.lead.created + by_type.school.created + by_type.contact.created;
+    this.logger.log(
+      `[S2 scan] created ${created} suspicions ` +
+        `(lead ${by_type.lead.created}/${by_type.lead.flagged}, ` +
+        `school ${by_type.school.created}/${by_type.school.flagged}, ` +
+        `contact ${by_type.contact.created}/${by_type.contact.flagged})`,
+    );
+    return { created, by_type };
+  }
+
+  /**
+   * S2c — EXECUTE a school/contact merge: re-point everything attached to
+   * the duplicate (the suspicion's NEW record) onto the surviving EXISTING
+   * record, soft-delete the duplicate, and mark the suspicion merged — all
+   * in one transaction. Reversible by an admin (the loser is soft-deleted,
+   * not destroyed).
+   *
+   * Leads are refused here on purpose: lead merges go through
+   * LeadsService.mergeLeads (DUP2), where a manager chooses the survivor
+   * and fields are fused — this endpoint's fixed new→existing direction
+   * would silently discard that choice.
+   */
+  async mergeSuspicion(id: string, deciderId: string, note?: string | null) {
+    const row = await this.dupRepo.findOneOrFail({ where: { id } });
+    if (row.record_type === 'lead') {
+      throw new BadRequestException(
+        'Lead duplicates merge through the lead merge panel (survivor choice) — not this endpoint',
+      );
+    }
+    if (row.status !== 'pending') {
+      throw new BadRequestException(`Suspicion is already ${row.status}`);
+    }
+    const winnerId = row.existing_record_id;
+    const loserId = row.new_record_id;
+    const repo =
+      row.record_type === 'school' ? this.schoolRepo : this.contactRepo;
+    const [winner, loser] = await Promise.all([
+      repo.findOne({ where: { id: winnerId } }),
+      repo.findOne({ where: { id: loserId } }),
+    ]);
+    if (!winner || !loser) {
+      throw new BadRequestException(
+        `The ${row.record_type} to ${winner ? 'merge away' : 'keep'} no longer exists — keep both or mark this a false positive instead`,
+      );
+    }
+
+    const moved: { table: string; column: string; moved: number }[] = [];
+    await this.dataSource.transaction(async (mgr) => {
+      if (row.record_type === 'school') {
+        const targets: Array<{
+          table: string;
+          entity: Parameters<typeof mgr.getRepository>[0];
+        }> = [
+          { table: 'leads', entity: Lead },
+          { table: 'contacts', entity: Contact },
+          { table: 'deals', entity: Deal },
+          { table: 'quotes', entity: Quote },
+          { table: 'invoices', entity: Invoice },
+        ];
+        for (const t of targets) {
+          const res = await mgr
+            .getRepository(t.entity)
+            .update({ school_id: loserId } as any, {
+              school_id: winnerId,
+            } as any);
+          if (res.affected) {
+            moved.push({
+              table: t.table,
+              column: 'school_id',
+              moved: res.affected,
+            });
+          }
+        }
+        await mgr.getRepository(School).softDelete(loserId);
+      } else {
+        const acts = await mgr
+          .getRepository(Activity)
+          .update({ contact_id: loserId }, { contact_id: winnerId });
+        if (acts.affected) {
+          moved.push({
+            table: 'activities',
+            column: 'contact_id',
+            moved: acts.affected,
+          });
+        }
+        const primaries = await mgr
+          .getRepository(Lead)
+          .update(
+            { primary_contact_id: loserId } as any,
+            { primary_contact_id: winnerId } as any,
+          );
+        if (primaries.affected) {
+          moved.push({
+            table: 'leads',
+            column: 'primary_contact_id',
+            moved: primaries.affected,
+          });
+        }
+        // Stakeholder rows are unique per (lead_id, contact_id): re-point
+        // only where the winner isn't already a stakeholder on that lead,
+        // then drop the loser's now-redundant rows.
+        const stakeholders = await mgr
+          .createQueryBuilder()
+          .update(LeadStakeholder)
+          .set({ contact_id: winnerId })
+          .where(
+            `contact_id = :loserId AND lead_id NOT IN (SELECT lead_id FROM lead_stakeholders WHERE contact_id = :winnerId)`,
+            { loserId, winnerId },
+          )
+          .execute();
+        if (stakeholders.affected) {
+          moved.push({
+            table: 'lead_stakeholders',
+            column: 'contact_id',
+            moved: stakeholders.affected,
+          });
+        }
+        await mgr
+          .createQueryBuilder()
+          .delete()
+          .from(LeadStakeholder)
+          .where('contact_id = :loserId', { loserId })
+          .execute();
+        await mgr.getRepository(Contact).softDelete(loserId);
+      }
+
+      row.status = 'merged';
+      row.reviewed_by_id = deciderId;
+      row.reviewed_at = new Date();
+      row.review_note = note ?? null;
+      await mgr.getRepository(DuplicateSuspicion).save(row);
+    });
+
+    // Audit both sides. Failure never unwinds a completed merge.
+    try {
+      const entityLabel = row.record_type === 'school' ? 'School' : 'Contact';
+      await this.activityLogsService.logUpdate(
+        entityLabel,
+        winnerId,
+        { merged_from: null },
+        { merged_from: loserId },
+        deciderId,
+        `Duplicate ${row.record_type} merged in: ${moved
+          .map((m) => `${m.moved} ${m.table}`)
+          .join(', ') || 'no child records'} moved from ${loserId}`,
+      );
+      await this.activityLogsService.logDelete(
+        entityLabel,
+        loserId,
+        loser,
+        deciderId,
+      );
+    } catch {
+      // audit is best-effort
+    }
+
+    return {
+      suspicion: row,
+      merged: { winner_id: winnerId, loser_id: loserId, moved },
+    };
   }
 }
