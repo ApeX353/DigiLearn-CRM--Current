@@ -384,9 +384,6 @@ CREATE TABLE nash_full_undo_contacts AS
 UPDATE leads    SET deleted_at = NOW() WHERE id IN (SELECT id FROM nash_full_undo_leads);
 UPDATE contacts SET deleted_at = NOW() WHERE id IN (SELECT id FROM nash_full_undo_contacts);
 UPDATE schools  SET deleted_at = NOW() WHERE id IN (SELECT id FROM nash_full_undo_schools);
--- retire any auto-assign proposals pointing at the purged leads
-UPDATE lead_assignment_proposals SET status = 'superseded', decided_at = NOW()
-  WHERE status IN ('pending','rejected') AND lead_id IN (SELECT id FROM nash_full_undo_leads);
 SELECT (SELECT COUNT(*) FROM nash_full_undo_schools) AS schools_removed,
        (SELECT COUNT(*) FROM nash_full_undo_leads)   AS leads_removed,
        (SELECT COUNT(*) FROM nash_full_undo_contacts) AS contacts_removed;
