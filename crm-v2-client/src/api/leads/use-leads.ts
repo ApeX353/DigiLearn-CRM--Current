@@ -27,6 +27,7 @@ type LeadsListParams = PaginationParams & {
   search?: string;
   source?: LeadSource;
   school_id?: string;
+  active?: boolean;
 };
 
 // Query keys

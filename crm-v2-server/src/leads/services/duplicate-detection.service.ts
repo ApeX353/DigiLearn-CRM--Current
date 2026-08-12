@@ -10,6 +10,7 @@ import { Quote } from '../../quotes/entities/quote.entity';
 import { Invoice } from '../../invoices/entities/invoice.entity';
 import { Activity } from '../../activities/entities/activity.entity';
 import { ActivityLogsService } from '../../activity-logs/activity-logs.service';
+import { CustomerIdentityService } from '../../contacts/services/customer-identity.service';
 import {
   DuplicateSuspicion,
   type DuplicateSignal,
@@ -67,7 +68,12 @@ function normPhone(s?: string | null): string {
 // STAFF email is not a client identifier — exclude these domains from the
 // email-match signal. (Kept as a constant for now; move to a compliance
 // setting if more internal domains appear.)
-const INTERNAL_EMAIL_DOMAINS = ['clearhue.co.zw'];
+const INTERNAL_EMAIL_DOMAINS = [
+  'cleahue.co.zw',
+  'cleahue.com',
+  'clearhue.co.zw',
+  'clearhue.com',
+];
 function isInternalEmail(e?: string | null): boolean {
   const domain = norm(e).split('@')[1];
   return !!domain && INTERNAL_EMAIL_DOMAINS.includes(domain);
@@ -114,6 +120,7 @@ export class DuplicateDetectionService {
     private readonly dupRepo: Repository<DuplicateSuspicion>,
     private readonly dataSource: DataSource,
     private readonly activityLogsService: ActivityLogsService,
+    private readonly customerIdentity: CustomerIdentityService,
   ) {}
 
   // ==============================================================
@@ -153,7 +160,10 @@ export class DuplicateDetectionService {
       where.push("REGEXP_REPLACE(COALESCE(contact.phone, ''), '\\D+', '', 'g') = :ph");
       params.ph = normPhone(input.phone);
     }
-    const inputClientEmail = clientEmail(input.email);
+    const inputClientEmail =
+      input.email && !(await this.customerIdentity.isActiveStaffEmail(input.email))
+        ? clientEmail(input.email)
+        : null;
     if (inputClientEmail) {
       where.push('LOWER(contact.email) = :em');
       params.em = inputClientEmail;
@@ -315,12 +325,19 @@ export class DuplicateDetectionService {
       where.push("REGEXP_REPLACE(COALESCE(c.phone, ''), '\\D+', '', 'g') = :ph");
       params.ph = normPhone(input.phone);
     }
-    const inputClientEmail = clientEmail(input.email);
+    const inputClientEmail =
+      input.email && !(await this.customerIdentity.isActiveStaffEmail(input.email))
+        ? clientEmail(input.email)
+        : null;
     if (inputClientEmail) {
       where.push('LOWER(c.email) = :em');
       params.em = inputClientEmail;
     }
-    if (input.first_name && input.last_name) {
+    const inputStaffName = await this.customerIdentity.isActiveStaffName(
+      input.first_name,
+      input.last_name,
+    );
+    if (input.first_name && input.last_name && !inputStaffName) {
       where.push(
         '(LOWER(c.first_name) = :fn AND LOWER(c.last_name) = :ln)',
       );
@@ -354,6 +371,7 @@ export class DuplicateDetectionService {
           score += 55;
         }
         if (
+          !inputStaffName &&
           input.first_name &&
           input.last_name &&
           norm(row.first_name) === norm(input.first_name) &&

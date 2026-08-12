@@ -36,14 +36,12 @@ import {
   DISQUALIFY_REASONS,
   ADMIN_DISQUALIFY_REASONS,
   TACTICAL_DISQUALIFY_REASONS,
-  disqualifyCategory,
 } from "~/api/leads";
-import { AlertTriangle } from "lucide-react";
 import { Input } from "~/components/ui/input";
 
 const disqualifySchema = z.object({
   reason: z.enum(DISQUALIFY_REASONS),
-  notes: z.string().optional(),
+  notes: z.string().trim().min(10, "Explain why in at least 10 characters"),
   other_value: z.string().optional(),
 });
 
@@ -66,30 +64,14 @@ export function DisqualifyLeadDialog({ lead }: DisqualifyLeadDialogProps) {
     },
   });
 
-  const selectedReason = form.watch("reason");
-  const category = disqualifyCategory(selectedReason);
-  // Admin reasons (duplicate, wrong contact, closed school, spam, etc.)
-  // go straight through. Tactical reasons (no budget, not interested,
-  // rep not progressing, etc.) force the rep into the reassignment /
-  // escalation path — the submit button is disabled and the dialog
-  // shows an explanatory banner with a link to the correct flow.
-  const requiresManagerReview =
-    category === "tactical" || category === "other";
-
   const onSubmit = (values: DisqualifyFormValues) => {
-    if (disqualifyCategory(values.reason) !== "admin") {
-      toast.error(
-        "This reason requires manager review — use Request Reassignment or escalate first.",
-      );
-      return;
-    }
     updateLead.mutate(
       {
         id: lead.id,
         data: {
           status: "Disqualified",
           disqualify_reason: values.reason,
-          notes: values.notes || lead.notes,
+          disqualification_note: values.notes.trim(),
           other_value: values.other_value,
         } as any,
       },
@@ -155,7 +137,7 @@ export function DisqualifyLeadDialog({ lead }: DisqualifyLeadDialogProps) {
                         </SelectItem>
                       ))}
                       <div className="mt-1 px-2 pt-1.5 pb-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                        Commercial / Tactical (needs manager review)
+                        Commercial / Tactical
                       </div>
                       {TACTICAL_DISQUALIFY_REASONS.map((reason) => (
                         <SelectItem key={reason} value={reason}>
@@ -194,31 +176,15 @@ export function DisqualifyLeadDialog({ lead }: DisqualifyLeadDialogProps) {
               />
             )}
 
-            {requiresManagerReview && selectedReason && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-medium">Manager review required</p>
-                  <p>
-                    Tactical reasons (no budget, not interested, no
-                    response, etc.) aren't a direct disqualification.
-                    Use <strong>Request Reassignment</strong> on the
-                    lead page so the manager can coach, reassign,
-                    co-own, or approve the disqualification path.
-                  </p>
-                </div>
-              </div>
-            )}
-
             <FormField
               control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel>Explanation *</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Add any relevant notes..."
+                      placeholder="What happened and why this lead should be disqualified"
                       rows={3}
                       {...field}
                     />
@@ -239,12 +205,7 @@ export function DisqualifyLeadDialog({ lead }: DisqualifyLeadDialogProps) {
               <Button
                 type="submit"
                 variant="destructive"
-                disabled={updateLead.isPending || requiresManagerReview}
-                title={
-                  requiresManagerReview
-                    ? "This reason requires manager review — use Request Reassignment"
-                    : undefined
-                }
+                disabled={updateLead.isPending}
               >
                 {updateLead.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

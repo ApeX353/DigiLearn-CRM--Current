@@ -41,13 +41,32 @@ export interface Contact {
   school: School;
 }
 
+const customerEmailSchema = z
+  .email("Invalid email")
+  .or(z.literal(""))
+  .optional()
+  .refine((value) => {
+    if (!value) return true;
+    const normalized = value.trim().toLowerCase();
+    const domain = normalized.split("@")[1];
+    return (
+      normalized !== "digilearnadmin@gmail.com" &&
+      ![
+        "cleahue.co.zw",
+        "cleahue.com",
+        "clearhue.co.zw",
+        "clearhue.com",
+      ].includes(domain)
+    );
+  }, "Enter the customer's email, not a DigiLearn/Clearhue staff address");
+
 export const createContactSchema = z.object({
   id: z.string().optional(),
   contact_id: z.string().optional(),
   title: z.string().optional(),
   first_name: z.string().min(2, "First name is required"),
   last_name: z.string().min(2, "Last name is required"),
-  email: z.email("Invalid email").optional(),
+  email: customerEmailSchema,
   phone: z.string().optional(),
   secondary_phone: z.string().optional(),
   whatsapp_number: z.string().optional(),

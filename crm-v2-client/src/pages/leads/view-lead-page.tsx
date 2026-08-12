@@ -61,6 +61,14 @@ import { useAnyRole } from "~/hooks/use-permission";
 import { AssignLeadsDialog } from "~/components/leads/assign-leads-dialog";
 import { useAuthStore } from "~/stores/use-auth-store";
 import { useLeadReversalRequests } from "~/api/lead-reversal-requests";
+import { leadStatuses } from "~/data";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 
 const formatOptionalDateTime = (value?: string | null, fallback = "--") => {
   if (!value) return fallback;
@@ -80,6 +88,19 @@ const formatReversalRequester = (request?: {
   const fullName =
     `${request.requested_by.first_name || ""} ${request.requested_by.last_name || ""}`.trim();
   return fullName || request.requested_by.email || "--";
+};
+
+const formatReversalReviewer = (request?: {
+  reviewed_by?: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+  } | null;
+} | null) => {
+  if (!request?.reviewed_by) return "Legacy / not recorded";
+  const fullName =
+    `${request.reviewed_by.first_name || ""} ${request.reviewed_by.last_name || ""}`.trim();
+  return fullName || request.reviewed_by.email || "Legacy / not recorded";
 };
 
 export default function ViewLeadPage() {
@@ -135,6 +156,7 @@ const ViewLead = ({ id }: { id: string }) => {
   // Phase C.1 — rep-side request dialogs.
   const [requestTacticalOpen, setRequestTacticalOpen] = useState(false);
   const [requestReassignOpen, setRequestReassignOpen] = useState(false);
+  const [statusDetailOpen, setStatusDetailOpen] = useState(false);
 
   const { data: leadData, isLoading, error } = useLead(id);
   const lead = leadData?.data;
@@ -155,7 +177,7 @@ const ViewLead = ({ id }: { id: string }) => {
   const { data: escalations = [] } = useLeadEscalations(id);
   const hasOpenEscalation = escalations.some((e) => !e.resolved_at);
 
-  const { isLoading: isLoadingActivityLogs } = useActivities({
+  const { data: activityLogsData, isLoading: isLoadingActivityLogs } = useActivities({
     page: 1,
     limit: 20,
     entity_id: id,
@@ -167,6 +189,16 @@ const ViewLead = ({ id }: { id: string }) => {
     lead_id: id,
   });
   const activities = activitiesData?.data ?? [];
+  const disqualificationTransition = activityLogsData?.data?.find(
+    (log) =>
+      log.new_values?.status === "Disqualified" ||
+      log.summary?.includes("to Disqualified"),
+  );
+  const disqualificationActor = disqualificationTransition?.user;
+  const disqualificationActorName = disqualificationActor
+    ? `${disqualificationActor.first_name || ""} ${disqualificationActor.last_name || ""}`.trim() ||
+      disqualificationActor.email
+    : "Legacy / not recorded";
 
   const { data: qualificationData } = useLeadQualification(id);
   const qualification = qualificationData?.data;
@@ -232,6 +264,10 @@ const ViewLead = ({ id }: { id: string }) => {
 
   const pendingReversalRequest =
     reversalRequests.find((request) => request.status === "pending") || null;
+  const disqualificationDecision = reversalRequests.find(
+    (request) =>
+      request.kind === "tactical_disqualify" && request.status === "approved",
+  );
   // UX fix: a rep needs to know which kind of approval is in flight so
   // they don't keep submitting duplicates or wonder why they can't
   // disqualify / reassign. Surface kind-aware "Awaiting" badges.
@@ -358,11 +394,31 @@ const ViewLead = ({ id }: { id: string }) => {
         // PulsingAlert right above LeadAtAGlance. Duplicating them
         // above the workspace violated LEFT=context / RIGHT=work.
         title={
-          <span
-            className="font-semibold text-xl tracking-tight truncate"
-            title={lead.lead_name}
-          >
-            {lead.lead_name}
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className="font-semibold text-xl tracking-tight truncate"
+              title={lead.lead_name}
+            >
+              {lead.lead_name}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                lead.status === "Disqualified" && setStatusDetailOpen(true)
+              }
+              className={lead.status === "Disqualified" ? "cursor-pointer" : "cursor-default"}
+              aria-label={
+                lead.status === "Disqualified"
+                  ? "View disqualification details"
+                  : `Lead status: ${lead.status}`
+              }
+            >
+              <Badge
+                className={`${leadStatuses.find((item) => item.name === lead.status)?.color ?? "bg-slate-500"} text-white`}
+              >
+                {lead.status}
+              </Badge>
+            </button>
           </span>
         }
         actions={
@@ -536,7 +592,7 @@ const ViewLead = ({ id }: { id: string }) => {
 
                   {showQualify && <QualifyLeadDialog lead={lead} />}
 
-                  {showDisqualify && (
+                  {showDisqualify && canAdminOrSalesManager && (
                     <DisqualifyLeadDialog
                       // open={disqualifyOpen}
                       //onOpenChange={setDisqualifyOpen}
@@ -824,6 +880,26 @@ const ViewLead = ({ id }: { id: string }) => {
       />
 
       <AddDealModalContainer onDealCreated={handleDealCreated} />
+
+      <Dialog open={statusDetailOpen} onOpenChange={setStatusDetailOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disqualification details</DialogTitle>
+            <DialogDescription>
+              Recorded decision evidence for {lead.lead_name}.
+            </DialogDescription>
+          </DialogHeader>
+          <dl className="grid gap-3 text-sm">
+            <div><dt className="text-muted-foreground">Reason</dt><dd className="font-medium">{disqualificationDecision?.reason || lead.reason || "Not recorded"}</dd></div>
+            <div><dt className="text-muted-foreground">Explanation</dt><dd>{disqualificationDecision?.notes || "Legacy record — dedicated explanation not recorded"}</dd></div>
+            <div><dt className="text-muted-foreground">Requested by</dt><dd>{disqualificationDecision ? formatReversalRequester(disqualificationDecision) : "Legacy / not recorded"}</dd></div>
+            <div><dt className="text-muted-foreground">Disqualified by</dt><dd>{disqualificationDecision ? formatReversalReviewer(disqualificationDecision) : disqualificationActorName}</dd></div>
+            <div><dt className="text-muted-foreground">Disqualified at</dt><dd>{formatOptionalDateTime(disqualificationDecision?.reviewed_at || disqualificationTransition?.created_at, "Legacy / not recorded")}</dd></div>
+            <div><dt className="text-muted-foreground">Decision</dt><dd>{disqualificationDecision ? `Approved ${formatOptionalDateTime(disqualificationDecision.reviewed_at)}` : "Legacy / approval not recorded"}</dd></div>
+            {lead.notes && !disqualificationDecision?.notes && <div><dt className="text-muted-foreground">General lead note (not verified as disqualification evidence)</dt><dd>{lead.notes}</dd></div>}
+          </dl>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

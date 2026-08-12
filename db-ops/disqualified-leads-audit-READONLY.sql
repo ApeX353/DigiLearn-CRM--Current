@@ -99,3 +99,52 @@ WHERE l.status = 'Disqualified'
     OR NULLIF(BTRIM(l.notes), '') IS NULL
   )
 ORDER BY event.created_at DESC NULLS LAST, l.lead_name, l.id;
+
+-- Complete manager-facing report (all current disqualified leads). New
+-- decisions use the dedicated request fields; legacy rows fall back to the
+-- lead reason/general notes and transition log without inventing evidence.
+SELECT
+  l.id,
+  l.lead_name,
+  s.name AS school_name,
+  NULLIF(BTRIM(CONCAT_WS(' ', owner.first_name, owner.last_name)), '') AS owner,
+  COALESCE(NULLIF(BTRIM(decision.reason), ''), NULLIF(BTRIM(l.reason), ''), '[MISSING]') AS reason,
+  COALESCE(NULLIF(BTRIM(decision.notes), ''), NULLIF(BTRIM(l.notes), ''), '[MISSING]') AS explanation,
+  event.created_at AS disqualified_at,
+  NULLIF(BTRIM(CONCAT_WS(' ', actor.first_name, actor.last_name)), '') AS disqualified_by,
+  decision.status AS approval_status,
+  decision.created_at AS requested_at,
+  NULLIF(BTRIM(CONCAT_WS(' ', requester.first_name, requester.last_name)), '') AS requested_by,
+  decision.reviewed_at,
+  NULLIF(BTRIM(CONCAT_WS(' ', reviewer.first_name, reviewer.last_name)), '') AS reviewed_by,
+  decision.review_note
+FROM leads l
+LEFT JOIN schools s ON s.id = l.school_id
+LEFT JOIN users owner ON owner.id = l.assigned_to
+LEFT JOIN LATERAL (
+  SELECT al.created_at, al.actioned_by
+  FROM activity_logs al
+  WHERE LOWER(al.entity) = 'lead'
+    AND al.entity_id = l.id
+    AND (
+      al.new_values ->> 'status' = 'Disqualified'
+      OR al.summary ILIKE '%to Disqualified%'
+    )
+  ORDER BY al.created_at DESC
+  LIMIT 1
+) event ON TRUE
+LEFT JOIN users actor ON actor.id = event.actioned_by
+LEFT JOIN LATERAL (
+  SELECT r.*
+  FROM lead_reversal_requests r
+  WHERE r.lead_id = l.id
+    AND r.kind = 'tactical_disqualify'
+    AND r.status = 'approved'
+  ORDER BY r.reviewed_at DESC NULLS LAST, r.created_at DESC
+  LIMIT 1
+) decision ON TRUE
+LEFT JOIN users requester ON requester.id = decision.requested_by_id
+LEFT JOIN users reviewer ON reviewer.id = decision.reviewed_by_id
+WHERE l.status = 'Disqualified'
+  AND l.deleted_at IS NULL
+ORDER BY event.created_at DESC NULLS LAST, l.lead_name, l.id;

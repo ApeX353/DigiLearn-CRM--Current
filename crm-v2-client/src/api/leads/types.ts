@@ -69,6 +69,7 @@ export interface Lead {
   assigned_to?: string | null;
   stage: Stage;
   notes: string;
+  reason?: string | null;
   last_contacted_at: Date | null;
   converted_at: Date | null;
   created_at: Date;
@@ -111,6 +112,7 @@ export interface UpdateLeadPayload {
   nurture_reason?: string;
   follow_up_date?: string;
   disqualify_reason?: string;
+  disqualification_note?: string;
   [key: string]: unknown;
 }
 

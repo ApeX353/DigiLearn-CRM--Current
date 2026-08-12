@@ -16,23 +16,20 @@ import {
 } from "~/components/ui/form";
 import Modal from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import { DISQUALIFY_REASONS } from "~/api/leads";
 
-/**
- * Phase C.1 — rep-facing dialog for submitting a tactical disqualify
- * approval request. The compliance gate in `leads.service.ts#update`
- * blocks reps from disqualifying with a tactical reason (No budget,
- * Not interested, Cannot reach contact, Other) unless an approved
- * `tactical_disqualify` request exists for the lead. This dialog is
- * the rep's way to ask for that approval.
- *
- * The compliance switch `tactical_disqualify_requires_approval` is on
- * by default; admins can disable enforcement org-wide from
- * Settings → Compliance & Controls.
- */
+/** Rep-facing request. Approval applies the disqualification atomically. */
 
 const schema = z.object({
-  reason: z.string().trim().min(10, "Reason should be at least 10 characters"),
-  notes: z.string().trim().max(2000).optional(),
+  reason: z.enum(DISQUALIFY_REASONS),
+  notes: z.string().trim().min(10, "Explain why in at least 10 characters").max(2000),
 });
 
 type Values = z.infer<typeof schema>;
@@ -53,7 +50,7 @@ export function RequestTacticalDisqualifyDialog({
   const create = useCreateLeadReversalRequest();
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { reason: "", notes: "" },
+    defaultValues: { reason: undefined, notes: "" },
   });
 
   const handleClose = () => {
@@ -68,14 +65,12 @@ export function RequestTacticalDisqualifyDialog({
         data: {
           kind: "tactical_disqualify",
           reason: values.reason.trim(),
-          notes: values.notes?.trim() || undefined,
+          notes: values.notes.trim(),
         },
       },
       {
         onSuccess: () => {
-          toast.success(
-            "Tactical-disqualify request submitted for manager review",
-          );
+          toast.success("Disqualification request submitted for manager review");
           handleClose();
         },
         onError: (err: any) => {
@@ -93,7 +88,7 @@ export function RequestTacticalDisqualifyDialog({
       isOpen={open}
       onClose={handleClose}
       title="Ask manager to disqualify this lead"
-      description={`You picked a soft reason (No budget / Not interested / Cannot reach contact / Other) for ${leadName || "this lead"}. A manager needs to approve it first. Once they do, come back to this lead and click Disqualify again to close it. Hard reasons (Duplicate entry, School closed, Wrong contact, Already has solution) don't need approval — disqualify directly. You'll get an in-app notification when the manager decides.`}
+      description={`Choose the reason and explain what happened for ${leadName || "this lead"}. A manager must approve every rep-submitted disqualification. Approval automatically changes the lead to Disqualified; you do not need to submit it again.`}
     >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -105,14 +100,20 @@ export function RequestTacticalDisqualifyDialog({
                 <FormLabel>
                   Reason <span className="text-destructive">*</span>
                 </FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="e.g. No traction over 6 outreach attempts in 90 days; budget pushed to next FY"
-                    rows={4}
-                    data-testid="td-reason"
-                    {...field}
-                  />
-                </FormControl>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger data-testid="td-reason">
+                      <SelectValue placeholder="Select a reason" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {DISQUALIFY_REASONS.map((reason) => (
+                      <SelectItem key={reason} value={reason}>
+                        {reason}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -123,10 +124,12 @@ export function RequestTacticalDisqualifyDialog({
             name="notes"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Notes for reviewer</FormLabel>
+                <FormLabel>
+                  Explanation <span className="text-destructive">*</span>
+                </FormLabel>
                 <FormControl>
                   <Textarea
-                    placeholder="Optional context (e.g. attached chase log)"
+                    placeholder="What happened, what was tried, and why this lead should be disqualified"
                     rows={3}
                     data-testid="td-notes"
                     {...field}

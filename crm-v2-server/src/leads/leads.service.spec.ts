@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { LeadsService } from './leads.service';
@@ -74,6 +75,9 @@ describe('LeadsService', () => {
       } as any,
       // f9d8ced — LeadQualificationService mock (BANT auto-tick signals).
       { autoTickFromSignals: jest.fn() } as any,
+      {
+        validateCustomerEmail: jest.fn(async (value) => value?.trim() || null),
+      } as any,
     );
   });
 
@@ -342,6 +346,34 @@ describe('LeadsService', () => {
       'rep-1',
     );
     expect(result.status).toBe('Contacted');
+  });
+
+  it('blocks the status-only Disqualified backdoor', async () => {
+    await expect(
+      service.updateStatus('lead-3', 'Disqualified', 'rep-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('blocks every sales-rep direct disqualification reason', async () => {
+    jest.spyOn(service, 'findOne').mockResolvedValueOnce({
+      id: 'lead-rep',
+      status: 'Contacted',
+      assigned_to: 'rep-1',
+    } as any);
+
+    await expect(
+      service.update(
+        'lead-rep',
+        {
+          status: 'Disqualified',
+          disqualify_reason: 'Duplicate entry',
+          disqualification_note: 'Confirmed duplicate customer record',
+        } as any,
+        'rep-1',
+        ['sales_rep'],
+        'rep-1',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('blocks qualification when MVD is incomplete even if the lead has contact data', async () => {

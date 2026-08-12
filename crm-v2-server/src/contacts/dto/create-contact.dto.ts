@@ -8,6 +8,7 @@ import {
   MaxLength,
   IsUUID,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CONTACT_ROLES } from '../constants/contact-roles';
 import type { ContactRole } from '../constants/contact-roles';
@@ -47,6 +48,13 @@ export class CreateContactDto {
   is_primary?: boolean;
 
   @ApiPropertyOptional({ example: 'john.smith@school.co.za' })
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : value,
+  )
   @IsOptional()
   @IsEmail()
   @MaxLength(255)

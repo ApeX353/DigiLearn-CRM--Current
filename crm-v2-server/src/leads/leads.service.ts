@@ -76,10 +76,11 @@ import { AppliedPaymentTerm } from '../payment-terms/entities/applied-payment-te
 import { EmailSequenceService } from '../email-sequences/email-sequence.service';
 import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 import { LeadQualificationService } from './services/lead-qualification.service';
-import { isTacticalDisqualifyReason } from './constants/reasons';
 import { LEAD_STATUSES } from './constants/lead-statuses';
+import { DISQUALIFY_REASONS } from './constants/reasons';
 import { canonName, canonCity, canonPhone } from './utils/record-normalization';
 import { DuplicateDetectionService } from './services/duplicate-detection.service';
+import { CustomerIdentityService } from '../contacts/services/customer-identity.service';
 
 @Injectable()
 export class LeadsService {
@@ -125,6 +126,7 @@ export class LeadsService {
     private readonly complianceSettings: ComplianceSettingsService,
     private readonly duplicateDetection: DuplicateDetectionService,
     private readonly leadQualificationService: LeadQualificationService,
+    private readonly customerIdentity: CustomerIdentityService,
     @Optional()
     @Inject(EmailSequenceService)
     private readonly emailSequenceService?: EmailSequenceService,
@@ -321,7 +323,10 @@ export class LeadsService {
           return existingById;
         }
 
-        const normalizedEmail = normalizeText(contactDto.email);
+        const customerEmail = await this.customerIdentity.validateCustomerEmail(
+          contactDto.email,
+        );
+        const normalizedEmail = normalizeText(customerEmail);
         if (normalizedEmail) {
           const existingByEmail = schoolContacts.find(
             (contact) => normalizeText(contact.email) === normalizedEmail,
@@ -362,7 +367,7 @@ export class LeadsService {
           school_id: school.id,
           first_name: contactDto.first_name,
           last_name: contactDto.last_name,
-          email: toNullableString(contactDto.email),
+          email: customerEmail,
           phone: toNullableString(contactDto.phone),
           secondary_phone: toNullableString(contactDto.secondary_phone),
           whatsapp_number: toNullableString(contactDto.whatsapp_number),
@@ -615,6 +620,7 @@ export class LeadsService {
       temperature,
       sort_by,
       sort_order,
+      active,
     } = queryLeadDto;
 
     const queryBuilder = this.leadRepository
@@ -637,7 +643,13 @@ export class LeadsService {
       );
     }
 
-    if (status) {
+    if (active) {
+      queryBuilder
+        .andWhere('lead.assigned_to IS NOT NULL')
+        .andWhere('lead.status IN (:...activeStatuses)', {
+          activeStatuses: ['New', 'Contacted', 'Nurture', 'Qualified'],
+        });
+    } else if (status) {
       queryBuilder.andWhere('lead.status = :status', { status });
     }
 
@@ -752,6 +764,24 @@ export class LeadsService {
       total += Number(r.count);
     }
     counts.All = total;
+    const activeQb = this.leadRepository
+      .createQueryBuilder('lead')
+      .select('COUNT(*)', 'count')
+      .where('lead.deleted_at IS NULL')
+      .andWhere('lead.assigned_to IS NOT NULL')
+      .andWhere('lead.status IN (:...activeStatuses)', {
+        activeStatuses: ['New', 'Contacted', 'Nurture', 'Qualified'],
+      });
+    if (ability) {
+      this.abilityScopeService.applyScopeToQueryBuilder(activeQb, ability, {
+        action: Action.READ,
+        subject: 'Lead',
+        queryAlias: 'lead',
+        conditionKeyMap: LeadsService.LEAD_CONDITION_KEY_MAP,
+      });
+    }
+    const activeRow = await activeQb.getRawOne<{ count: string }>();
+    counts.Active = Number(activeRow?.count ?? 0);
     return counts;
   }
 
@@ -862,11 +892,14 @@ export class LeadsService {
           );
         }
 
+        const customerEmail = await this.customerIdentity.validateCustomerEmail(
+          dto.email,
+        );
         const newContact = contactRepository.create({
           school_id: lead.school_id,
           first_name: dto.first_name.trim(),
           last_name: dto.last_name.trim(),
-          email: toNullableString(dto.email),
+          email: customerEmail,
           phone: toNullableString(dto.phone),
           secondary_phone: toNullableString(dto.secondary_phone),
           whatsapp_number: toNullableString(dto.whatsapp_number),
@@ -957,7 +990,13 @@ export class LeadsService {
     const lead = await this.findOne(id);
     this.assertLeadInScope(lead, scopeUserId);
 
-    const { disqualify_reason, nurture_reason, other_value, ...rest } =
+    const {
+      disqualify_reason,
+      disqualification_note,
+      nurture_reason,
+      other_value,
+      ...rest
+    } =
       updateLeadDto;
     const requestedStatus = (rest as Partial<Lead>).status;
     const statusChanged =
@@ -987,32 +1026,28 @@ export class LeadsService {
       requestedStatus === 'Disqualified' || !!disqualify_reason;
     const isManagerOrAdmin =
       userRoles.includes('admin') ||
-      userRoles.includes('sales_manager') ||
-      userRoles.includes('admin_support');
+      userRoles.includes('sales_manager');
 
-    if (
-      wantsDisqualify &&
-      !isManagerOrAdmin &&
-      isTacticalDisqualifyReason(disqualify_reason)
-    ) {
-      const enforce = await this.complianceSettings.getBoolean(
-        'tactical_disqualify_requires_approval',
+    if (wantsDisqualify && !isManagerOrAdmin) {
+      throw new ForbiddenException(
+        'Sales-rep disqualification requires a pending request and sales-manager approval',
       );
-      if (enforce) {
-        const approved = await this.leadReversalRequestRepository.findOne({
-          where: {
-            lead_id: id,
-            kind: 'tactical_disqualify',
-            status: 'approved',
-          },
-        });
-        if (!approved) {
-          throw new ForbiddenException(
-            `Tactical disqualify reason "${disqualify_reason}" requires manager approval. ` +
-              `Please submit a tactical disqualify request via the lead detail page.`,
-          );
-        }
+    }
+    if (wantsDisqualify) {
+      const selectedReason =
+        disqualify_reason === 'Other' ? other_value?.trim() : disqualify_reason;
+      const note = disqualification_note?.trim();
+      if (!selectedReason || !note || note.length < 10) {
+        throw new BadRequestException(
+          'Disqualification requires a selected reason and an explanatory note of at least 10 characters',
+        );
       }
+      return this.applyDirectManagerDisqualification(
+        id,
+        selectedReason,
+        note,
+        userId,
+      );
     }
 
     // ----- Phase A.2: rep-self-reassignment approval gate --------
@@ -1092,6 +1127,54 @@ export class LeadsService {
     }
 
     return this.findOne(updatedLead.id);
+  }
+
+  private async applyDirectManagerDisqualification(
+    leadId: string,
+    reason: string,
+    note: string,
+    managerId: string,
+  ): Promise<Lead> {
+    await this.dataSource.transaction(async (manager) => {
+      const lead = await manager.findOne(Lead, {
+        where: { id: leadId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lead) throw new NotFoundException(`Lead with ID ${leadId} not found`);
+      if (lead.status === 'Converted') {
+        throw new BadRequestException('A Converted lead must be reopened first');
+      }
+      const pendingRequest = await manager.findOne(LeadReversalRequest, {
+        where: {
+          lead_id: leadId,
+          kind: 'tactical_disqualify',
+          status: 'pending',
+        },
+      });
+      if (pendingRequest) {
+        throw new ConflictException(
+          'This lead already has a pending disqualification request. Review that request so the approval queue and audit trail stay in sync.',
+        );
+      }
+      const request = manager.create(LeadReversalRequest, {
+        lead_id: leadId,
+        kind: 'tactical_disqualify',
+        requested_status: 'Disqualified',
+        proposed_assignee_id: null,
+        reason,
+        notes: note,
+        status: 'approved',
+        requested_by_id: managerId,
+        reviewed_by_id: managerId,
+        reviewed_at: new Date(),
+        review_note: 'Direct sales-manager decision',
+      });
+      await manager.save(LeadReversalRequest, request);
+      lead.reason = reason;
+      await manager.save(Lead, lead);
+      await this.transitionStatus(manager, leadId, 'Disqualified', managerId);
+    });
+    return this.findOne(leadId);
   }
 
   async remove(id: string, userId: string): Promise<void> {
@@ -1201,6 +1284,14 @@ export class LeadsService {
           'Use a status_reversal request to roll back a Converted lead before disqualifying',
         );
       }
+      if (!dto.reason?.trim() || !dto.notes?.trim() || dto.notes.trim().length < 10) {
+        throw new BadRequestException(
+          'Disqualification requests require a selected reason and an explanatory note of at least 10 characters',
+        );
+      }
+      if (!(DISQUALIFY_REASONS as readonly string[]).includes(dto.reason.trim())) {
+        throw new BadRequestException('Select a valid disqualification reason');
+      }
     }
 
     const existingPendingRequest = await this.leadReversalRequestRepository.findOne(
@@ -1280,7 +1371,7 @@ export class LeadsService {
   ): string {
     switch (kind) {
       case 'tactical_disqualify':
-        return 'Soft-reason disqualification';
+        return 'Lead disqualification';
       case 'reassignment':
         return 'Reassignment';
       case 'status_reversal':
@@ -1476,6 +1567,47 @@ export class LeadsService {
       throw new BadRequestException(
         `Lead reversal request has already been ${request.status}`,
       );
+    }
+
+    if (request.kind === 'tactical_disqualify') {
+      await this.dataSource.transaction(async (manager) => {
+        const lockedRequest = await manager.findOne(LeadReversalRequest, {
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedRequest || lockedRequest.status !== 'pending') {
+          throw new BadRequestException('This request has already been decided');
+        }
+        const lead = await manager.findOne(Lead, {
+          where: { id: lockedRequest.lead_id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lead) throw new NotFoundException('Lead no longer exists');
+        if (lead.status === 'Converted' || lead.status === 'Disqualified') {
+          throw new BadRequestException(
+            `Lead is already ${lead.status}; the request cannot be applied`,
+          );
+        }
+        lockedRequest.status = dto.decision;
+        lockedRequest.reviewed_by_id = userId;
+        lockedRequest.reviewed_at = new Date();
+        lockedRequest.review_note = dto.review_note?.trim() || null;
+        await manager.save(LeadReversalRequest, lockedRequest);
+        if (dto.decision === 'approved') {
+          lead.reason = lockedRequest.reason;
+          await manager.save(Lead, lead);
+          await this.transitionStatus(manager, lead.id, 'Disqualified', userId);
+        }
+      });
+      await this.activityLogsService.logUpdate(
+        'Lead',
+        request.lead_id,
+        { reversal_request_status: 'pending' },
+        { reversal_request_status: dto.decision },
+        userId,
+        `Disqualification request ${dto.decision}`,
+      );
+      return this.findReversalRequestById(id);
     }
 
     if (dto.decision === 'approved') {
@@ -1851,6 +1983,11 @@ export class LeadsService {
     userId: string,
     scopeUserId?: string,
   ): Promise<Lead> {
+    if (status === 'Disqualified') {
+      throw new BadRequestException(
+        'Use the disqualification request/approval workflow; status-only updates cannot disqualify a lead',
+      );
+    }
     if (scopeUserId) {
       const lead = await this.leadRepository.findOne({
         where: { id },

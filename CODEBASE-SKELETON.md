@@ -600,6 +600,22 @@ Deleting a lead supersedes its pending proposals so none dangle as orphan rows.
 
 ## 10. Domain rules that govern behaviour
 
+- **Active Leads** is a server-side view, not a client page filter: assigned,
+  non-deleted leads in New, Contacted, Nurture or Qualified. Unassigned,
+  Disqualified and Converted remain available through their individual views
+  but do not contribute to the Active count.
+- **Disqualification evidence:** every rep request carries a controlled reason
+  plus mandatory explanation. Sales-manager approval applies Disqualified in
+  the decision transaction. Direct manager/admin decisions record the same
+  approved evidence. Status-only and bulk routes cannot bypass this workflow.
+  Legacy rows retain `leads.reason`; missing approval/note fields display as
+  legacy/not recorded rather than being invented.
+- **Customer contact identity:** email is optional; blank is stored as NULL and
+  nonblank input is normalized/validated. Internal domains, the shared admin
+  address and exact active-user emails are not valid customer contacts. Active
+  staff email/name evidence is excluded from duplicate scoring while real
+  customer phone/school/name evidence remains eligible.
+
 - **Completing an activity has side effects**: `completionMoment()` stamps
   old work with its own due/scheduled date and recent/undated work with now.
   For contact types (call/meeting/whatsapp/email), it moves

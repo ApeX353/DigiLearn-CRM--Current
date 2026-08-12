@@ -88,14 +88,14 @@ import { RequestEnquiry } from "~/components/admin/request-enquiry";
 const KIND_OPTIONS: { value: LeadReversalRequestKind | "all"; label: string }[] =
   [
     { value: "all", label: "All types" },
-    { value: "tactical_disqualify", label: "Soft-reason disqualification" },
+    { value: "tactical_disqualify", label: "Lead disqualification" },
     { value: "reassignment", label: "Reassignment" },
     { value: "status_reversal", label: "Reopen / undo status" },
   ];
 
 const KIND_BADGE: Record<LeadReversalRequestKind, { label: string; tone: string; icon: typeof ShieldAlert }> = {
   tactical_disqualify: {
-    label: "Soft-reason disqualification",
+    label: "Lead disqualification",
     tone: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900",
     icon: ShieldAlert,
   },

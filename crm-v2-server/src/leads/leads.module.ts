@@ -31,6 +31,7 @@ import { DuplicateDetectionService } from './services/duplicate-detection.servic
 import { DuplicatesController } from './duplicates.controller';
 import { SettingsModule } from '../settings/settings.module';
 import { LeadImportBatch } from './entities/lead-import-batch.entity';
+import { ContactsModule } from '../contacts/contacts.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { LeadImportBatch } from './entities/lead-import-batch.entity';
     ActivityLogsModule,
     forwardRef(() => EmailSequencesModule),
     SettingsModule,
+    ContactsModule,
   ],
   controllers: [
     LeadsController,

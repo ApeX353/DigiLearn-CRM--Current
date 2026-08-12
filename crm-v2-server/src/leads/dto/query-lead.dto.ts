@@ -17,6 +17,14 @@ export const LEAD_ASSIGNMENT_STATES = ['assigned', 'unassigned'] as const;
 export type LeadAssignmentState = (typeof LEAD_ASSIGNMENT_STATES)[number];
 
 export class QueryLeadDto {
+  @ApiPropertyOptional({
+    description: 'Assigned New, Contacted, Nurture or Qualified leads only',
+  })
+  @IsOptional()
+  @Type(() => String)
+  @Transform(({ value }) => toBool(value))
+  @IsBoolean()
+  active?: boolean;
   @ApiPropertyOptional({ default: 1, description: 'Page number' })
   @IsOptional()
   @IsNumberString()

@@ -1224,23 +1224,20 @@ const ComplianceControlsContent = () => {
                 className="flex items-center gap-2 text-base font-medium"
               >
                 <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                Soft-reason disqualifications need manager approval
+                Rep disqualifications need manager approval
               </Label>
               <p className="text-xs text-muted-foreground max-w-xl">
-                When <strong>on</strong> (default), reps can disqualify with
-                hard reasons (Duplicate, School closed, Wrong contact,
-                Already has solution) directly. Soft / judgement reasons
-                (No budget, Not interested, Cannot reach) require manager
-                approval first.
+                This policy is enforced for every reason. Reps submit a reason
+                and explanation; a manager decision automatically applies the
+                status. Managers and admins can make a documented direct
+                decision.
               </p>
             </div>
             <Switch
               id="cc-tactical-disqualify-approval"
               data-testid="cc-tactical-disqualify-approval"
-              checked={tacticalDisqualifyApproval}
-              onCheckedChange={(v) =>
-                handleBoolChange(setTacticalDisqualifyApproval, v)
-              }
+              checked
+              disabled
             />
           </div>
 

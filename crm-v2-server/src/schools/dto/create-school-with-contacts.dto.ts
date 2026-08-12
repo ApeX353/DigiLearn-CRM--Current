@@ -7,9 +7,10 @@ import {
   IsArray,
   ValidateNested,
   MaxLength,
+  IsEmail,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { CreateSchoolDto } from './create-school.dto';
 import {
   CONTACT_ROLES,
@@ -31,8 +32,15 @@ export class SchoolContactDto {
   last_name: string;
 
   @ApiPropertyOptional({ example: 'john.doe@school.com' })
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : typeof value === 'string'
+        ? value.trim().toLowerCase()
+        : value,
+  )
   @IsOptional()
-  @IsString()
+  @IsEmail()
   @MaxLength(255)
   email?: string;
 

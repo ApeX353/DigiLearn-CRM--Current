@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Contact } from './entities/contact.entity';
 import { CreateContactDto, UpdateContactDto, QueryContactDto } from './dto';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { CustomerIdentityService } from './services/customer-identity.service';
 import {
   paginate,
   Pagination,
@@ -16,13 +17,20 @@ export class ContactsService {
     @InjectRepository(Contact)
     private readonly contactRepository: Repository<Contact>,
     private readonly activityLogsService: ActivityLogsService,
+    private readonly customerIdentity: CustomerIdentityService,
   ) {}
 
   async create(
     createContactDto: CreateContactDto,
     userId: string,
   ): Promise<Contact> {
-    const contact = this.contactRepository.create(createContactDto);
+    const email = await this.customerIdentity.validateCustomerEmail(
+      createContactDto.email,
+    );
+    const contact = this.contactRepository.create({
+      ...createContactDto,
+      email,
+    });
     const savedContact = await this.contactRepository.save(contact);
 
     await this.activityLogsService.logCreate(
@@ -134,6 +142,13 @@ export class ContactsService {
     userId: string,
   ): Promise<Contact> {
     const contact = await this.findOne(id);
+
+    if (updateContactDto.email !== undefined) {
+      contact.email = await this.customerIdentity.validateCustomerEmail(
+        updateContactDto.email,
+      );
+      delete updateContactDto.email;
+    }
 
     const oldValues = { ...contact };
     Object.assign(contact, updateContactDto);

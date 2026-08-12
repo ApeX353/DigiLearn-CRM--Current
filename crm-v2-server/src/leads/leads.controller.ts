@@ -11,6 +11,7 @@ import {
   Res,
   UseGuards,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { LeadsService } from './leads.service';
@@ -573,6 +574,11 @@ export class LeadsController {
     @Body() dto: AssignLeadDto,
     @CurrentUser('id') userId: string,
   ) {
+    if (status === 'Disqualified') {
+      throw new BadRequestException(
+        'Use the disqualification request/approval workflow',
+      );
+    }
     const lead = await this.leadsService.assignLead(
       id,
       dto.assigned_to,
@@ -616,6 +622,11 @@ export class LeadsController {
             break;
           case 'status':
             if (status) {
+              if (status === 'Disqualified') {
+                throw new BadRequestException(
+                  'Bulk status updates cannot disqualify leads; use the approval workflow',
+                );
+              }
               await this.leadsService.updateStatus(leadId, status, userId);
               updated++;
             }

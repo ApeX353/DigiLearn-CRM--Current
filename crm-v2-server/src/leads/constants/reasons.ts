@@ -13,13 +13,21 @@ export type NurtureReason = (typeof NURTURE_REASONS)[number];
 
 // Disqualification Reasons - when a lead won't convert
 export const DISQUALIFY_REASONS = [
+  "Duplicate entry",
+  "Wrong contact/school",
+  "School closed",
+  "Outside target market",
+  "Spam / not a real opportunity",
+  "Fake lead",
   "No budget",
   "Not interested",
   "Already has solution",
-  "Wrong contact/school",
-  "Duplicate entry",
-  "School closed",
   "Cannot reach contact",
+  "No response after multiple follow-ups",
+  "Timing issue",
+  "Relationship issue",
+  "Political sensitivity",
+  "Rep not progressing",
   "Other",
 ] as const;
 
@@ -45,16 +53,9 @@ export type DisqualifyReason = (typeof DISQUALIFY_REASONS)[number];
  * conservative default is to require approval rather than let the
  * field become a tactical-disqualify backdoor.
  */
-export const DISQUALIFY_REASON_KIND: Record<DisqualifyReason, 'admin' | 'tactical'> = {
-  'No budget': 'tactical',
-  'Not interested': 'tactical',
-  'Already has solution': 'admin',
-  'Wrong contact/school': 'admin',
-  'Duplicate entry': 'admin',
-  'School closed': 'admin',
-  'Cannot reach contact': 'tactical',
-  'Other': 'tactical',
-};
+export const DISQUALIFY_REASON_KIND: Record<DisqualifyReason, 'admin' | 'tactical'> =
+  Object.fromEntries(DISQUALIFY_REASONS.map((reason) => [reason, 'tactical'])) as
+    Record<DisqualifyReason, 'admin' | 'tactical'>;
 
 export function isTacticalDisqualifyReason(reason: string | null | undefined): boolean {
   if (!reason) return false;

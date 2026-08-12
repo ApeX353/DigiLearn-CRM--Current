@@ -148,9 +148,9 @@ export const COMPLIANCE_SETTINGS = {
     key: 'compliance.policy.tactical_disqualify_requires_approval',
     type: 'boolean' as const,
     default: true,
-    label: 'Tactical disqualify needs manager approval',
+    label: 'Legacy disqualification approval setting',
     description:
-      'When true, only admin-category disqualify reasons (e.g. duplicate, gone out of business) can be applied directly. Tactical reasons (no budget, slow response) require an approved request.',
+      'Retained for compatibility. Manager approval is now always required for every rep-submitted disqualification; managers and admins may make a documented direct decision.',
   },
   // ----- Phase B: activity discipline enforcement (write-time) -----
   // Both default OFF so existing orgs keep their current behaviour

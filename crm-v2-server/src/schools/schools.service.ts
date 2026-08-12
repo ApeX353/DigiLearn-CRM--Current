@@ -21,6 +21,7 @@ import {
   IPaginationOptions,
 } from 'nestjs-typeorm-paginate';
 import { count } from 'console';
+import { CustomerIdentityService } from '../contacts/services/customer-identity.service';
 
 @Injectable()
 export class SchoolsService {
@@ -29,6 +30,7 @@ export class SchoolsService {
     private readonly schoolRepository: Repository<School>,
     private readonly dataSource: DataSource,
     private readonly activityLogsService: ActivityLogsService,
+    private readonly customerIdentity: CustomerIdentityService,
   ) {}
 
   /**
@@ -61,11 +63,14 @@ export class SchoolsService {
 
       for (const contactDto of contactsList) {
         let contact: Contact;
+        const customerEmail = await this.customerIdentity.validateCustomerEmail(
+          contactDto.email,
+        );
 
-        if (contactDto.email) {
+        if (customerEmail) {
           // Check if contact already exists by email + school
           const existing = await manager.findOne(Contact, {
-            where: { email: contactDto.email, school_id: savedSchool.id },
+            where: { email: customerEmail, school_id: savedSchool.id },
           });
 
           if (existing) {
@@ -82,7 +87,7 @@ export class SchoolsService {
               school_id: savedSchool.id,
               first_name: contactDto.first_name,
               last_name: contactDto.last_name,
-              email: contactDto.email,
+              email: customerEmail,
               phone: contactDto.phone,
               whatsapp_number: contactDto.whatsapp_number,
               role: contactDto.role,

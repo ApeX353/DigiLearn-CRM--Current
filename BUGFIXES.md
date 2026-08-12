@@ -1144,3 +1144,33 @@ completing the *last* open actionable activity on an active lead/deal.
 
 Files: `crm-v2-client/src/lib/follow-up-policy.ts`,
 `crm-v2-client/src/components/activities/follow-up-prompt-dialog.tsx`.
+# LEAD-GOV1 — customer identity, disqualification evidence and Active Leads (2026-08-12)
+
+**Symptom.** Staff/internal identities could create false duplicate warnings;
+blank contact email failed the shared client schema; reps could bypass parts of
+the disqualification approval policy; the lead list's All total mixed active,
+unassigned and terminal records; lead detail hid status and disqualification
+provenance.
+
+**Root cause.** Duplicate scoring had one hard-coded domain and no active-user
+identity source. Contact write paths normalized inconsistently. Tactical and
+administrative disqualification reasons used different gates, approval did not
+apply the status, and the status-only route bypassed the gate. `/leads` lacked
+an Active predicate and the detail header had deliberately removed its badge.
+
+**Fix.** A shared server customer-identity policy normalizes optional email,
+rejects the internal/shared addresses and current active staff emails on all
+contact-creation paths, and removes staff email/name evidence from duplicate
+scoring. Every rep disqualification is now a picker + mandatory explanation
+request; a sales-manager decision atomically records reviewer evidence and
+applies Disqualified, while direct manager decisions write the same evidence.
+Status-only and bulk backdoors reject Disqualified. The list defaults to the
+server-side assigned New/Contacted/Nurture/Qualified view, and every detail
+header shows status; Disqualified opens its evidence with honest legacy labels.
+
+**Data impact.** No production row is rewritten. The 234 existing Disqualified
+leads remain unchanged; missing legacy notes/approvals are displayed as not
+recorded. Pending imports and auto-assignment proposals are untouched.
+
+**Verification.** Server/client production builds pass. Focused identity,
+disqualification and AUTO-EQUITY regression suites pass (37 tests).

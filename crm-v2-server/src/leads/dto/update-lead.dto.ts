@@ -1,7 +1,7 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { CreateLeadDto } from './create-lead.dto';
 import { DISQUALIFY_REASONS, type DisqualifyReason, NURTURE_REASONS, type NurtureReason } from '../constants';
-import { IsDateString, IsEnum, IsOptional, IsString } from '@nestjs/class-validator';
+import { IsDateString, IsEnum, IsOptional, IsString, MaxLength, MinLength } from '@nestjs/class-validator';
 
 export class UpdateLeadDto extends PartialType(CreateLeadDto) {
   @ApiPropertyOptional({
@@ -29,4 +29,11 @@ export class UpdateLeadDto extends PartialType(CreateLeadDto) {
   @IsOptional()
   @IsString()
   other_value?: string;
+
+  @ApiPropertyOptional({ description: 'Mandatory explanation for a disqualification decision' })
+  @IsOptional()
+  @IsString()
+  @MinLength(10)
+  @MaxLength(2000)
+  disqualification_note?: string;
 }
