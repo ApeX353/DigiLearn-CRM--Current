@@ -850,6 +850,7 @@ export default function LeadsManagementPage() {
         onOpenChange={setAssignDialogOpen}
         leadIds={selectedLeadIds}
         leadSummaryText={`Selected ${selectedCount} lead${selectedCount === 1 ? "" : "s"}`}
+        requiresReason={selectedLeads.some((lead) => Boolean(lead.assigned_to))}
         onSuccess={() => setRowSelection({})}
       />
       <MergeSelectedLeadsDialog

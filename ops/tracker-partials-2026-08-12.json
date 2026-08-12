@@ -1,0 +1,171 @@
+{
+  "generatedAt": "2026-08-12",
+  "purpose": "Correct the eleven mixed/partially-delivered production tickets without touching leads, approval queues, import batches, or assignment proposals.",
+  "tickets": [
+    {
+      "code": "METRICS1",
+      "id": "25378877-c583-4b79-b2e9-45ee03f8f5ac",
+      "expectedTitlePrefix": "[METRICS1]",
+      "patch": {
+        "title": "[METRICS1] Audit and define the remaining unverified dashboard KPIs",
+        "description": "Qualification totals now count distinct leads on a 1-5 scale, and daily contacts now count completed contact activities against sales-role targets. Keep this item only for the still-unverified KPIs: funnel health, demo statistics, lead conversion, top products, schools bought, nurture follow-ups, and collections due. Open separate defects for any failed measure; do not bundle QUOTE or currency defects here.",
+        "status": "backlog",
+        "workType": "investigation",
+        "severity": "medium",
+        "priority": "p2",
+        "component": "dashboard",
+        "labels": ["metrics", "audit", "partially-delivered"]
+      }
+    },
+    {
+      "code": "HYG2",
+      "id": "7695c004-e060-4916-89bb-5e3ed60e5fcd",
+      "expectedTitlePrefix": "[HYG2]",
+      "patch": {
+        "title": "[HYG2] Decide hygiene grading bands and verify the calculation",
+        "description": "The hygiene score now has four bands and includes qualification. The implemented Poor threshold is below 60, while the request says 0-40, and the remaining bands were never specified. Define the complete grading policy and verify it with representative leads before changing thresholds. Stage-aware last-touch cadence belongs to HYG1.",
+        "status": "backlog",
+        "workType": "investigation",
+        "severity": "medium",
+        "priority": "p2",
+        "component": "leads",
+        "labels": ["hygiene", "product-decision", "partially-delivered"]
+      }
+    },
+    {
+      "code": "QUOTE4",
+      "id": "d821f946-5706-4261-b7fc-ff8f02b768a9",
+      "expectedTitlePrefix": "[QUOTE4]",
+      "patch": {
+        "title": "[QUOTE4] Store and display an explicit currency on every new quote",
+        "description": "New deals already default to USD; the remaining defect was that quote totals were bare numbers. Code now stores an ISO currency on every new quote, inherits a linked deal currency before the organisation default, displays the recorded currency, and backfills linked historical quotes from their deals. Unlinked historical quotes deliberately stay unknown instead of being falsely labelled. Deploy migration 1781000000000 and smoke-test create/list/preview before closing.",
+        "status": "in_progress",
+        "workType": "bug",
+        "severity": "medium",
+        "priority": "p1",
+        "component": "quotes",
+        "labels": ["currency", "code-ready", "pending-deploy"]
+      }
+    },
+    {
+      "code": "QUOTE6",
+      "id": "4a7dff84-f58b-4084-89a0-75c5669f29d4",
+      "expectedTitlePrefix": "[QUOTE6]",
+      "patch": {
+        "title": "[QUOTE6] Reconcile historical dealless quotes and decide expiry policy",
+        "description": "Future prevention is delivered: a quote advances its linked deal and can atomically resolve/create/link a deal for one unambiguous lead. Remaining work is production-data reconciliation for historical dealless quotes plus a product decision on expiry. Do not automatically mark a deal Lost merely because one quote expired; a deal can have reissued or alternative quotes. Audit candidates and define the Lost rule first.",
+        "status": "backlog",
+        "workType": "data_task",
+        "severity": "medium",
+        "priority": "p2",
+        "component": "quotes",
+        "labels": ["historical-data", "expiry-policy", "partially-delivered"]
+      }
+    },
+    {
+      "code": "QUOTE1",
+      "id": "618ec6f2-ddba-4998-9615-b738211441fd",
+      "expectedTitlePrefix": "[QUOTE1]",
+      "patch": {
+        "title": "[QUOTE1] Enforce one Accepted quote per deal",
+        "description": "Accepted-quote edit/revert and Convert to Invoice were already fixed. The final gap is now implemented: service-level serialized validation plus a database transition trigger prevent a second quote from entering Accepted for the same deal, while preserving any historical duplicates for manual review. Deploy migration 1781000000000 and verify the conflict message before closing.",
+        "status": "in_progress",
+        "workType": "bug",
+        "severity": "high",
+        "priority": "p1",
+        "component": "quotes",
+        "labels": ["accepted-quote", "invariant", "code-ready", "pending-deploy"]
+      }
+    },
+    {
+      "code": "IMPORT2",
+      "id": "222374a9-2a19-46dc-b209-699e06c24875",
+      "expectedTitlePrefix": "[IMPORT2]",
+      "patch": {
+        "title": "[IMPORT2] Backfill principal names on historical imported schools",
+        "description": "Future prevention is code-ready: approved imports now copy a primary Head contact's name into a blank school principal_name, without overwriting curated data. Phone remains canonical on the Contact because the server School model has no phone column and a duplicate copy would drift. Remaining work is a reviewed production backfill for the historical import; run a dry-run and retain an undo script before any data change.",
+        "status": "backlog",
+        "workType": "data_task",
+        "severity": "medium",
+        "priority": "p2",
+        "component": "imports",
+        "labels": ["schools", "historical-data", "prevention-code-ready"]
+      }
+    },
+    {
+      "code": "CSV4",
+      "id": "08a6c57a-a2d3-422c-b5a9-2e2da514a4e4",
+      "expectedTitlePrefix": "[CSV4]",
+      "patch": {
+        "title": "[CSV4] Add approved-import reconciliation and safe batch undo",
+        "description": "The active XLSX path is server-side and stages every row for manager approval; the old 'no endpoint/browser loop' claim is stale. The remaining feature is exact batch provenance, an outcome report for partial failures, and a guarded undo for records created by one approved batch. Design undo so it never affects pending batches, later-edited leads, or pre-existing schools/contacts.",
+        "status": "backlog",
+        "workType": "feature",
+        "severity": "medium",
+        "priority": "p1",
+        "component": "imports",
+        "labels": ["undo", "reconciliation", "approval-safety"]
+      }
+    },
+    {
+      "code": "REA1",
+      "id": "8220fde6-e1f9-4954-b179-d9a28012a885",
+      "expectedTitlePrefix": "[REA1]",
+      "patch": {
+        "title": "[REA1] Require and display a reason for direct manager reassignment",
+        "description": "Rep-requested reassignment already captures a reason and manager approval. The remaining direct-manager path is now code-ready: changing an existing owner requires a reason in API and UI, and the reason is stored in the lead activity audit summary and values. The assignee list intentionally continues to include all active staff so a manager can select themselves. Deploy and smoke-test single and bulk reassignment before closing.",
+        "status": "in_progress",
+        "workType": "bug",
+        "severity": "medium",
+        "priority": "p1",
+        "component": "leads",
+        "labels": ["reassignment", "audit", "code-ready", "pending-deploy"]
+      }
+    },
+    {
+      "code": "QSYNC1",
+      "id": "7bb0b758-4d54-4159-839f-14260b79db1a",
+      "expectedTitlePrefix": "[QSYNC1]",
+      "patch": {
+        "title": "[QSYNC1] Define and implement the two-week quote attention flag",
+        "description": "Pipeline presence, deal linkage/advancement, and a dedicated quote entry in the deal changelog are delivered or code-ready. Remaining work is only the requested two-week 'needs disqualify' signal. Define whether two weeks runs from creation or Sent, which statuses qualify, who is notified, and whether it is a warning or approval-gated action. Do not auto-disqualify or auto-mark Lost without that policy.",
+        "status": "backlog",
+        "workType": "feature",
+        "severity": "medium",
+        "priority": "p2",
+        "component": "quotes",
+        "labels": ["follow-up", "product-decision", "partially-delivered"]
+      }
+    },
+    {
+      "code": "DUP6",
+      "id": "9897bbce-e855-42d6-81a4-34ed42022d06",
+      "expectedTitlePrefix": "[DUP6]",
+      "patch": {
+        "title": "[DUP6] Add a safe, snapshot-backed undo for future lead merges",
+        "description": "The visible merge trail is delivered: survivor and retained loser record who/when/what was merged. Remaining work is undo. Because current merges reparent many child records and fill survivor fields, undo must capture a pre-merge snapshot and reject rollback after conflicting later edits; it cannot be reconstructed safely from the current log alone. Build for future merges before considering historical unmerge.",
+        "status": "backlog",
+        "workType": "feature",
+        "severity": "medium",
+        "priority": "p2",
+        "component": "duplicates",
+        "labels": ["undo", "data-integrity", "partially-delivered"]
+      }
+    },
+    {
+      "code": "INV2",
+      "id": "63664138-7131-45c5-97c9-0b2bdb6aab5",
+      "expectedTitlePrefix": "[INV2]",
+      "patch": {
+        "title": "[INV2] Specify the remaining invoice options requested by Finance",
+        "description": "Payment deadline is delivered through due_date, a create default, overdue queries, and payment-term schedules. The only remaining phrase, 'more options', has no acceptance criteria. Finance must name each option and its workflow; create separate actionable feature tickets from that list. This record is not an open payment-deadline defect.",
+        "status": "backlog",
+        "workType": "investigation",
+        "severity": "low",
+        "priority": "backlog",
+        "component": "invoices",
+        "labels": ["finance", "needs-requirements", "partially-delivered"]
+      }
+    }
+  ]
+}

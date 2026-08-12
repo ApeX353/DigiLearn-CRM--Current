@@ -96,6 +96,14 @@ export class Quote {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   total: number;
 
+  /**
+   * QUOTE4: the amount must be self-describing. Historical unlinked quotes
+   * remain nullable because inventing a currency for them would corrupt the
+   * audit trail; every newly issued quote is stamped by QuotesService.
+   */
+  @Column({ type: 'varchar', length: 3, nullable: true })
+  currency: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   valid_until: Date | null;
 

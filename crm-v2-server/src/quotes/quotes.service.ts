@@ -5,10 +5,11 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Repository, DataSource, Like, EntityManager } from 'typeorm';
+import { Repository, DataSource, Like, EntityManager, Not } from 'typeorm';
 import {
   paginate,
   Pagination,
@@ -126,6 +127,48 @@ export class QuotesService {
     }
   }
 
+  private async resolveCurrency(
+    manager: EntityManager,
+    requested?: string,
+    dealId?: string,
+  ): Promise<string> {
+    if (requested) return requested.toUpperCase();
+    if (dealId) {
+      const deal = await manager.findOne(Deal, { where: { id: dealId } });
+      if (deal?.currency) return deal.currency.toUpperCase();
+    }
+    const setting = await this.appSettingsService.getSetting('currency');
+    const configured = String(setting?.value ?? 'USD').trim().toUpperCase();
+    return /^[A-Z]{3}$/.test(configured) ? configured : 'USD';
+  }
+
+  /**
+   * QUOTE1: serialize acceptance by deal, then reject a second Accepted
+   * quote. The advisory transaction lock closes the race where two requests
+   * both count zero before either one commits.
+   */
+  private async assertAcceptedQuoteIsUnique(
+    manager: EntityManager,
+    quoteId: string,
+    dealId: string | null,
+    status: QuoteStatus,
+  ): Promise<void> {
+    if (status !== 'Accepted' || !dealId) return;
+    await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [dealId]);
+    const existing = await manager.count(Quote, {
+      where: {
+        deal_id: dealId,
+        status: 'Accepted',
+        id: Not(quoteId),
+      },
+    });
+    if (existing > 0) {
+      throw new ConflictException(
+        'This deal already has an Accepted quote. Move that quote out of Accepted before accepting another one.',
+      );
+    }
+  }
+
   async create(
     dto: CreateQuoteDto,
     userId: string,
@@ -146,6 +189,11 @@ export class QuotesService {
       const { items: itemDtos, interest, ...quoteData } = dto;
       const calculatedItems = this.calculateItemTotals(itemDtos);
       const totals = this.sumTotals(calculatedItems);
+      const currency = await this.resolveCurrency(
+        transactionManager,
+        dto.currency,
+        dto.deal_id,
+      );
 
       // QUOTE3: never leave a quote without a validity date. A null
       // valid_until is skipped by the expiry sweep, so the quote can never
@@ -167,6 +215,7 @@ export class QuotesService {
         quote_number: quoteNumber,
         owner_id: userId,
         valid_until: validUntil,
+        currency,
         ...totals,
       });
 
@@ -234,6 +283,7 @@ export class QuotesService {
             schoolId: savedQuote.school_id,
             personId: savedQuote.person_id,
             value: Number(savedQuote.total),
+            currency: savedQuote.currency ?? currency,
             actorId: userId,
           },
         );
@@ -270,16 +320,23 @@ export class QuotesService {
           documentId: savedQuote.id,
           documentNumber: savedQuote.quote_number,
           total: Number(savedQuote.total),
+          currency: savedQuote.currency ?? currency,
           userId,
         },
       );
       // A quote created straight from a lead page carries no deal_id;
       // link it to the deal it just caused so the paper trail is whole.
       if (intentDealId && !savedQuote.deal_id) {
-        await transactionManager.update(Quote, { id: savedQuote.id }, {
-          deal_id: intentDealId,
-        });
+        savedQuote.deal_id = intentDealId;
+        await transactionManager.save(Quote, savedQuote);
       }
+
+      await this.assertAcceptedQuoteIsUnique(
+        transactionManager,
+        savedQuote.id,
+        savedQuote.deal_id,
+        savedQuote.status,
+      );
 
       const fullQuote = await transactionManager.findOne(Quote, {
         where: { id: savedQuote.id },
@@ -361,6 +418,7 @@ export class QuotesService {
       // window from today — the whole point of a re-issue.
       valid_until: undefined,
       notes: source.notes ?? undefined,
+      currency: source.currency ?? undefined,
       po_received: false,
       payment_term_id: source.payment_term_id ?? undefined,
       items,
@@ -516,6 +574,7 @@ export class QuotesService {
         await this.assertDealAttachable(manager, dto.deal_id, scopeUserId);
       }
       Object.assign(quote, dto);
+      if (dto.currency) quote.currency = dto.currency.toUpperCase();
 
       // QUOTE1: editing an Accepted quote's content without re-affirming its
       // status invalidates the acceptance — the customer accepted different
@@ -527,6 +586,13 @@ export class QuotesService {
         quote.status = 'Draft';
         quote.po_received = false;
       }
+
+      await this.assertAcceptedQuoteIsUnique(
+        manager,
+        quote.id,
+        quote.deal_id,
+        quote.status,
+      );
 
       const updatedQuote = await manager.save(Quote, quote);
 
@@ -560,11 +626,23 @@ export class QuotesService {
     status: QuoteStatus,
     userId: string,
   ): Promise<Quote> {
-    const quote = await this.findOne(id);
-    const oldStatus = quote.status;
-
-    quote.status = status;
-    const updatedQuote = await this.quoteRepository.save(quote);
+    const { updatedQuote, oldStatus } = await this.dataSource.transaction(
+      async (manager) => {
+        const quote = await manager.findOne(Quote, { where: { id } });
+        if (!quote) {
+          throw new NotFoundException(`Quote with ID ${id} not found`);
+        }
+        const previous = quote.status;
+        await this.assertAcceptedQuoteIsUnique(
+          manager,
+          quote.id,
+          quote.deal_id,
+          status,
+        );
+        quote.status = status;
+        return { updatedQuote: await manager.save(Quote, quote), oldStatus: previous };
+      },
+    );
 
     await this.activityLogsService.logUpdate(
       'Quote',

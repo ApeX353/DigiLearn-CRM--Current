@@ -381,6 +381,27 @@ export class LeadsService {
       // ===== STEP 3: Resolve primary contact (reuse existing by id/match or create new) =====
       const newPrimaryContact = await resolveContact(primaryContact, true);
 
+      // IMPORT2 prevention: the source workbook's Head is the same person
+      // users expect in the Schools list Principal column. Populate the
+      // school snapshot for newly approved imports, but never overwrite a
+      // principal that staff already curated. Phone remains canonical on
+      // the Contact record because School has no phone column and keeping
+      // two independent copies would drift.
+      if (
+        opts?.bulkImport === true &&
+        !school.principal_name?.trim() &&
+        (primaryContact.role === 'Head' || newPrimaryContact.role === 'Head')
+      ) {
+        school.principal_name = [
+          newPrimaryContact.first_name,
+          newPrimaryContact.last_name,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        school = await manager.save(School, school);
+      }
+
       const slaConfig = await manager.findOne(LeadSLA, {
         where: {
           status: 'New',
@@ -1477,6 +1498,7 @@ export class LeadsService {
             request.lead_id,
             request.proposed_assignee_id,
             userId,
+            request.reason,
           );
         }
       }
@@ -1610,6 +1632,7 @@ export class LeadsService {
       documentId: string;
       documentNumber: string;
       total: number;
+      currency?: string;
       userId: string;
     },
   ): Promise<string | null> {
@@ -1651,7 +1674,7 @@ export class LeadsService {
           id: dealId,
           title: lead.lead_name,
           value: input.total,
-          currency: 'USD',
+          currency: input.currency ?? 'USD',
           lead_id: lead.id,
           school_id: input.schoolId,
           current_stage_id: stage.id,
@@ -1777,6 +1800,23 @@ export class LeadsService {
         }),
       );
     }
+
+    // QSYNC1: the deal feed previously showed only the stage movement. Add
+    // an explicit commercial-document entry so anyone reading the deal can
+    // see which quote/invoice caused it and open the filed document.
+    await this.activityLogsService.logCreate(
+      'deal',
+      deal.id,
+      {
+        document_type: input.documentType,
+        document_id: input.documentId,
+        document_number: input.documentNumber,
+        total: input.total,
+        ...(input.currency ? { currency: input.currency } : {}),
+      },
+      input.userId,
+      `${input.documentType === 'quote' ? 'Quote' : 'Invoice'} ${input.documentNumber} added to deal`,
+    );
 
     // ---- 4. Lead-side signals ------------------------------------------
     if (deal.lead_id) {
@@ -2133,6 +2173,7 @@ export class LeadsService {
     id: string,
     assignedTo: string,
     userId: string,
+    reason?: string,
   ): Promise<Lead> {
     const lead = await this.findOne(id);
     const user = await this.usersRepository.findOne({where: { id: assignedTo, is_active: true }})
@@ -2142,6 +2183,17 @@ export class LeadsService {
     }
 
     const oldAssignee = lead.assigned_to;
+    if (oldAssignee === assignedTo) {
+      return lead;
+    }
+
+    const trimmedReason = reason?.trim();
+    if (oldAssignee && !trimmedReason) {
+      throw new BadRequestException(
+        'A reason is required when reassigning a lead to a different owner',
+      );
+    }
+
     // Resolve the previous owner's name for the audit summary so the
     // log doesn't dump raw UUIDs at the manager.
     const oldUser = oldAssignee
@@ -2165,9 +2217,14 @@ export class LeadsService {
       'Lead',
       lead.id,
       { assigned_to: oldAssignee },
-      { assigned_to: assignedTo },
+      {
+        assigned_to: assignedTo,
+        ...(trimmedReason ? { reassignment_reason: trimmedReason } : {}),
+      },
       userId,
-      `Reassigned lead from ${fmt(oldUser)} to ${fmt(user)}`,
+      `${oldAssignee ? 'Reassigned' : 'Assigned'} lead from ${fmt(oldUser)} to ${fmt(user)}${
+        trimmedReason ? ` — Reason: ${trimmedReason}` : ''
+      }`,
     );
 
     return this.findOne(id);

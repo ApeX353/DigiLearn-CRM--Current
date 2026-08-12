@@ -41,6 +41,7 @@ export interface Quote {
   subtotal: number;
   tax_total: number;
   total: number;
+  currency?: string | null;
   items: QuoteItem[];
   owner_id?: string;
   owner?: { id: string; first_name: string; last_name: string };
@@ -92,6 +93,10 @@ export const createQuoteSchema = z.object({
   client_name: z.string().min(1),
   client_email: z.email().optional(),
   client_address: z.string().optional(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "Use a three-letter currency code")
+    .optional(),
   valid_until: z.date().optional(),
   notes: z.string().optional(),
   items: z.array(quoteItemSchema).min(1),

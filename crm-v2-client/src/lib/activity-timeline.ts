@@ -24,7 +24,7 @@ import type { ActivityLog } from "~/api/activity-logs";
  * so they produce nothing.
  */
 
-export type TimelineChangeField = "stage" | "value" | "close";
+export type TimelineChangeField = "stage" | "value" | "close" | "document";
 
 export interface TimelineChange {
   /** Stable per (log, field) so React keys don't collide on merged rows. */
@@ -60,18 +60,42 @@ function readable(value: unknown): string | null {
  * because the server folds them into the same row.
  */
 function changesFromLog(log: ActivityLog): TimelineChange[] {
+  const newValues = (log.new_values ?? {}) as Record<string, unknown>;
+  const actor = [log.user?.first_name, log.user?.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  // QSYNC1 commercial-document entries are create logs on the Deal. They
+  // belong in the main chronological feed, not only in the Changelog tab.
+  if (
+    log.action === "create" &&
+    (newValues.document_type === "quote" || newValues.document_type === "invoice")
+  ) {
+    const number = readable(newValues.document_number) ?? "document";
+    const amount = readable(newValues.total);
+    const currency = readable(newValues.currency);
+    return [
+      {
+        id: `${log.id}:document`,
+        at: log.created_at,
+        field: "document",
+        label: newValues.document_type === "quote" ? "Quote" : "Invoice",
+        from: null,
+        to: [number, amount && currency ? `${currency} ${amount}` : amount]
+          .filter(Boolean)
+          .join(" · "),
+        actor: actor || undefined,
+      },
+    ];
+  }
+
   // `create` rows describe the record coming into existence, which the
   // record page already says. `delete` rows have nothing to show.
   if (log.action !== "update") return [];
 
   const oldValues = (log.old_values ?? {}) as Record<string, unknown>;
-  const newValues = (log.new_values ?? {}) as Record<string, unknown>;
   if (!Object.keys(newValues).length) return [];
-
-  const actor = [log.user?.first_name, log.user?.last_name]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
 
   const out: TimelineChange[] = [];
 

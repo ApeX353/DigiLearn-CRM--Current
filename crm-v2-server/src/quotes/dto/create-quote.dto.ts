@@ -11,6 +11,7 @@ import {
   ValidateNested,
   Min,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -97,6 +98,14 @@ export class CreateQuoteDto {
   @IsOptional()
   @IsEnum(QUOTE_STATUSES)
   status?: QuoteStatus;
+
+  @ApiPropertyOptional({ example: 'USD', default: 'USD' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z]{3}$/, {
+    message: 'currency must be a three-letter uppercase ISO currency code',
+  })
+  currency?: string;
 
   @ApiPropertyOptional({ example: '2026-03-01T00:00:00.000Z' })
   @IsOptional()

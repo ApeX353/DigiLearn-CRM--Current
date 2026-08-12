@@ -266,7 +266,7 @@ export function QuotePreviewModal({
                   <div>
                     <p className="text-xs text-muted-foreground">Total</p>
                     <p className="font-semibold">
-                      {formatCurrency(quote.total)}
+                      {formatCurrency(quote.total, quote.currency)}
                     </p>
                   </div>
                 </div>
@@ -315,7 +315,10 @@ export function QuotePreviewModal({
                                 <TableCell>{item.description}</TableCell>
                                 <TableCell>{item.quantity}</TableCell>
                                 <TableCell>
-                                  {formatCurrency(toNum(item.unit_price))}
+                                  {formatCurrency(
+                                    toNum(item.unit_price),
+                                    quote.currency,
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   {toNum(item.discount).toFixed(2)}%
@@ -324,7 +327,7 @@ export function QuotePreviewModal({
                                   {toNum(item.tax_rate).toFixed(2)}%
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {formatCurrency(amounts.total)}
+                                  {formatCurrency(amounts.total, quote.currency)}
                                 </TableCell>
                               </TableRow>
                             );
@@ -339,26 +342,26 @@ export function QuotePreviewModal({
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span className="font-medium">
-                          {formatCurrency(totals.subtotal)}
+                          {formatCurrency(totals.subtotal, quote.currency)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Discount</span>
                         <span className="font-medium text-green-600">
-                          -{formatCurrency(totals.totalDiscount)}
+                          -{formatCurrency(totals.totalDiscount, quote.currency)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Tax</span>
                         <span className="font-medium">
-                          {formatCurrency(totals.totalTax)}
+                          {formatCurrency(totals.totalTax, quote.currency)}
                         </span>
                       </div>
                       {hasInterest && (
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Interest</span>
                           <span className="font-medium">
-                            +{formatCurrency(interestAmount)}
+                            +{formatCurrency(interestAmount, quote.currency)}
                           </span>
                         </div>
                       )}
@@ -366,7 +369,7 @@ export function QuotePreviewModal({
                       <div className="flex justify-between">
                         <span className="font-semibold">Total</span>
                         <span className="text-xl font-bold text-primary">
-                          {formatCurrency(displayTotal)}
+                          {formatCurrency(displayTotal, quote.currency)}
                         </span>
                       </div>
                     </div>

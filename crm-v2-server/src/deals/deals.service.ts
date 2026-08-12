@@ -1306,10 +1306,11 @@ export class DealsService {
       schoolId: string;
       personId: string | null;
       value: number;
+      currency?: string;
       actorId: string;
     },
   ): Promise<Deal | null> {
-    const { schoolId, personId, value, actorId } = params;
+    const { schoolId, personId, value, actorId, currency = 'USD' } = params;
 
     // Resolve the lead: open leads for this school, narrowed by the
     // quote's contact when we have one.
@@ -1361,7 +1362,7 @@ export class DealsService {
       id: dealId,
       title: lead.lead_name,
       value,
-      currency: 'USD',
+      currency,
       lead_id: lead.id,
       school_id: schoolId,
       current_stage_id: initialStage.id,

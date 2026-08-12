@@ -45,6 +45,7 @@ import {
 } from "~/api/quotes";
 import { DocumentItems } from "~/components/document-items";
 import { useDocumentPrepopulation } from "~/hooks/use-document-prepopulation";
+import { useCurrency } from "~/hooks/use-currency";
 
 export default function CreateQuotePage() {
   const navigate = useNavigate();
@@ -54,6 +55,7 @@ export default function CreateQuotePage() {
   const leadId = searchParams.get("leadId") || undefined;
   const personId = searchParams.get("personId") || undefined;
   const createQuote = useCreateQuote();
+  const { currency } = useCurrency();
   const [schoolSearch, setSchoolSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
 
@@ -111,6 +113,7 @@ export default function CreateQuotePage() {
       client_email: "",
       client_address: "",
       notes: "",
+      currency,
       items: [
         {
           product_id: "",
@@ -144,6 +147,7 @@ export default function CreateQuotePage() {
         client_email: prepopData.client_email || "",
         client_address: prepopData.client_address || "",
         notes: prepopData.notes || "",
+        currency,
         items:
           prepopData.items && prepopData.items.length > 0
             ? prepopData.items.map((item) => ({
@@ -171,6 +175,7 @@ export default function CreateQuotePage() {
         quote_number: values.quote_number,
         valid_until: values.valid_until,
         notes: values.notes,
+        currency: values.currency,
         payment_term_id: values.payment_term_id,
         interest: values.interest,
         tax: values.tax,
@@ -262,6 +267,28 @@ export default function CreateQuotePage() {
                         <FormLabel>Client Name *</FormLabel>
                         <FormControl>
                           <Input {...field} placeholder="Client name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency *</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? currency}
+                            onChange={(event) =>
+                              field.onChange(event.target.value.toUpperCase())
+                            }
+                            maxLength={3}
+                            placeholder="USD"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

@@ -68,7 +68,7 @@ import {
   getActivityTile,
   type ActivityVisualType,
 } from "~/lib/activity-visuals";
-import { ArrowRight, DollarSign, Loader2, RotateCcw } from "lucide-react";
+import { ArrowRight, DollarSign, FileText, Loader2, RotateCcw } from "lucide-react";
 import { getActivityVisual } from "~/lib/activity-visuals";
 import type { TimelineChange } from "~/lib/activity-timeline";
 import { isMissingNextAction } from "~/lib/activity-next-action";
@@ -716,7 +716,12 @@ export function TimelineChangeItem({
   formatValue: (c: TimelineChange) => { from: string | null; to: string };
 }) {
   const { from, to } = formatValue(change);
-  const Icon = change.field === "value" ? DollarSign : ArrowRight;
+  const Icon =
+    change.field === "value"
+      ? DollarSign
+      : change.field === "document"
+        ? FileText
+        : ArrowRight;
   return (
     <li className="group relative">
       <span

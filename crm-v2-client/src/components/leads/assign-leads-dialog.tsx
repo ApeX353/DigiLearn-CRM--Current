@@ -6,6 +6,7 @@ import { handleApiError } from "~/api/axios";
 import { useAssignLead } from "~/api/leads";
 import { useAllStaff } from "~/api/staff";
 import { Button } from "~/components/ui/button";
+import { Textarea } from "~/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ interface AssignLeadsDialogProps {
   leadIds: string[];
   leadSummaryText?: string;
   onSuccess?: () => void;
+  requiresReason?: boolean;
 }
 
 export function AssignLeadsDialog({
@@ -36,8 +38,10 @@ export function AssignLeadsDialog({
   leadIds,
   leadSummaryText,
   onSuccess,
+  requiresReason = false,
 }: AssignLeadsDialogProps) {
   const [selectedRepId, setSelectedRepId] = useState("");
+  const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const assignLead = useAssignLead();
 
@@ -65,6 +69,7 @@ export function AssignLeadsDialog({
   useEffect(() => {
     if (open) return;
     setSelectedRepId("");
+    setReason("");
     setIsSubmitting(false);
   }, [open]);
 
@@ -72,6 +77,7 @@ export function AssignLeadsDialog({
     if (isSubmitting) return;
     if (!nextOpen) {
       setSelectedRepId("");
+      setReason("");
       setIsSubmitting(false);
     }
     onOpenChange(nextOpen);
@@ -90,12 +96,21 @@ export function AssignLeadsDialog({
       return;
     }
 
+    if (requiresReason && reason.trim().length < 3) {
+      toast.error("Please enter a reason for the reassignment");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const results = await Promise.allSettled(
         uniqueLeadIds.map((leadId) =>
-          assignLead.mutateAsync({ id: leadId, assigned_to: selectedRepId }),
+          assignLead.mutateAsync({
+            id: leadId,
+            assigned_to: selectedRepId,
+            reason: reason.trim() || 'Initial manager assignment',
+          }),
         ),
       );
 
@@ -202,6 +217,23 @@ export function AssignLeadsDialog({
               Selected: {selectedRep.first_name} {selectedRep.last_name}
             </p>
           )}
+
+          <div className="space-y-2">
+            <label htmlFor="assignment-reason" className="text-sm font-medium">
+              Reason {requiresReason ? "*" : "(optional for a new assignment)"}
+            </label>
+            <Textarea
+              id="assignment-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Why is this lead changing hands?"
+              maxLength={1000}
+              disabled={isPending}
+            />
+            <p className="text-xs text-muted-foreground">
+              This note is saved in the lead's visible audit history.
+            </p>
+          </div>
         </div>
 
         <DialogFooter>
@@ -214,7 +246,12 @@ export function AssignLeadsDialog({
           </Button>
           <Button
             onClick={handleAssign}
-            disabled={!selectedRepId || uniqueLeadIds.length === 0 || isPending}
+            disabled={
+              !selectedRepId ||
+              uniqueLeadIds.length === 0 ||
+              isPending ||
+              (requiresReason && reason.trim().length < 3)
+            }
           >
             {isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -784,6 +784,7 @@ const ViewLead = ({ id }: { id: string }) => {
         onOpenChange={setReassignOpen}
         leadIds={[lead.id]}
         leadSummaryText={`${lead.lead_name} (${lead.school?.name ?? ""})`}
+        requiresReason={Boolean(lead.assigned_to)}
       />
 
       <RequestReversalDialog

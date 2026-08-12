@@ -132,6 +132,7 @@ export class DocumentGeneratorService {
         );
       }
       doc.text(`Status: ${quote.status}`, 50, infoY + 45);
+      doc.text(`Currency: ${quote.currency ?? 'Not recorded'}`, 50, infoY + 60);
 
       // Client info
       doc.text('Prepared For:', 350, infoY);
@@ -146,7 +147,7 @@ export class DocumentGeneratorService {
 
       // Items table
       const tableTop = infoY + 80;
-      this.drawItemsTable(doc, quote.items, tableTop);
+      this.drawItemsTable(doc, quote.items, tableTop, quote.currency);
 
       // Totals
       const totalsY = tableTop + 30 + quote.items.length * 25 + 20;
@@ -159,6 +160,7 @@ export class DocumentGeneratorService {
           total: Number(quote.total),
         },
         totalsY,
+        quote.currency,
       );
 
       // Notes
@@ -220,6 +222,7 @@ export class DocumentGeneratorService {
     doc: PDFKit.PDFDocument,
     items: DocumentItem[],
     startY: number,
+    currency?: string | null,
   ): void {
     const colX = {
       description: 50,
@@ -260,19 +263,19 @@ export class DocumentGeneratorService {
         .fontSize(9)
         .text(item.description || '', colX.description + 5, y, { width: 220 })
         .text(String(item.quantity), colX.qty, y, { width: 40, align: 'right' })
-        .text(await this.formatCurrency(Number(item.unit_price)), colX.unitPrice, y, {
+        .text(await this.formatCurrency(Number(item.unit_price), currency), colX.unitPrice, y, {
           width: 60,
           align: 'right',
         })
-        .text(await this.formatCurrency(Number(item.discount)), colX.discount, y, {
+        .text(await this.formatCurrency(Number(item.discount), currency), colX.discount, y, {
           width: 40,
           align: 'right',
         })
-        .text(await this.formatCurrency(Number(item.tax)), colX.tax, y, {
+        .text(await this.formatCurrency(Number(item.tax), currency), colX.tax, y, {
           width: 35,
           align: 'right',
         })
-        .text(await this.formatCurrency(Number(item.total)), colX.total, y, {
+        .text(await this.formatCurrency(Number(item.total), currency), colX.total, y, {
           width: 50,
           align: 'right',
         });
@@ -293,6 +296,7 @@ export class DocumentGeneratorService {
     doc: PDFKit.PDFDocument,
     totals: { subtotal: number; discount: number; tax: number; total: number },
     startY: number,
+    currency?: string | null,
   ): Promise<void> {
     const labelX = 380;
     const valueX = 490;
@@ -301,7 +305,7 @@ export class DocumentGeneratorService {
     doc.fontSize(10).font('Helvetica').fillColor('#333');
 
     doc.text('Subtotal:', labelX, y, { width: 100, align: 'right' });
-    doc.text(await this.formatCurrency(totals.subtotal), valueX, y, {
+    doc.text(await this.formatCurrency(totals.subtotal, currency), valueX, y, {
       width: 55,
       align: 'right',
     });
@@ -309,7 +313,7 @@ export class DocumentGeneratorService {
 
     if (totals.discount > 0) {
       doc.text('Discount:', labelX, y, { width: 100, align: 'right' });
-      doc.text(`-${await this.formatCurrency(totals.discount)}`, valueX, y, {
+      doc.text(`-${await this.formatCurrency(totals.discount, currency)}`, valueX, y, {
         width: 55,
         align: 'right',
       });
@@ -318,7 +322,7 @@ export class DocumentGeneratorService {
 
     if (totals.tax > 0) {
       doc.text('Tax:', labelX, y, { width: 100, align: 'right' });
-      doc.text(await this.formatCurrency(totals.tax), valueX, y, {
+      doc.text(await this.formatCurrency(totals.tax, currency), valueX, y, {
         width: 55,
         align: 'right',
       });
@@ -331,7 +335,7 @@ export class DocumentGeneratorService {
 
     doc.fontSize(12).font('Helvetica-Bold');
     doc.text('Total:', labelX, y, { width: 100, align: 'right' });
-    doc.text(await this.formatCurrency(totals.total), valueX, y, {
+    doc.text(await this.formatCurrency(totals.total, currency), valueX, y, {
       width: 55,
       align: 'right',
     });
@@ -351,12 +355,15 @@ export class DocumentGeneratorService {
       );
   }
 
-  private async formatCurrency(value: number): Promise<string> {
+  private async formatCurrency(
+    value: number,
+    currencyOverride?: string | null,
+  ): Promise<string> {
     const currency = await this.appSettingsService.getSetting('currency');
 
     return value.toLocaleString('en-US', {
       style: 'currency',
-      currency: currency?.value ?? 'USD',
+      currency: currencyOverride ?? currency?.value ?? 'USD',
     });
   }
 }

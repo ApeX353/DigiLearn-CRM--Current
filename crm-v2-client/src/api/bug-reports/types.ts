@@ -77,6 +77,8 @@ export interface CreateBugReportDto {
 }
 
 export interface UpdateBugReportDto {
+  title?: string;
+  description?: string;
   status?: BugStatus;
   workType?: WorkType;
   severity?: BugSeverity;

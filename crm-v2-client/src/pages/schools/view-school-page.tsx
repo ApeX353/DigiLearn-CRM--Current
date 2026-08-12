@@ -423,7 +423,10 @@ const ViewSchool = ({ id }: { id: string }) => {
                           <div className="flex items-center gap-3">
                             <div className="text-right space-y-1">
                               <p className="font-semibold">
-                                {formatCurrency(quote.total)}
+                                {formatCurrency(
+                                  quote.total,
+                                  quote.currency ?? undefined,
+                                )}
                               </p>
                               <Badge
                                 variant={

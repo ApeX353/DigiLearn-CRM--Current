@@ -9,10 +9,10 @@ export function useCurrency() {
   const currency = getSettingString("currency", DEFAULT_CURRENCY);
 
   const formatCurrency = useCallback(
-    (amount: number) => {
+    (amount: number, currencyOverride?: string | null) => {
       return new Intl.NumberFormat(undefined, {
         style: "currency",
-        currency,
+        currency: currencyOverride || currency,
       }).format(amount);
     },
     [currency],

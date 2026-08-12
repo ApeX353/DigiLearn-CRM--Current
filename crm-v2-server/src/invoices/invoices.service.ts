@@ -4,9 +4,10 @@ import {
   BadRequestException,
   Logger,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Like, EntityManager } from 'typeorm';
+import { Repository, DataSource, Like, EntityManager, Not } from 'typeorm';
 import {
   paginate,
   Pagination,
@@ -209,6 +210,24 @@ export class InvoicesService {
           where: { id: savedInvoice.quote_id },
         });
         if (sourceQuote && sourceQuote.status !== 'Accepted') {
+          if (sourceQuote.deal_id) {
+            await manager.query(
+              'SELECT pg_advisory_xact_lock(hashtext($1))',
+              [sourceQuote.deal_id],
+            );
+            const acceptedOnDeal = await manager.count(Quote, {
+              where: {
+                deal_id: sourceQuote.deal_id,
+                status: 'Accepted',
+                id: Not(sourceQuote.id),
+              },
+            });
+            if (acceptedOnDeal > 0) {
+              throw new ConflictException(
+                'This deal already has an Accepted quote. Move that quote out of Accepted before converting this one.',
+              );
+            }
+          }
           sourceQuote.status = 'Accepted';
           await manager.save(Quote, sourceQuote);
         }

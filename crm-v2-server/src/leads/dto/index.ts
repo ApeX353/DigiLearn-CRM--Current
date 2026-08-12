@@ -11,3 +11,4 @@ export * from './create-lead-with-school-contacts.dto';
 export * from './create-lead-stakeholder.dto';
 export * from './create-lead-reversal-request.dto';
 export * from './review-lead-reversal-request.dto';
+export * from './assign-lead.dto';

@@ -325,7 +325,7 @@ export default function QuotesPage() {
                           : "-"}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
-                        {formatCurrency(quote.total)}
+                        {formatCurrency(quote.total, quote.currency)}
                       </TableCell>
                       <TableCell className="space-x-2">
                         <Link
@@ -393,7 +393,7 @@ export default function QuotesPage() {
                       <div>
                         <p className="text-xs text-muted-foreground">Amount</p>
                         <p className="text-2xl font-bold">
-                          {formatCurrency(quote.total)}
+                          {formatCurrency(quote.total, quote.currency)}
                         </p>
                       </div>
                       <div className="text-right">

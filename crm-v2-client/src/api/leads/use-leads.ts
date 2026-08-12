@@ -80,9 +80,9 @@ const leadsApi = {
     apiClientAuth.put(`/leads/${id}`, data).then((res) => res.data),
 
   // Assign lead
-  assign: (id: string, assignedTo: string): Promise<Lead> =>
+  assign: (id: string, assignedTo: string, reason: string): Promise<Lead> =>
     apiClientAuth
-      .patch(`/leads/${id}/assign`, { assigned_to: assignedTo })
+      .patch(`/leads/${id}/assign`, { assigned_to: assignedTo, reason })
       .then((res) => res.data),
 
   // Add lead stakeholder
@@ -264,8 +264,15 @@ export function useAssignLead() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, assigned_to }: { id: string; assigned_to: string }) =>
-      leadsApi.assign(id, assigned_to),
+    mutationFn: ({
+      id,
+      assigned_to,
+      reason,
+    }: {
+      id: string;
+      assigned_to: string;
+      reason: string;
+    }) => leadsApi.assign(id, assigned_to, reason),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: leadsKeys.all });
       queryClient.invalidateQueries({ queryKey: leadsKeys.byId(variables.id) });

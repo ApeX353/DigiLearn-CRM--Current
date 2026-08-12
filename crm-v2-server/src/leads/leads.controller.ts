@@ -28,6 +28,7 @@ import {
   CreateLeadWithSchoolContactsDto,
   CreateLeadStakeholderDto,
   CreateLeadReversalRequestDto,
+  AssignLeadDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -569,10 +570,15 @@ export class LeadsController {
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Forbidden' })
   async assignLead(
     @Param('id') id: string,
-    @Body('assigned_to') assignedTo: string,
+    @Body() dto: AssignLeadDto,
     @CurrentUser('id') userId: string,
   ) {
-    const lead = await this.leadsService.assignLead(id, assignedTo, userId);
+    const lead = await this.leadsService.assignLead(
+      id,
+      dto.assigned_to,
+      userId,
+      dto.reason,
+    );
     return {
       success: true,
       message: 'Lead assigned successfully',
@@ -588,10 +594,10 @@ export class LeadsController {
   @Roles('admin', 'sales_manager')
   @ApiOperation({ summary: 'Bulk update leads (assign, status change, or delete)' })
   async bulkUpdate(
-    @Body() body: { leadIds: string[]; action: 'assign' | 'status' | 'delete'; assigneeId?: string; status?: string },
+    @Body() body: { leadIds: string[]; action: 'assign' | 'status' | 'delete'; assigneeId?: string; status?: string; reason?: string },
     @CurrentUser('id') userId: string,
   ) {
-    const { leadIds, action, assigneeId, status } = body;
+    const { leadIds, action, assigneeId, status, reason } = body;
     let updated = 0;
 
     for (const leadId of leadIds) {
@@ -599,7 +605,12 @@ export class LeadsController {
         switch (action) {
           case 'assign':
             if (assigneeId) {
-              await this.leadsService.assignLead(leadId, assigneeId, userId);
+              await this.leadsService.assignLead(
+                leadId,
+                assigneeId,
+                userId,
+                reason,
+              );
               updated++;
             }
             break;
