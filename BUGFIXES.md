@@ -8,7 +8,7 @@ the data impact. Newest first.
 
 ## 2026-08-12 - AUTO-EQUITY: catch-up was an optional manual Rebalance step instead of part of auto-assign
 
-**Severity:** High - **Area:** Auto-assign / distribution - **Status:** FIXED in code (staging/deployment pending) - **Requested by:** sales manager
+**Severity:** High - **Area:** Auto-assign / distribution - **Status:** VERIFIED ON STAGING (2026-08-12) - **Requested by:** sales manager
 
 **Symptom.** Run auto-assign produced the territory split first. Catching
 Manake up to Tanya required a separate import-scoped Rebalance preview and
@@ -44,7 +44,9 @@ with any activity or a hand-changed owner.
 **Verification.** Focused router tests pass (15/15), including catch-up then
 territory, the current one-apart shape, the strict `<50` boundary, manager cap,
 manager self-redirect, existing-pending immutability, successful safe Undo and
-worked-lead Undo refusal. Server and client production builds pass.
+worked-lead Undo refusal. Server and client production builds pass. The same
+code shipped to `api-staging` and `staging` in release `5df724b`; both CapRover
+builds finished with `failed=false`.
 
 ---
 
@@ -1173,4 +1175,10 @@ leads remain unchanged; missing legacy notes/approvals are displayed as not
 recorded. Pending imports and auto-assignment proposals are untouched.
 
 **Verification.** Server/client production builds pass. Focused identity,
-disqualification and AUTO-EQUITY regression suites pass (37 tests).
+disqualification and AUTO-EQUITY regression suites pass (5 suites, 42 tests).
+Staging release `5df724b` promoted successfully on both apps. The live client
+bundle is `index-RH8Q0W0v.js` and contains the new Active Leads, automatic
+approval, customer-email and disqualification labels. Authenticated read-only
+checks returned 1,457 from both `active=true` and `status-counts.Active`; the
+staging approval queue remained readable with one pending item. The smoke
+check performed zero mutations. Production was not deployed or changed.
