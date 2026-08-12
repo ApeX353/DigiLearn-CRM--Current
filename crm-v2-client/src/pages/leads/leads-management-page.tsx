@@ -583,8 +583,8 @@ export default function LeadsManagementPage() {
             </Button>
             <span className="text-xs text-muted-foreground">
               {autoAssignCampaignId
-                ? "Distributes only that campaign's new, unassigned leads by territory and workload — suggestions land in the Approval Queue."
-                : "Distributes all new, unassigned leads by territory and workload — pick a campaign to scope it to one import. Suggestions land in the Approval Queue."}
+                ? "Distributes only that campaign's new, unassigned leads: catches the lighter workload up first, then uses territory. Suggestions land in the Approval Queue."
+                : "Distributes all new, unassigned leads: catches the lighter workload up first, then uses territory. Pick a campaign to scope it to one import."}
             </span>
           </div>
         )}

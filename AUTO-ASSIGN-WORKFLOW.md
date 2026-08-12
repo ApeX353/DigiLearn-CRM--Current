@@ -4,23 +4,44 @@
 
 ---
 
+> **AUTO-EQUITY update - 12 Aug 2026 (code complete; deployment pending).**
+> Fairness is priority 1 and territory is priority 2. Run auto-assign first
+> catches every lighter rep up to the heaviest starting projected full book;
+> the remaining leads follow territory while the projected gap stays strictly
+> below 50. With the current live numbers this batch is expected to finish one
+> lead apart, but one apart is not a universal rule. The manager can Redirect
+> any pending suggestion, including to themselves. The old Rebalance panel is
+> hidden; its server endpoint remains as a legacy rollback tool.
+> Existing production PENDING proposals are untouched: they count toward the
+> projection and their lead ids stay excluded from later runs, but the new code
+> never rewrites or rebalances those rows.
+
 ## What it does, in one line
-A manager distributes a batch of **new, unworked** leads to reps **by territory and workload** — the engine only **proposes**, a manager **approves**, and only then does a lead get an owner.
+A manager distributes a batch of **new, unworked** leads by **workload fairness first, then territory** — the engine only **proposes**, a manager **approves**, and only then does a lead get an owner.
 
 ## The workflow (how Kim runs it)
 1. **Leads** page → filter tab **"New"**.
 2. The **"Run auto-assign"** button + a **"Distribute: [campaign ▾]"** picker appear.
 3. Pick the import to hand out — e.g. **NASH 2026** — (or "All new leads").
 4. Click **Run auto-assign** → the engine writes PENDING **proposals** → you're taken to the **Approval Queue**.
-5. In the queue: review, then **approve** (single, multi-select **bulk**, or **Approve-all**). Approval is when the lead gets its owner and the first-touch SLA clock starts.
+5. The queue already contains the catch-up split. Review it, use **Redirect**
+   for any exception or further manual balance, then **approve** (single,
+   multi-select **bulk**, or **Approve-all**). Approval is when the lead gets
+   its owner and the first-touch SLA clock starts.
 
 ## Who can run it
 - **Managers/admins only** (`sales_manager` / `admin`). Kim (sales_manager) sees it. Prince now has `sales_manager` on prod too (re-login required).
 
-## How leads are distributed (the rules — Mr Dube, 30 July)
-- **Territory is a HARD filter.** A lead goes only to a rep whose `territory_provinces` covers its school's province. Never out of territory.
-- **Fairness within territory** — if more than one rep covers a province, the **lightest-loaded** gets it. **There is NO ≤50 gap check in distribution** (code-verified 10 Aug: `allocate()` never reads `FAIRNESS_GAP` — the gap applies only to rebalance moves). With prod's disjoint territories each rep simply gets all of their provinces' leads.
-- **No covering rep / blank province → skipped**, left for manual placement.
+## How leads are distributed (current rule - 12 Aug)
+- **Fairness is priority 1.** Projected load means the full existing book plus
+  pending proposals. Each lighter rep receives the catch-up share until they
+  reach the heaviest starting projected book, if the selected batch is large
+  enough.
+- **Territory is priority 2.** Once catch-up is complete, remaining leads
+  follow the school's province while the projected gap stays strictly below
+  50. Territory may not recreate a gap of 50 or more.
+- **No covering rep / blank province** goes to the lightest eligible rep by
+  projected workload. The reason is visible and the manager may Redirect it.
 - **Recipients** = active **sales_reps with a territory**. Managers are **excluded** unless `auto_assign_include_managers` is on (capped by `manager_lead_cap`).
 
 ## Current prod territories
@@ -44,18 +65,27 @@ Without a campaign the engine distributes **every** eligible new lead — on pro
 
 ## Safety nets
 - **Undo** — reverses an approval: lead → unassigned, proposal → PENDING, the approval's SLA clock cleared. **Blocked** if the lead was since worked or hand-reassigned (never strips a lead a rep is on). On the approve toast.
-- **Rebalance (balances PROPOSALS before approval — assign once)** — after auto-assign, a manager evens the reps by moving **pending proposals** (not assigned leads) between two reps, **scoped to one import**: pick "Balance which import", From → To, **Preview** (shows *projected* totals = existing book + import proposals), **Move** → reassigns proposals, nothing assigned yet. **Approve-all then assigns the balanced split once** (SLA once, no double-assign, no debris — the fix for the 228/SLA mess). Keeps the ≤50 gap; **cross-territory allowed**; moves up to the from-rep's import-proposal count. Auto-even closes the projected gap as far as one import allows (may move a rep's whole share); type a **count** to move fewer. A legacy path still moves *assigned* leads for non-import rebalances.
+- **No separate Rebalance step in the normal workflow.** Catch-up is already
+  part of Run auto-assign. The legacy server endpoint is retained for rollback
+  and historical compatibility, but its panel is hidden.
 
 ## Catching the lighter rep up (the equity flow — Manake vs Tanya)
-The distribution engine **never balances books** — it is territory-only. "Catch Manake up to Tanya, then hand out what's left" is achieved with the rebalance step, run manually **between** distribute and approve:
+The distribution engine now performs "catch Manake up to Tanya, then hand out
+what's left" automatically:
 
-1. **Run auto-assign** (campaign picked) → the territory split lands as proposals (NASH: Tanya 185 / Manake 178). The book gap is untouched.
-2. **Rebalance**: From = heavier (Tanya) → To = lighter (Manake), campaign, auto-even → moves ⌊(from − to) / 2⌋ proposals based on **full-book projected** loads (EQUITY1). Meeting in the middle is mathematically identical to "catch the lighter rep up first, then split the remainder evenly" — both end level.
-3. **Approve-all** → each lead assigned exactly once.
+1. **Run auto-assign** with the campaign picked.
+2. The lighter starting projected book receives the catch-up share first. If
+   the batch cannot close the whole starting gap, every available proposal goes
+   toward catch-up.
+3. Remaining leads follow territory inside the strict `<50` fairness band.
+   With the current live numbers this is expected to finish one apart.
+4. Use **Redirect** (including Redirect to yourself) for further manual balance
+   or an exception, then **Approve-all**.
 
 - The catch-up is **capped by the heavier rep's import share** — one import can only close so much gap. NASH example: gap ≫ import, so auto-even hands Manake ALL of Tanya's 185 (Manake gets essentially the whole import and is still ~93 behind on the open count).
-- **Direction is manual.** The manager picks From/To; the system won't detect who's lighter — it only refuses a move when From isn't projected heavier.
-- **The pitfall:** Run + Approve-all *without* step 2 = raw territory split, gap preserved — and Undo can't rescue approvals once reps start working the leads. A queue nudge / one-click "Balance now" was proposed (10 Aug) and **parked, not built**.
+- **Direction is automatic.** The server detects the lighter starting book.
+- **The old pitfall is removed.** Run + Approve-all includes catch-up without a
+  separate manager action.
 
 ## Key facts / gotchas
 - **The switch stays OFF.** `auto_assign_enabled` only gates the *automatic background cron*. The **manual "Run auto-assign" button ignores it** — so it works with the switch off, and nothing fires on its own.
@@ -65,7 +95,11 @@ The distribution engine **never balances books** — it is territory-only. "Catc
 - **Undo clears `current_sla_due_date` unconditionally** (guards ensure the lead is untouched first) — fine in practice since approval is what starts the clock.
 
 ## Code verification (2026-08-10)
-This doc was checked line-by-line against `lead-auto-router.service.ts`, `automation.controller.ts`, `automation.constants.ts`, the client hooks (`api/assignment-proposals`) and both pages. Everything above matches the code, after one correction here (no gap check in distribution). **Still stale elsewhere:** the `FAIRNESS_GAP` comment in `automation.constants.ts` describes the pre-30-July "fairness overflows territory" rule (the opposite of `allocate()`), `allocate()`'s docstring mentions a fairness cap it doesn't enforce, CODEBASE-SKELETON.md §9.1 repeats the gap-in-distribution claim, and AUTO-ASSIGN-ENGINE.md's "to add for full spec" items are both long since implemented.
+The original 10 Aug verification below described the former hard-territory
+workflow. AUTO-EQUITY was re-verified on 12 Aug against the router, constants,
+focused tests and both manager pages: fairness now comes first, territory
+second, existing pending rows stay untouched, and Redirect includes the
+approving manager.
 
 ## Current state (2026-08-06, code-verified 2026-08-10)
 - Full suite **LIVE on prod** (api **0.0.25 / img 36**, crm **img 29**), clean boot. Campaign-scoped auto-assign, proposal-stage rebalance, prominent preview, live counters — all shipped.

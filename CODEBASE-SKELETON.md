@@ -530,6 +530,15 @@ Operational incident history records one SLA idle pass emitting 800 alerts.
 
 ### 9.1 Auto-assign suite (manager Approval Queue → Auto-assign tab)
 
+**AUTO-EQUITY correction (12 Aug 2026, code complete; deployment pending):**
+the normal workflow no longer requires the separate Rebalance panel. A run
+uses projected full-book load (existing book + pending proposals), catches
+lighter reps up to the heaviest starting book first, then applies territory to
+the remainder while keeping the projected gap strictly below 50. With the
+current live numbers the result is expected to be one apart, but 0/1 is not a
+general invariant. Redirect can target an active rep or manager, including the
+approving manager. Existing assigned leads are never moved by distribution.
+
 `automation/services/lead-auto-router.service.ts` + `automation.controller.ts`
 (`/automation/assignment-proposals/*`, `/automation/rebalance`) back the manager
 Auto-assign workspace. Built on the staging line (`dube-upgrades`), then
@@ -541,11 +550,11 @@ The engine PROPOSES — a manager decides:
 
 - **Distribution** (`runDistribution` / the "Run auto-assign" button + the
   `auto_assign_enabled` cron): the distributable pool = unassigned + never-worked
-  (no activity) + non-terminal + not already proposed. Each lead goes only to a
-  rep whose **territory** (`users.territory_provinces`, a HARD filter) covers its
-  school province; among those, the **lightest-loaded** wins, capped by the
-  `FAIRNESS_GAP = 50` (no rep >50 ahead). No covering rep / blank province →
-  skipped, left for manual placement. Recipients = active `sales_rep`s with a
+  (no activity) + non-terminal + not already proposed. It first catches every
+  lighter projected full book up to the heaviest starting book, then applies
+  **territory** (`users.territory_provinces`) to the remainder while keeping the
+  projected gap strictly below `FAIRNESS_GAP = 50`. No covering rep / blank
+  province falls back to the lightest eligible projected workload. Recipients = active `sales_rep`s with a
   territory; managers only if `auto_assign_include_managers` (capped by
   `manager_lead_cap`). Approval — not proposal — is when the lead gets its owner
   and the first-touch SLA clock starts.
@@ -559,7 +568,8 @@ The engine PROPOSES — a manager decides:
   cleared. **Blocked** if the lead has since been worked (any activity) or was
   hand-reassigned, so it never strips a lead a rep is on. Surfaced as an "Undo"
   action on the approve toast.
-- **Rebalance** (`rebalance`, `/automation/rebalance`, REBAL1): a manager moves a
+- **Legacy Rebalance** (`rebalance`, `/automation/rebalance`, REBAL1; UI hidden
+  after AUTO-EQUITY): a manager moves a
   batch of leads between two reps — preview then commit, keeps the ≤50 gap, moves
   unworked leads first, and is **cross-territory allowed** (a deliberate hand move
   is not bound by the territory filter that governs auto-distribution). Two

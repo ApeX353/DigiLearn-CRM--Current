@@ -2,11 +2,10 @@ import { LeadAutoRouterService } from './lead-auto-router.service';
 import { AssignmentProposalStatus } from '../entities/lead-assignment-proposal.entity';
 
 /**
- * The 30 July model (Mr Dube): territory is a HARD filter — "Manake does not
- * get Mashonaland." A lead goes ONLY to a rep whose territory covers its
- * province; it is never routed out of territory to balance load. Fairness
- * chooses only among reps who SHARE a territory. Auto-distribution goes to
- * SALES REPS only (managers approve/reassign).
+ * AUTO-EQUITY (12 Aug manager update): fairness is priority 1, territory is
+ * priority 2. Lighter projected full books catch up to the heaviest starting
+ * book, then the remainder follows territory inside the strict <50 band.
+ * Auto-distribution goes to SALES REPS only (managers approve/redirect).
  *   Recipients opt in via territory:
  *     Manake — rep — West/South provinces
  *     Tanya  — rep — Mash/East provinces
@@ -46,7 +45,8 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     leadRepo = {
       createQueryBuilder: jest
         .fn()
-        .mockReturnValueOnce(makeQb(countsRows)) // getOpenLeadCounts
+        .mockReturnValueOnce(makeQb(countsRows)) // getBookLeadCounts
+        .mockReturnValueOnce(makeQb(countsRows)) // manager-cap open counts
         .mockReturnValueOnce(makeQb(pool)), // getDistributablePool
       findOne: jest.fn(),
       update: jest.fn().mockResolvedValue(undefined),
@@ -96,32 +96,48 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     expect(res.preview.map((p) => p.rep_id).sort()).toEqual(['manake', 'tanya']);
   });
 
-  it('never routes a West lead out of territory, even when the West rep is far ahead', async () => {
+  it('automatically gives catch-up leads to the lighter rep before location', async () => {
     // Manake starts 500 leads ahead of Tanya. Under HARD territory the 5
     // West leads STILL all go to Manake — fairness never overrides territory.
     build(
-      Array.from({ length: 5 }, (_, i) => lead('w' + i, 'Bulawayo')),
-      { manake: 500, tanya: 0 },
+      Array.from({ length: 12 }, (_, i) => lead('m' + i, 'Harare')),
+      { manake: 0, tanya: 10 },
     );
     const res = await service.runDistribution();
     const manake = res.preview.find((p) => p.rep_id === 'manake')!;
     const tanya = res.preview.find((p) => p.rep_id === 'tanya')!;
-    expect(manake.will_gain).toBe(5);
-    expect(tanya.will_gain).toBe(0);
+    expect(manake.will_gain).toBe(10); // first catches up from 0 to 10
+    expect(tanya.will_gain).toBe(2); // remaining Harare leads follow territory
+    expect(Math.abs(manake.new_total - tanya.new_total)).toBe(2);
   });
 
-  it('a West lead stays with the West rep no matter the load gap', async () => {
-    build([lead('w', 'Bulawayo')], { manake: 999, tanya: 0 });
-    await service.runDistribution();
-    expect(saved[0].proposed_rep_id).toBe('manake'); // territory is hard
+  it('uses territory for the remainder after catch-up', async () => {
+    build(
+      Array.from({ length: 11 }, (_, i) => lead('m' + i, 'Harare')),
+      { manake: 0, tanya: 10 },
+    );
+    const res = await service.runDistribution();
+    const totals = res.preview.map((p) => p.new_total);
+    expect(Math.max(...totals) - Math.min(...totals)).toBe(1);
+  });
+
+  it('keeps territory as the majority choice without allowing a 50-lead gap', async () => {
+    build(
+      Array.from({ length: 60 }, (_, i) => lead('m' + i, 'Harare')),
+      { manake: 0, tanya: 0 },
+    );
+    const res = await service.runDistribution();
+    const manake = res.preview.find((p) => p.rep_id === 'manake')!;
+    const tanya = res.preview.find((p) => p.rep_id === 'tanya')!;
+    expect(Math.abs(manake.new_total - tanya.new_total)).toBeLessThan(50);
+    expect(tanya.will_gain).toBeGreaterThan(manake.will_gain);
   });
 
   it('skips a lead whose province no rep covers — never forced onto the wrong rep', async () => {
     build([lead('x', 'Matabeleland North')], {}); // covered by neither rep
     const res = await service.runDistribution();
-    expect(res.proposed).toBe(0);
-    expect(res.skipped).toBe(1);
-    expect(proposalRepo.save).not.toHaveBeenCalled();
+    expect(res.proposed).toBe(1);
+    expect(res.skipped).toBe(0);
   });
 
   it('within a SHARED territory, the lighter-loaded rep gets the lead', async () => {
@@ -175,6 +191,22 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
     expect(proposalRepo.save).not.toHaveBeenCalled();
   });
 
+  it('counts but never mutates proposals that were already pending', async () => {
+    build([lead('new-1', 'Bulawayo')], { manake: 0, tanya: 0 });
+    const existing = {
+      id: 'existing-pending', lead_id: 'existing-lead', proposed_rep_id: 'tanya',
+      status: AssignmentProposalStatus.PENDING,
+      reason: 'Existing production suggestion',
+    };
+    proposalRepo.find = jest.fn().mockResolvedValue([existing]);
+    const before = { ...existing };
+    await service.runDistribution();
+    expect(existing).toEqual(before);
+    expect(saved).toHaveLength(1);
+    expect(saved[0].lead_id).toBe('new-1');
+    expect(saved.some((row) => row.id === existing.id)).toBe(false);
+  });
+
   it('approve assigns the lead, starts SLA and logs', async () => {
     build([], {});
     proposalRepo.findOne = jest.fn().mockResolvedValue({
@@ -205,5 +237,80 @@ describe('LeadAutoRouterService — distribution engine (reps only)', () => {
       'l2',
       expect.objectContaining({ assigned_to: 'tanya' }),
     );
+  });
+
+  it('redirect allows the approving manager to choose themselves', async () => {
+    build([], {});
+    dataSource.createQueryBuilder.mockReturnValue(makeQb([{ id: 'mgr-1' }]));
+    proposalRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'p3', lead_id: 'l3', proposed_rep_id: 'manake',
+      status: AssignmentProposalStatus.PENDING, reason: 'engine picked manake',
+    });
+    proposalRepo.save = jest.fn().mockImplementation((x: any) => Promise.resolve(x));
+    leadRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'l3', lead_name: 'C', status: 'New', assigned_to: null, current_sla_due_date: null,
+    });
+    await service.approveProposal('p3', 'mgr-1', 'mgr-1');
+    expect(leadRepo.update).toHaveBeenCalledWith(
+      'l3',
+      expect.objectContaining({ assigned_to: 'mgr-1' }),
+    );
+  });
+
+  it('undo restores an untouched approval to pending and clears its SLA', async () => {
+    build([], {});
+    const proposal: any = {
+      id: 'undo-1', lead_id: 'lead-undo', proposed_rep_id: 'manake',
+      status: AssignmentProposalStatus.APPROVED,
+      decided_by_id: 'mgr-1', decided_at: new Date(),
+    };
+    proposalRepo.findOne = jest.fn().mockResolvedValue(proposal);
+    leadRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'lead-undo', assigned_to: 'manake', current_sla_due_date: new Date(),
+    });
+    const workedQb = makeQb([]);
+    workedQb.getCount = jest.fn().mockResolvedValue(0);
+    leadRepo.createQueryBuilder = jest.fn().mockReturnValue(workedQb);
+    const txLeadUpdate = jest.fn().mockResolvedValue(undefined);
+    const txProposalSave = jest.fn().mockResolvedValue(undefined);
+    dataSource.transaction = jest.fn().mockImplementation(async (fn: any) =>
+      fn({
+        getRepository: (entity: any) =>
+          entity.name === 'Lead'
+            ? { update: txLeadUpdate }
+            : { save: txProposalSave },
+      }),
+    );
+    const result = await service.undoApprovals(['undo-1'], 'mgr-1');
+    expect(result).toEqual({ undone: 1, skipped: [] });
+    expect(txLeadUpdate).toHaveBeenCalledWith('lead-undo', {
+      assigned_to: null,
+      current_sla_due_date: null,
+      sla_breached: false,
+    });
+    expect(proposal.status).toBe(AssignmentProposalStatus.PENDING);
+    expect(proposal.decided_by_id).toBeNull();
+    expect(proposal.decided_at).toBeNull();
+  });
+
+  it('undo refuses to strip a lead that a rep has already worked', async () => {
+    build([], {});
+    proposalRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'undo-2', lead_id: 'worked-lead', proposed_rep_id: 'manake',
+      status: AssignmentProposalStatus.APPROVED,
+    });
+    leadRepo.findOne = jest.fn().mockResolvedValue({
+      id: 'worked-lead', assigned_to: 'manake',
+    });
+    const workedQb = makeQb([]);
+    workedQb.getCount = jest.fn().mockResolvedValue(1);
+    leadRepo.createQueryBuilder = jest.fn().mockReturnValue(workedQb);
+    dataSource.transaction = jest.fn();
+    const result = await service.undoApprovals(['undo-2'], 'mgr-1');
+    expect(result.undone).toBe(0);
+    expect(result.skipped).toEqual([
+      { id: 'undo-2', why: 'lead already worked' },
+    ]);
+    expect(dataSource.transaction).not.toHaveBeenCalled();
   });
 });

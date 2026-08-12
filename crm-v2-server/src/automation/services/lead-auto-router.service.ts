@@ -137,13 +137,11 @@ export class LeadAutoRouterService {
    * writes a PENDING proposal for each. Nothing is assigned here; the
    * manager approves from the Approval Queue.
    *
-   * Allocation (Mr Dube, 30 July — territory is a HARD filter):
-   *   1. Territory first and only — a lead goes only to a rep whose
-   *      territory covers its province. Never out of territory.
-   *   2. Fairness within territory — when more than one rep covers the
-   *      province, the lightest-loaded of them gets the lead.
-   *   3. No coverage (or no province) — the lead is skipped and left
-   *      unassigned for a manager to place by hand.
+   * Allocation (AUTO-EQUITY, manager update 12 Aug 2026):
+   *   1. Catch lighter projected full books up to the heaviest starting book.
+   *   2. Apply territory to the remaining leads.
+   *   3. Keep the projected gap strictly below 50.
+   *   4. No coverage/blank province falls back to projected workload.
    *
    * @param limit How many leads to distribute this run (the manager's
    *   batch choice); null = all distributable leads.
@@ -167,8 +165,37 @@ export class LeadAutoRouterService {
       return { proposed: 0, skipped: 0, preview: [] };
     }
 
-    const startLoad = await this.getOpenLeadCounts(recipients.map((r) => r.id));
-    const load = new Map(startLoad); // running load, mutated as we propose
+    const recipientIds = recipients.map((r) => r.id);
+    // AUTO-EQUITY (manager request, 2026-08-12): catch-up is measured on the
+    // full book. Closed work still represents work already carried. Pending
+    // proposals also count because approval will make them part of that book.
+    const [bookLoad, openLoad, pendingLoad] = await Promise.all([
+      this.getBookLeadCounts(recipientIds),
+      this.getOpenLeadCounts(recipientIds),
+      this.getPendingProposalCounts(recipientIds),
+    ]);
+    const startLoad = new Map<string, number>(
+      recipientIds.map((id) => [
+        id,
+        (bookLoad.get(id) ?? 0) + (pendingLoad.get(id) ?? 0),
+      ]),
+    );
+    const managerLoad = new Map<string, number>(
+      recipientIds.map((id) => [
+        id,
+        (openLoad.get(id) ?? 0) + (pendingLoad.get(id) ?? 0),
+      ]),
+    );
+    // Snapshot the heaviest starting book. Reps below this mark receive the
+    // catch-up portion first. Once they reach it, territory takes precedence
+    // for the remainder, bounded by the strict <50 fairness band.
+    const catchUpTarget = Math.max(
+      0,
+      ...recipients
+        .filter((recipient) => recipient.cohort === 'rep')
+        .map((recipient) => startLoad.get(recipient.id) ?? 0),
+    );
+    const load = new Map(startLoad); // projected load, mutated as we propose
     const gained = new Map<string, number>(
       recipients.map((r) => [r.id, 0]),
     );
@@ -186,6 +213,8 @@ export class LeadAutoRouterService {
         load,
         lead.school?.province,
         managerCap,
+        managerLoad,
+        catchUpTarget,
       );
       if (!pick) {
         skipped++;
@@ -200,6 +229,10 @@ export class LeadAutoRouterService {
         }),
       );
       load.set(pick.recipient.id, (load.get(pick.recipient.id) ?? 0) + 1);
+      managerLoad.set(
+        pick.recipient.id,
+        (managerLoad.get(pick.recipient.id) ?? 0) + 1,
+      );
       gained.set(pick.recipient.id, (gained.get(pick.recipient.id) ?? 0) + 1);
       proposed++;
     }
@@ -356,6 +389,7 @@ export class LeadAutoRouterService {
     // Redirect (TEST-BACKLOG #5): a manager may override the engine's pick and
     // assign the lead to a rep they choose, right from the queue.
     if (overrideRepId && overrideRepId !== proposal.proposed_rep_id) {
+      await this.assertRedirectTarget(overrideRepId);
       proposal.reason = `Redirected by a manager (engine suggested a different rep). Original: ${proposal.reason}`;
       proposal.proposed_rep_id = overrideRepId;
     }
@@ -572,6 +606,7 @@ export class LeadAutoRouterService {
     if (!repId) {
       throw new BadRequestException('Pick a rep to redirect this lead to');
     }
+    await this.assertRedirectTarget(repId);
     const proposal = await this.proposalRepository.findOne({ where: { id } });
     if (!proposal) throw new NotFoundException('Proposal not found');
 
@@ -1103,6 +1138,8 @@ export class LeadAutoRouterService {
     load: Map<string, number>,
     schoolProvince: string | null | undefined,
     managerCap: number,
+    managerLoad: Map<string, number>,
+    catchUpTarget: number,
   ): { recipient: Recipient; reason: string } | null {
     const province = (schoolProvince ?? '').trim().toLowerCase();
 
@@ -1131,18 +1168,58 @@ export class LeadAutoRouterService {
     // Managers are capped (#19): once a manager holds `managerCap` open leads,
     // they drop out and leads in their territory go to the rep. Reps are never
     // capped.
-    const eligible = territorial.filter(
-      (r) => r.cohort === 'rep' || (load.get(r.id) ?? 0) + 1 <= managerCap,
+    const globallyEligible = recipients.filter(
+      (r) =>
+        r.cohort === 'rep' ||
+        (managerLoad.get(r.id) ?? 0) + 1 <= managerCap,
+    );
+    const eligible = territorial.filter((r) => globallyEligible.includes(r));
+
+    // Priority 1A: catch every lighter rep up to the heaviest STARTING book.
+    // This is intentionally a fixed target for the run; after it is reached,
+    // ordinary one-lead differences do not restart catch-up on every row.
+    const catchingUp = globallyEligible.filter(
+      (recipient) =>
+        recipient.cohort === 'rep' &&
+        (load.get(recipient.id) ?? 0) < catchUpTarget,
+    );
+    if (catchingUp.length > 0) {
+      const chosen = leastLoaded(catchingUp);
+      if (!chosen) return null;
+      return {
+        recipient: chosen,
+        reason: `Automatic workload catch-up - ${chosen.name} starts with the lighter projected full book. Fairness is priority 1; territory is applied after catch-up. A manager can Redirect before approval.`,
+      };
+    }
+
+    // Priority 1B: after catch-up, territory may lead only while the projected
+    // gap remains strictly below FAIRNESS_GAP. A proposed recipient at the
+    // boundary drops out and the lighter eligible recipient takes this row.
+    const floor = Math.min(
+      ...globallyEligible.map((recipient) => load.get(recipient.id) ?? 0),
+    );
+    const fairnessEligible = globallyEligible.filter(
+      (recipient) =>
+        (load.get(recipient.id) ?? 0) + 1 - floor < FAIRNESS_GAP,
+    );
+    const territorialFair = eligible.filter((recipient) =>
+      fairnessEligible.includes(recipient),
     );
 
     // No province, no covering recipient, or the only covering recipient is a
     // capped manager → not auto-assignable. Skip it; the lead stays unassigned
     // for a manager to place by hand — never forced onto the wrong rep.
-    if (eligible.length === 0) return null;
+    const pool =
+      territorialFair.length > 0
+        ? territorialFair
+        : fairnessEligible.length > 0
+          ? fairnessEligible
+          : globallyEligible;
+    if (pool.length === 0) return null;
 
     // Fairness applies ONLY among the recipients who share this territory:
     // give the lead to the lightest-loaded of them.
-    const chosen = leastLoaded(eligible);
+    const chosen = leastLoaded(pool);
     if (!chosen) return null;
 
     // Plain, non-confusing wording. The old `(N open)` exposed the rep's
@@ -1150,10 +1227,21 @@ export class LeadAutoRouterService {
     // confused managers — so it's dropped. The territory match is what
     // actually justifies the pick; fairness is called out only when more than
     // one rep covers the province.
-    const reason =
+    let reason =
       territorial.length > 1
         ? `${chosen.name} covers ${schoolProvince} — lightest-loaded of the ${territorial.length} reps who cover it`
         : `${schoolProvince} is in ${chosen.name}'s territory`;
+    if (!eligible.includes(chosen)) {
+      // Three distinct out-of-territory cases — the manager reading the
+      // queue must see the TRUE cause, not a blanket "no coverage".
+      reason = !schoolProvince
+        ? `Lead has no province; drafted to ${chosen.name} by projected workload`
+        : territorial.length > 0
+          ? `${schoolProvince} is covered, but its rep is at the fairness band (<${FAIRNESS_GAP} gap) — drafted to ${chosen.name} by projected workload`
+          : `No active recipient covers ${schoolProvince}; drafted to ${chosen.name} by projected workload`;
+    } else {
+      reason += '; automatic workload catch-up is applied to the completed batch';
+    }
     return { recipient: chosen, reason };
   }
 
@@ -1283,6 +1371,31 @@ export class LeadAutoRouterService {
   }
 
   /**
+   * REDIRECT-SELF: deliberate redirects may target any active sales rep,
+   * sales manager, manager, or admin — including the approving manager
+   * themselves. Territory is intentionally not checked for a human override.
+   */
+  private async assertRedirectTarget(userId: string): Promise<void> {
+    const rows = await this.dataSource
+      .createQueryBuilder()
+      .select('user.id', 'id')
+      .from('users', 'user')
+      .innerJoin('user_roles', 'ur', 'ur.user_id = user.id')
+      .innerJoin('roles', 'role', 'role.id = ur.role_id')
+      .where('user.id = :userId', { userId })
+      .andWhere('user.is_active = :active', { active: true })
+      .andWhere('role.name IN (:...roles)', {
+        roles: ['sales_rep', 'sales_manager', 'manager', 'admin'],
+      })
+      .getRawMany<{ id: string }>();
+    if (!rows.some((row) => row.id === userId)) {
+      throw new BadRequestException(
+        'Redirect target must be an active sales rep or manager',
+      );
+    }
+  }
+
+  /**
    * Current open-lead load per recipient — open meaning not deleted and
    * not disqualified/converted (the owner's rule: disqualified leads
    * don't count toward a person's load).
@@ -1334,6 +1447,27 @@ export class LeadAutoRouterService {
       .getRawMany<{ rep: string; cnt: string }>();
     for (const r of rows) {
       load.set(r.rep, Number(r.cnt));
+    }
+    return load;
+  }
+
+  /** AUTO-EQUITY: pending proposals are future book load during catch-up. */
+  private async getPendingProposalCounts(
+    repIds: string[],
+  ): Promise<Map<string, number>> {
+    const load = new Map<string, number>(repIds.map((id) => [id, 0]));
+    if (!repIds.length) return load;
+    const rows = await this.proposalRepository.find({
+      where: { status: AssignmentProposalStatus.PENDING },
+      select: ['proposed_rep_id'],
+    });
+    for (const row of rows) {
+      if (load.has(row.proposed_rep_id)) {
+        load.set(
+          row.proposed_rep_id,
+          (load.get(row.proposed_rep_id) ?? 0) + 1,
+        );
+      }
     }
     return load;
   }

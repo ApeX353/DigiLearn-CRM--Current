@@ -29,8 +29,10 @@ export const ROUTABLE_ROLES = ['sales_rep'] as const;
 
 /**
  * The maximum lead-count gap allowed between reps (priority 1 — fair
- * distribution). No rep may end up more than this many leads ahead of the
- * least-loaded rep. HARD cap: when honouring territory would break it,
+ * distribution). AUTO-EQUITY treats 50 as outside the accepted band: new
+ * proposals go to the lighter rep until the projected gap is below 50. When
+ * the gap is already below 50, territory is priority 2. When territory would
+ * break the fairness band,
  * fairness wins and the lead overflows to a lighter-loaded rep even out
  * of territory. The engine only ADDS leads — it never strips an existing
  * book; rebalancing a rep down is a manager reassignment decision.

@@ -1,5 +1,13 @@
 # Lead distribution (auto-assign) engine — build spec
 
+> **CURRENT RULE - AUTO-EQUITY, 12 Aug 2026.** This file preserves the older
+> Claude/Kim build history below. The active code now makes fairness priority 1
+> and territory priority 2: catch lighter starting books up first, then use
+> territory while the projected full-book gap remains strictly below 50. The
+> current live batch is expected to finish one apart; that is an outcome of
+> those numbers, not a universal target. Redirect remains the manager override
+> and includes the approving manager as a target.
+
 > **STATUS 29 July: rebuilt to Kim's answers; ready for staging.** Engine
 > stays OFF on prod until sign-off. Kim's clarifications, now implemented:
 >

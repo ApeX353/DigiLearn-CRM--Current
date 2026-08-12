@@ -71,6 +71,7 @@ import type {
 import { ImportApprovalsQueue } from "~/components/admin/import-approvals-queue";
 import { useImportBatches } from "~/api/leads/import-batches";
 import { useStaff } from "~/api/users";
+import { useAuthStore } from "~/stores/use-auth-store";
 import { RequestEnquiry } from "~/components/admin/request-enquiry";
 
 /**
@@ -434,6 +435,7 @@ type SalesTeamRep = {
   last_name?: string;
   roles?: { name: string }[];
   territory_provinces?: string | null;
+  isCurrentUser?: boolean;
 };
 
 /**
@@ -444,18 +446,41 @@ type SalesTeamRep = {
  * list so they always offer the same people.
  */
 function useSalesTeamReps(): SalesTeamRep[] {
+  const currentUser = useAuthStore((state) => state.user);
   const staffQuery = useStaff({ status: "active", page: 1, limit: 100 });
   const allStaff: SalesTeamRep[] =
     (staffQuery.data as any)?.data ??
     (staffQuery.data as any)?.items ??
     (Array.isArray(staffQuery.data) ? staffQuery.data : []);
-  return allStaff.filter((u) => {
+  const team = allStaff.filter((u) => {
     const names = (u.roles ?? []).map((r) => r.name);
     return (
       names.includes("sales_manager") ||
       (names.includes("sales_rep") && !!u.territory_provinces)
     );
   });
+  // REDIRECT-SELF: the approving manager must always be able to choose
+  // themselves, even if staff pagination/filtering omitted their row or they
+  // have no territory (territory does not restrict a deliberate redirect).
+  if (
+    currentUser &&
+    currentUser.roles.some((role) =>
+      ["admin", "sales_manager", "manager"].includes(role),
+    ) &&
+    !team.some((member) => member.id === currentUser.id)
+  ) {
+    team.unshift({
+      id: currentUser.id,
+      first_name: currentUser.first_name,
+      last_name: currentUser.last_name,
+      roles: currentUser.roles.map((name) => ({ name })),
+      isCurrentUser: true,
+    });
+  }
+  return team.map((member) => ({
+    ...member,
+    isCurrentUser: member.id === currentUser?.id,
+  }));
 }
 
 /**
@@ -484,15 +509,16 @@ function AutoAssignQueue() {
     done: number;
     total: number;
   } | null>(null);
-  // Rebalance panel state.
+  // LEGACY-REBALANCE: retained behind a hidden UI as an operational rollback
+  // tool. AUTO-EQUITY now performs this catch-up inside Run auto-assign.
   const [rbFrom, setRbFrom] = useState<string>("");
   const [rbTo, setRbTo] = useState<string>("");
   const [rbCount, setRbCount] = useState<string>("");
   const [rbResult, setRbResult] = useState<RebalanceResult | null>(null);
-  // REBAL-SCOPE: the import whose leads the balancer may move. Required — the
-  // balancer must only touch import leads, never a rep's existing book.
   const [rbCampaign, setRbCampaign] = useState<string>("");
   const { data: rbCampaigns } = useCampaigns();
+  // REBAL-SCOPE: the import whose leads the balancer may move. Required — the
+  // balancer must only touch import leads, never a rep's existing book.
   const reps = useSalesTeamReps();
   const busy =
     approve.isPending ||
@@ -800,7 +826,7 @@ function AutoAssignQueue() {
       {/* Rebalance — move a batch of leads between two reps to even out load.
           Cross-territory allowed (a deliberate hand move). Preview first,
           then commit. */}
-      <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+      <div className="hidden rounded-lg border bg-muted/20 p-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <ArrowRightLeft className="h-4 w-4" />
           Rebalance load
@@ -986,7 +1012,7 @@ function AutoAssignQueue() {
         <div className="p-12 text-center text-sm text-muted-foreground">
           No assignment suggestions waiting. Tap{" "}
           <strong>Run auto-assign</strong> to distribute unworked, unassigned
-          leads by territory and workload — the suggestions land here for you to
+          leads by workload fairness first, then territory — the suggestions land here for you to
           approve. Nothing is assigned to anyone until you approve it.
         </div>
       ) : (
@@ -1167,6 +1193,7 @@ function AutoAssignQueue() {
                                   {[r.first_name, r.last_name]
                                     .filter(Boolean)
                                     .join(" ") || "rep"}
+                                  {r.isCurrentUser ? " (You)" : ""}
                                 </option>
                               ))}
                           </select>
@@ -1336,6 +1363,7 @@ function AutoAssignRejectedList() {
                   <option key={r.id} value={r.id}>
                     {[r.first_name, r.last_name].filter(Boolean).join(" ") ||
                       "rep"}
+                    {r.isCurrentUser ? " (You)" : ""}
                   </option>
                 ))}
               </select>
@@ -1452,6 +1480,7 @@ function AutoAssignRejectedList() {
                               {[r.first_name, r.last_name]
                                 .filter(Boolean)
                                 .join(" ") || "rep"}
+                              {r.isCurrentUser ? " (You)" : ""}
                             </option>
                           ))}
                         </select>

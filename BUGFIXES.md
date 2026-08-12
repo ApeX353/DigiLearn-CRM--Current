@@ -6,6 +6,48 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-12 - AUTO-EQUITY: catch-up was an optional manual Rebalance step instead of part of auto-assign
+
+**Severity:** High - **Area:** Auto-assign / distribution - **Status:** FIXED in code (staging/deployment pending) - **Requested by:** sales manager
+
+**Symptom.** Run auto-assign produced the territory split first. Catching
+Manake up to Tanya required a separate import-scoped Rebalance preview and
+move before approval; skipping it preserved the old workload gap.
+
+**Historical cause.** Claude's 28-30 July work established the safe proposal
+and approval model and made location primary. REBAL1, REBAL-PRE and EQUITY1
+(3-7 Aug) correctly moved equity work to pending proposals after the earlier
+assign/reassign SLA incident, but left it as an optional manager phase.
+
+**Fix.** `runDistribution()` now measures each recipient's full existing book
+plus pending proposals. It first gives new proposals to lighter reps until
+they reach the heaviest starting projected book; the remaining proposals use
+territory, with fairness guarding a strict projected gap below 50. For the
+current live batch the expected outcome is one lead apart, but one apart is
+not hard-coded as the result of every run. Distribution never moves existing
+assigned leads. Approval, campaign scope, worked-lead exclusion, SLA start on
+approval, Reject, Undo and manager caps remain unchanged. Redirect accepts
+active reps/managers including the approving manager and ignores territory as
+a deliberate human override. The old Rebalance UI is hidden; its server route
+is retained as a rollback/legacy tool.
+
+**Data impact.** None automatically. Existing production proposals are not
+rewritten, cleared or rebalanced. They remain in the Approval Queue, count in
+projected workload, and keep their lead ids excluded from later runs.
+
+**Existing pending queue and Undo safeguards.** Existing PENDING proposals are
+read only for projected counts and lead-pool exclusion; a new run never saves
+or mutates them. Undo remains limited to APPROVED, untouched leads: it clears
+owner and first-touch SLA, returns the proposal to PENDING, and refuses a lead
+with any activity or a hand-changed owner.
+
+**Verification.** Focused router tests pass (15/15), including catch-up then
+territory, the current one-apart shape, the strict `<50` boundary, manager cap,
+manager self-redirect, existing-pending immutability, successful safe Undo and
+worked-lead Undo refusal. Server and client production builds pass.
+
+---
+
 ## 2026-08-11 — SCH-ACT1: logging an activity from a school page created an orphan that the page itself could never show
 
 **Severity:** High · **Area:** Activities / schools · **Status:** FIXED on `port-dube-github` (staging pending redeploy) · **Reported by:** prince (staging walkthrough of the Dube port)
