@@ -79,14 +79,27 @@ export default function CompactDealCard({
     ? differenceInDays(new Date(), new Date(deal.currentStageSince))
     : 0;
 
+  // A closed deal is finished: SLA timers, at-risk borders and "no next
+  // step" nags are live-deal mechanics and only mislead on a card that
+  // has already been decided (a deal won 54 days ago is not "54d over
+  // SLA" — it's won).
+  const isClosed =
+    deal.closeStatus === "won" || deal.closeStatus === "lost";
+
   const stageBreachAt = deal.currentStageSince
     ? new Date(deal.currentStageSince).getTime() +
       stage.sla_days * 24 * 60 * 60 * 1000
     : null;
   const overSLA =
-    stage.sla_days > 0 && stageBreachAt !== null && Date.now() > stageBreachAt;
+    !isClosed &&
+    stage.sla_days > 0 &&
+    stageBreachAt !== null &&
+    Date.now() > stageBreachAt;
   const atRisk =
-    stage.sla_days > 0 && !overSLA && daysInStage >= stage.sla_days * 0.8;
+    !isClosed &&
+    stage.sla_days > 0 &&
+    !overSLA &&
+    daysInStage >= stage.sla_days * 0.8;
 
   const dealValue = deal.value || 0;
   const backwardMoves = deal.stage_data?.backward_moves || 0;
@@ -170,7 +183,7 @@ export default function CompactDealCard({
                 </TooltipContent>
               </Tooltip>
             )}
-            {isCold && (
+            {!isClosed && isCold && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -185,44 +198,72 @@ export default function CompactDealCard({
                 </TooltipContent>
               </Tooltip>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[10px] font-medium tabular whitespace-nowrap",
-                    overSLA &&
-                      "bg-destructive/10 text-destructive border border-destructive/20",
-                    atRisk &&
+            {/* Dwell timer is a live-deal metric; the verdict line on row 3
+                carries the close date for finished deals. */}
+            {!isClosed && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-1.5 py-0 text-[10px] font-medium tabular whitespace-nowrap",
+                      overSLA &&
+                        "bg-destructive/10 text-destructive border border-destructive/20",
+                      atRisk &&
+                        !overSLA &&
+                        "bg-[oklch(0.78_0.15_67_/_0.12)] text-[oklch(0.45_0.15_60)] border border-[oklch(0.78_0.15_67_/_0.3)]",
                       !overSLA &&
-                      "bg-[oklch(0.78_0.15_67_/_0.12)] text-[oklch(0.45_0.15_60)] border border-[oklch(0.78_0.15_67_/_0.3)]",
-                    !overSLA &&
-                      !atRisk &&
-                      "bg-muted text-muted-foreground border border-border",
-                  )}
-                >
-                  {overSLA && <AlertTriangle className="h-2.5 w-2.5" />}
-                  {daysInStage}d
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                {daysInStage} days in {stage.name}
-                {overSLA && " — SLA breached"}
-                {atRisk && !overSLA && " — approaching SLA"}
-                {deal.last_contacted_at &&
-                  !isCold &&
-                  ` · last contact ${formatDistanceToNowStrict(
-                    new Date(deal.last_contacted_at),
-                    { addSuffix: true },
-                  )}`}
-              </TooltipContent>
-            </Tooltip>
+                        !atRisk &&
+                        "bg-muted text-muted-foreground border border-border",
+                    )}
+                  >
+                    {overSLA && <AlertTriangle className="h-2.5 w-2.5" />}
+                    {daysInStage}d
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {daysInStage} days in {stage.name}
+                  {overSLA && " — SLA breached"}
+                  {atRisk && !overSLA && " — approaching SLA"}
+                  {deal.last_contacted_at &&
+                    !isCold &&
+                    ` · last contact ${formatDistanceToNowStrict(
+                      new Date(deal.last_contacted_at),
+                      { addSuffix: true },
+                    )}`}
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         </div>
 
-        {/* Row 3: activity signal + owner/date */}
+        {/* Row 3: activity signal + owner/date. Closed deals owe no next
+            step — show the verdict instead of a nag. */}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <DealActivitySignal nextActivity={nextActivity} />
+            {isClosed ? (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-[11px] font-medium",
+                  deal.closeStatus === "won"
+                    ? "text-[oklch(0.45_0.12_155)]"
+                    : "text-muted-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-1.5 w-1.5 rounded-full",
+                    deal.closeStatus === "won"
+                      ? "bg-[oklch(0.55_0.15_155)]"
+                      : "bg-muted-foreground/50",
+                  )}
+                />
+                {deal.closeStatus === "won" ? "Won" : "Lost"}
+                {deal.actualCloseDate &&
+                  ` · ${new Date(deal.actualCloseDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+              </span>
+            ) : (
+              <DealActivitySignal nextActivity={nextActivity} />
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {deal.expectedCloseDate && (

@@ -356,6 +356,8 @@ export default function PipelineStagesPage() {
           />
           {showWonLost && (
             <>
+              {/* Number() the values: decimal columns serialize as strings,
+                  and string + number concatenates — the tiles read $NaN. */}
               <KpiPill
                 label="Won invoice total"
                 value={formatCurrency(pipelineSummary.won_invoice_total)}

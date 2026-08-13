@@ -53,7 +53,16 @@ export default function PipelineKanban({
     return Object.fromEntries(
       sorted.map(({ name, deals }) => [
         name,
-        [...deals].sort((a, b) => (a.position || 0) - (b.position || 0)),
+        // Position first (the rep's drag order), and when positions tie —
+        // which every auto-created deal used to do at 1000 — the deal
+        // that has waited in the stage longest stacks on top, so the
+        // column reads as a work order instead of insertion noise.
+        [...deals].sort(
+          (a, b) =>
+            (a.position || 0) - (b.position || 0) ||
+            new Date(a.currentStageSince || a.createdAt || 0).getTime() -
+              new Date(b.currentStageSince || b.createdAt || 0).getTime(),
+        ),
       ]),
     );
   });
@@ -63,7 +72,16 @@ export default function PipelineKanban({
     const newPipeline = Object.fromEntries(
       sorted.map(({ name, deals }) => [
         name,
-        [...deals].sort((a, b) => (a.position || 0) - (b.position || 0)),
+        // Position first (the rep's drag order), and when positions tie —
+        // which every auto-created deal used to do at 1000 — the deal
+        // that has waited in the stage longest stacks on top, so the
+        // column reads as a work order instead of insertion noise.
+        [...deals].sort(
+          (a, b) =>
+            (a.position || 0) - (b.position || 0) ||
+            new Date(a.currentStageSince || a.createdAt || 0).getTime() -
+              new Date(b.currentStageSince || b.createdAt || 0).getTime(),
+        ),
       ]),
     );
     setPipelines(newPipeline);

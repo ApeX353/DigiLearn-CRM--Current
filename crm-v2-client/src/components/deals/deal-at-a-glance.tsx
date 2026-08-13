@@ -157,11 +157,17 @@ export function DealAtAGlance({
                   {nextActivity.subject || "Scheduled"}
                 </span>
               </div>
+            ) : closeStatus !== "ongoing" ? (
+              <Empty>
+                Deal {closeStatus} — no next action owed
+              </Empty>
             ) : (
               <Empty>No next step</Empty>
             )}
           </Row>
-          {!nextActivity && (
+          {/* The book-a-call nag is live-deal discipline; a closed deal is
+              finished and owes nothing. */}
+          {!nextActivity && closeStatus === "ongoing" && (
             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300">
               <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
