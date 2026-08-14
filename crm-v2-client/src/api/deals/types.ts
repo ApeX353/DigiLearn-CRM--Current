@@ -138,12 +138,23 @@ export interface DealsSummaryParams {
 }
 
 export const addDealSchema = z.object({
-  title: z.string().min(1, "Title is required"),
+  // Recording rule 2: the title is generated ("<qty> × <product name>"),
+  // never typed. product_id + quantity are form-only fields — the API
+  // whitelist rejects them, so the container strips them before POSTing
+  // and submits the composed title.
+  title: z.string().min(1, "Pick a product to generate the deal title"),
+  product_id: z.string().min(1, "Pick the product this deal is for"),
+  quantity: z
+    .number({ message: "Quantity is required" })
+    .int()
+    .min(1, "Quantity must be at least 1"),
   description: z.string().optional(),
   value: z.number().min(0, "Value must be a positive number"),
   currency: z.string(),
   lead_id: z.string().min(1, "Please select a lead"),
-  school_id: z.string().min(1, "Please select a school"),
+  school_id: z
+    .string()
+    .min(1, "The selected lead has no linked school — link one on the lead first"),
   stage_id: z.string().min(1, "Please select a stage"),
   pipeline_id: z.string().min(1, "Please select a Pipeline"),
   probability: z.number().min(0).max(100),
@@ -163,6 +174,9 @@ export const addDealSchema = z.object({
     .optional(),
   // Deal items
   items: z.array(quoteItemSchema).optional(),
+  // Rule 6 (one order, one deal): set only after the rep has seen the
+  // school's existing open deal and confirmed this is a second order.
+  duplicate_override: z.boolean().optional(),
 });
 
 export const updateStageSchema = z.object({
@@ -206,6 +220,8 @@ export const closeDealSchema = z
   });
 
 export type AddDealValues = z.infer<typeof addDealSchema>;
-export type CreateDealDto = AddDealValues;
-export type UpdateDealDto = Partial<AddDealValues>;
+// product_id/quantity exist only to compose the title — the API's
+// forbidNonWhitelisted pipe rejects them, so they never leave the form.
+export type CreateDealDto = Omit<AddDealValues, "product_id" | "quantity">;
+export type UpdateDealDto = Partial<CreateDealDto>;
 export type CloseDealValues = z.infer<typeof closeDealSchema>;

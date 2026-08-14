@@ -44,7 +44,6 @@ import {
   MarkContactedDialog,
   NurtureLeadDialog,
   DisqualifyLeadDialog,
-  ConvertLeadDialog,
   QualifyLeadDialog,
   RequestReversalDialog,
   ReviewReversalRequestDialog,
@@ -148,7 +147,6 @@ const ViewLead = ({ id }: { id: string }) => {
   const [qualificationOpen, setQualificationOpen] = useState(false);
   const [markContactedOpen, setMarkContactedOpen] = useState(false);
   const [nurtureOpen, setNurtureOpen] = useState(false);
-  const [convertOpen, setConvertOpen] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [requestReversalOpen, setRequestReversalOpen] = useState(false);
   const [reviewReversalOpen, setReviewReversalOpen] = useState(false);
@@ -205,6 +203,12 @@ const ViewLead = ({ id }: { id: string }) => {
   const updateLead = useUpdateLead();
   const openWithValues = useAddDealModalStore((s) => s.openWithValues);
 
+  // The ONLY lead→deal conversion path. There used to be a second one — a
+  // ConvertLeadDialog confirm step — that was rendered here but never
+  // opened (no trigger ever called its setter), so it silently drifted out
+  // of sync with this function during the recording-rules change. It has
+  // been deleted. If a confirm step is ever wanted again, add it around
+  // this call rather than as a parallel copy of the openWithValues payload.
   const handleConvertToDeal = () => {
     if (!lead) return;
 
@@ -225,10 +229,14 @@ const ViewLead = ({ id }: { id: string }) => {
       });
     }
 
+    // No title: recording rule 2 has the deal modal compose it from the
+    // product picker. Passing lead.lead_name here is exactly the habit
+    // that produced school-named deals no product report could find.
     openWithValues({
       lead_id: lead.id,
-      title: lead.lead_name,
       school_id: lead?.school?.id || "",
+      school_name: lead?.school?.name || "",
+      product_id: lead.product_id || "",
       description: lead.notes || "",
       value: Number(lead.estimated_value) || 0,
       assigned_to: lead.assignee?.id,
@@ -641,18 +649,6 @@ const ViewLead = ({ id }: { id: string }) => {
                   )}
                 </>
               )}
-
-              <ConvertLeadDialog
-                open={convertOpen}
-                onOpenChange={setConvertOpen}
-                leadId={id}
-                leadName={lead?.lead_name || ""}
-                leadNotes={lead?.notes}
-                estimatedValue={lead?.estimated_value}
-                assigneeId={lead?.assignee?.id}
-                qualificationNeeds={qualification?.needs ?? ""}
-                hasNeeds={qualification?.has_needs}
-              />
             </div>
           )
         }

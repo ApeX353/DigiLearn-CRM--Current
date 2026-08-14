@@ -278,7 +278,7 @@ export interface AddPaymentDto {
   payment_date: string;
   // NOTE: the API whitelists `reference` (not `reference_number`) —
   // any extra property is rejected by forbidNonWhitelisted.
-  reference?: string;
+  reference: string;
   notes?: string;
 }
 
@@ -286,7 +286,12 @@ export const addPaymentFormSchema = z.object({
   amount: z.number().min(0.01, "Amount must be greater than 0"),
   payment_method: z.enum(PAYMENT_METHODS),
   payment_date: z.date(),
-  reference_number: z.string().optional(),
+  // Recording rule 4: a receipt without the real bank reference can't be
+  // matched to the statement, so the CRM refuses to take one.
+  reference_number: z
+    .string()
+    .trim()
+    .min(1, "Enter the bank reference, transfer ID or receipt number"),
   notes: z.string().optional(),
 });
 

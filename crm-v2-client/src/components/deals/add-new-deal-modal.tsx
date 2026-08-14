@@ -50,6 +50,9 @@ interface AddNewDealProps {
   isLeadReadOnly?: boolean;
   isAssignedToReadOnly?: boolean;
   defaultUseItems?: boolean;
+  /** School name for the read-only display when the lead isn't in `leads`. */
+  initialSchoolName?: string;
+  productsLoading?: boolean;
 }
 
 const AddNewDealModal: React.FC<AddNewDealProps> = ({
@@ -68,6 +71,8 @@ const AddNewDealModal: React.FC<AddNewDealProps> = ({
   isLeadReadOnly = false,
   isAssignedToReadOnly = false,
   defaultUseItems = false,
+  initialSchoolName,
+  productsLoading = false,
 }) => {
   const isOpen = useAddDealModalStore((state) => state.isOpen);
   const [isUsingItems, setUseItems] = useState(defaultUseItems);
@@ -117,7 +122,19 @@ const AddNewDealModal: React.FC<AddNewDealProps> = ({
                     onValueChange={(value) => {
                       field.onChange(value);
                       const lead = leads.find((l) => l.id === value);
-                      form.setValue("title", lead?.lead_name || "");
+                      // Rule 1: the deal inherits the lead's linked
+                      // school — never a name typed into a text box. A
+                      // lead without a school blocks with a pointed
+                      // validation message instead of failing silently.
+                      form.setValue("school_id", lead?.school?.id || "", {
+                        shouldValidate: true,
+                      });
+                      // The lead's product interest seeds the picker.
+                      if (lead?.product_id && !form.getValues("product_id")) {
+                        form.setValue("product_id", lead.product_id, {
+                          shouldValidate: true,
+                        });
+                      }
                     }}
                     value={field.value}
                     disabled={isLeadReadOnly}
@@ -148,18 +165,122 @@ const AddNewDealModal: React.FC<AddNewDealProps> = ({
                 </FormItem>
               )}
             />
+            {/* Rule 1: the school rides in from the picked lead. Shown so
+                the rep can see (not edit) what the deal will file under;
+                a lead with no linked school surfaces the blocker here. */}
+            <FormField
+              control={form.control}
+              name="school_id"
+              render={({ field }) => {
+                const selectedLead = leads.find(
+                  (l) => l.id === form.watch("lead_id"),
+                );
+                // `leads` is only the first page, so on the convert path
+                // the preselected lead is usually missing from it — fall
+                // back to the name the caller passed in.
+                const schoolName =
+                  selectedLead?.school?.name ||
+                  initialSchoolName ||
+                  (field.value ? "Linked school" : "—");
+                return (
+                  <FormItem>
+                    <FormLabel>School</FormLabel>
+                    <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+                      {schoolName}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
+            />
+
+            {/* Rule 2: the deal title is generated, never typed —
+                "<qty> × <product>". Product names carry the size, so the
+                title says exactly what was sold. */}
+            <div className="grid grid-cols-3 gap-3">
+              <FormField
+                control={form.control}
+                name="product_id"
+                render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Product *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Pick from the catalogue" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <div className="mb-2">
+                          <Input
+                            placeholder="Search catalogue"
+                            value={searchValue}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                              handleSearchProduct(e.target.value)
+                            }
+                          />
+                        </div>
+                        {products.length === 0 && (
+                          <p className="px-2 py-3 text-sm text-muted-foreground">
+                            {productsLoading
+                              ? "Loading catalogue…"
+                              : searchValue
+                                ? `No product matches "${searchValue}".`
+                                : "No products in the catalogue — an admin must add one before deals can be created."}
+                          </p>
+                        )}
+                        {products.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantity *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={field.value ?? 1}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                          field.onChange(
+                            e.target.value ? parseInt(e.target.value, 10) : 1,
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Deal Title *</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g. Enterprise Deal for Acme Corp"
-                      {...field}
-                    />
-                  </FormControl>
+                  <p className="text-sm text-muted-foreground">
+                    Deal title:{" "}
+                    <span className="font-medium text-foreground">
+                      {field.value || "pick a product and quantity"}
+                    </span>
+                    {isUsingItems && field.value && (
+                      <span className="block text-xs">
+                        Names the deal's main product; the value comes from
+                        the full item list below.
+                      </span>
+                    )}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -215,11 +336,11 @@ const AddNewDealModal: React.FC<AddNewDealProps> = ({
                     name="value"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Deal Value*</FormLabel>
+                        <FormLabel>Estimated Value*</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
-                            placeholder="Deal Value"
+                            placeholder="Estimated value"
                             value={field.value}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                               field.onChange(
@@ -230,6 +351,12 @@ const AddNewDealModal: React.FC<AddNewDealProps> = ({
                             }
                           />
                         </FormControl>
+                        <p className="text-xs text-muted-foreground">
+                          Prefilled from the catalogue price. This is only an
+                          opening estimate — the deal's value becomes the
+                          quotation total once a quote is raised, and the
+                          invoice total once it is invoiced.
+                        </p>
                         <FormMessage />
                       </FormItem>
                     )}

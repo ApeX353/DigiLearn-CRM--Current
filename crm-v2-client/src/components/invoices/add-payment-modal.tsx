@@ -159,6 +159,7 @@ export function AddPaymentModal({
     }
   }, [isOpen, isSummaryInvoice, payableChildren, selectedChildInvoiceId]);
 
+  // Opening the modal starts a clean receipt.
   useEffect(() => {
     if (!isOpen) return;
 
@@ -169,6 +170,17 @@ export function AddPaymentModal({
       reference_number: "",
       notes: "",
     });
+    // Deliberately keyed on `isOpen` alone: switching child invoice or
+    // recomputing the amount must not wipe fields the rep has already
+    // filled in — with the reference now mandatory, that would turn into
+    // a submit block on a field they had typed correctly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  // Switching the target invoice only re-points the amount.
+  useEffect(() => {
+    if (!isOpen) return;
+    form.setValue("amount", initialAmount);
   }, [form, initialAmount, isOpen, targetInvoice?.id]);
 
   const invalidateRelatedQueries = async () => {
@@ -213,7 +225,10 @@ export function AddPaymentModal({
     }
 
     try {
-      const reference = values.reference_number || undefined;
+      // Trim (his change) but still omit when blank, so the optional field
+      // is absent rather than an empty string — and so a missing value
+      // cannot throw on .trim().
+      const reference = values.reference_number?.trim() || undefined;
       const paymentResponse = (await addPayment.mutateAsync({
         data: {
           invoice_id: targetInvoice.id,
@@ -438,9 +453,12 @@ export function AddPaymentModal({
               name="reference_number"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reference Number</FormLabel>
+                  <FormLabel>Reference Number *</FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="e.g. TXN-12345" />
+                    <Input
+                      {...field}
+                      placeholder="Bank ref / transfer ID / receipt no."
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
