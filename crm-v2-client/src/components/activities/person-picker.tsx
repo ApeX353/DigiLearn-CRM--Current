@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useLead, useLeadStakeholders } from "~/api/leads";
 import { useSchool } from "~/api/schools";
 import type { Contact } from "~/api/contacts";
@@ -86,21 +87,53 @@ export function PersonPicker(props: PersonPickerProps) {
     }),
   );
 
+  // A lead's primary contact is not guaranteed to also have a stakeholder
+  // row. Keep it in the picker alongside direct stakeholders and de-duplicate
+  // by contact id; otherwise a valid number/email can exist on the lead while
+  // the scheduling form incorrectly claims that no usable person exists.
+  const leadStakeholders = directStakeholders.map((entry) =>
+    primaryContact && entry.contact_id === primaryContact.id
+      ? {
+          ...entry,
+          // The lead endpoint is the authoritative source for primary-contact
+          // channels and may be fresher/more complete than the stakeholder join.
+          contact: { ...entry.contact, ...primaryContact },
+          is_primary: true,
+        }
+      : entry,
+  );
+  if (
+    primaryContact &&
+    !leadStakeholders.some((entry) => entry.contact_id === primaryContact.id)
+  ) {
+    leadStakeholders.unshift({
+      id: `primary-${primaryContact.id}`,
+      contact_id: primaryContact.id,
+      contact: primaryContact,
+      role: primaryContact.role ?? "Other",
+      decision_role: "decision_maker",
+      influence_level: "high",
+      is_primary: true,
+      lead_id: leadId ?? "",
+      notes: "",
+    });
+  }
+
   const stakeholders =
-    directStakeholders.length > 0
-      ? directStakeholders
-      : primaryContact
-        ? [
-            {
-              id: `primary-${primaryContact.id}`,
-              contact_id: primaryContact.id,
-              contact: primaryContact,
-              role: primaryContact.role ?? "Other",
-              decision_role: "decision_maker",
-              is_primary: true,
-            },
-          ]
-        : schoolStakeholders;
+    leadStakeholders.length > 0 ? leadStakeholders : schoolStakeholders;
+
+  const singleContact =
+    stakeholders.length === 1 ? stakeholders[0]?.contact : undefined;
+  const singleValue = props.mode === "multi" ? undefined : props.value;
+  const onSingleChange = props.mode === "multi" ? undefined : props.onChange;
+
+  // Single-person records need no extra click. The caller still receives the
+  // full Contact object so channel validation uses the same person shown here.
+  useEffect(() => {
+    if (!singleValue && onSingleChange && singleContact?.id) {
+      onSingleChange(singleContact.id, singleContact);
+    }
+  }, [onSingleChange, singleContact, singleValue]);
 
   const displayLabel = label || "Person Contacted";
 

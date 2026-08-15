@@ -1,5 +1,4 @@
 import { Clock, AlertTriangle, Flame } from "lucide-react";
-import { differenceInDays } from "date-fns";
 import type { Deal } from "~/api/deals";
 import { useCurrency } from "~/hooks/use-currency";
 import { cn } from "~/lib/utils";
@@ -43,11 +42,10 @@ export function KanbanHeader({ deals, stage }: KanbanHeaderProps) {
     totalValue += Number(d.value) || 0;
 
     if (stage.sla_days > 0 && d.currentStageSince) {
-      const days = differenceInDays(
-        new Date(),
-        new Date(d.currentStageSince),
-      );
-      if (days > stage.sla_days) overdueCount += 1;
+      const breachedAt =
+        new Date(d.currentStageSince).getTime() +
+        stage.sla_days * 24 * 60 * 60 * 1000;
+      if (Date.now() > breachedAt) overdueCount += 1;
     }
 
     if ((d as unknown as { temperature?: string }).temperature === "hot") {

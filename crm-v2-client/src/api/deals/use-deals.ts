@@ -15,6 +15,7 @@ import type {
   CloseDealValues,
   ArchivedDealsParams,
   ArchivedDealsResponse,
+  DealsSummaryParams,
 } from "./types";
 import { closeDealSchema } from "./types";
 import type { ApiResponse, Paginated } from "../common-api-type";
@@ -36,8 +37,8 @@ const keys = {
       params.page,
       params.limit,
     ] as const,
-  summary: (pipelineId?: string) =>
-    [...keys.all, "summary", pipelineId] as const,
+  summary: (pipelineId?: string, params?: DealsSummaryParams) =>
+    [...keys.all, "summary", pipelineId, params ?? {}] as const,
   byId: (id: string) => [...keys.all, "detail", id] as const,
 };
 
@@ -48,13 +49,18 @@ const api = {
   getPipelineDeals: (id: string): Promise<ApiResponse<Deal[]>> =>
     apiClientAuth.get(`/deals/pipeline/${id}`).then((r) => r.data),
 
-  getArchivedDeals: (params: ArchivedDealsParams): Promise<ArchivedDealsResponse> =>
+  getArchivedDeals: (
+    params: ArchivedDealsParams,
+  ): Promise<ArchivedDealsResponse> =>
     apiClientAuth.get("/deals/archived", { params }).then((r) => r.data),
 
-  getSummary: (pipelineId?: string): Promise<ApiResponse<DealsSummary>> =>
+  getSummary: (
+    pipelineId?: string,
+    params?: DealsSummaryParams,
+  ): Promise<ApiResponse<DealsSummary>> =>
     apiClientAuth
       .get("/deals/summary", {
-        params: pipelineId ? { pipeline_id: pipelineId } : undefined,
+        params: pipelineId ? { pipeline_id: pipelineId, ...params } : undefined,
       })
       .then((r) => r.data),
 
@@ -171,33 +177,25 @@ const normalizeDeal = (rawResponse: any, fallbackId = ""): Deal => {
     school: (raw as any)?.school ?? (raw as any)?.lead?.school,
     lead_id: (raw as any)?.lead_id ?? (raw as any)?.leadId,
     lead: (raw as any)?.lead,
-    owner_id:
-      (raw as any)?.owner_id ??
-      (raw as any)?.assigned_to ??
-      owner?.id,
+    owner_id: (raw as any)?.owner_id ?? (raw as any)?.assigned_to ?? owner?.id,
     owner: owner ?? (raw as any)?.owner,
     assigned_to:
       (raw as any)?.assigned_to ??
       (raw as any)?.assignedTo ??
       (raw as any)?.assigned_user?.id,
-    assigned_user:
-      (raw as any)?.assigned_user ?? (raw as any)?.assignedUser,
+    assigned_user: (raw as any)?.assigned_user ?? (raw as any)?.assignedUser,
     status: normalizedStatus,
     current_status:
       (raw as any)?.current_status ??
       (raw as any)?.currentStatus ??
       stage?.name,
-    health_score:
-      (raw as any)?.health_score ?? (raw as any)?.healthScore,
+    health_score: (raw as any)?.health_score ?? (raw as any)?.healthScore,
     risk_score: (raw as any)?.risk_score ?? (raw as any)?.riskScore,
     expected_close_date:
-      (raw as any)?.expected_close_date ??
-      (raw as any)?.expectedCloseDate,
-    closed_at:
-      (raw as any)?.closed_at ?? (raw as any)?.actualCloseDate,
+      (raw as any)?.expected_close_date ?? (raw as any)?.expectedCloseDate,
+    closed_at: (raw as any)?.closed_at ?? (raw as any)?.actualCloseDate,
     current_stage_since:
-      (raw as any)?.current_stage_since ??
-      (raw as any)?.currentStageSince,
+      (raw as any)?.current_stage_since ?? (raw as any)?.currentStageSince,
     last_contacted_at:
       (raw as any)?.last_contacted_at ??
       (raw as any)?.lastContactedAt ??
@@ -269,10 +267,13 @@ export function useArchivedDeals(
   });
 }
 
-export function useDealsSummary(pipelineId?: string) {
+export function useDealsSummary(
+  pipelineId?: string,
+  params?: DealsSummaryParams,
+) {
   return useQuery({
-    queryKey: keys.summary(pipelineId),
-    queryFn: () => api.getSummary(pipelineId),
+    queryKey: keys.summary(pipelineId, params),
+    queryFn: () => api.getSummary(pipelineId, params),
     enabled: !!pipelineId,
   });
 }

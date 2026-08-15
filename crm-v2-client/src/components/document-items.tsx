@@ -143,7 +143,7 @@ export const DocumentItems = ({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Item</TableHead>
+            <TableHead>Item / service</TableHead>
             <TableHead className="w-24">Qty</TableHead>
             <TableHead className="w-28">Price</TableHead>
             <TableHead className="w-24">Disc %</TableHead>
@@ -156,6 +156,25 @@ export const DocumentItems = ({
           {fields.map((field, index) => (
             <TableRow key={field.id}>
               <TableCell className="space-y-2">
+                <FormField
+                  control={form.control}
+                  name={`items.${index}.description`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Type a custom item, e.g. LAN or CamSys"
+                          aria-label={`Item ${index + 1} description`}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Custom items are allowed. The catalogue selection below is optional.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name={`items.${index}.product_id`}
@@ -195,25 +214,13 @@ export const DocumentItems = ({
                             }
                           }}
                           options={productOptions}
-                          placeholder="Select product"
+                          placeholder="Optional: fill from product catalogue"
                           searchPlaceholder="Search products..."
-                          emptyText="No products found"
+                          emptyText="No catalogue product found — use the custom item field above"
                           searchValue={productSearchTerm}
                           onSearchChange={onSearch}
                           isLoading={isProductLoading}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`items.${index}.description`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input {...field} placeholder="Item description" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -227,7 +234,23 @@ export const DocumentItems = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Input   type="number" step="1" min="0" value={field.value ?? 0} onChange={(e) => field.onChange(Number(e.target.value))} />
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          step="1"
+                          min="0.01"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(
+                              e.target.value === ""
+                                ? undefined
+                                : Number(e.target.value),
+                            )
+                          }
+                          onFocus={(e) => e.currentTarget.select()}
+                          aria-label={`Item ${index + 1} quantity`}
+                          className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

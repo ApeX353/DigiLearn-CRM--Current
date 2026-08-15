@@ -28,14 +28,16 @@ import { shouldRequireFollowUp } from "~/lib/follow-up-policy";
 /**
  * Follow-up scheduled by the server in the same transaction as a
  * completion — mirrors NextStepPayloadDto. The server copies lead/deal/
- * contact/assignee from the source activity, so only the work itself is
- * described here.
+ * contact from the source activity. The server assigns the follow-up to
+ * the record owner, falling back to the logged-in person completing it.
  */
 export type NextStepPayload = {
   type: ActivityType;
   subject: string;
   due_at: string;
   description?: string;
+  /** Person chosen for this follow-up; it may differ from the source log. */
+  contact_id?: string;
 };
 
 export type ActivityListQuery = PaginationParams & {
@@ -101,7 +103,9 @@ function unwrapData<T>(payload: unknown): T {
 // Activity type and every view read `whatsapp`. Without this mapping the
 // "WhatsApp Details" section (incl. the full message) never renders and only
 // the 40-char subject preview shows. Map it so the full message is displayed.
-function normalizeActivity<T extends Activity | null | undefined>(activity: T): T {
+function normalizeActivity<T extends Activity | null | undefined>(
+  activity: T,
+): T {
   const a = activity as
     | (Activity & { whatsapp_message?: Activity["whatsapp"] })
     | null
@@ -113,9 +117,7 @@ function normalizeActivity<T extends Activity | null | undefined>(activity: T): 
 }
 
 const api = {
-  getAll: (
-    params: ActivityListQuery,
-  ): Promise<Paginated<Activity[]>> =>
+  getAll: (params: ActivityListQuery): Promise<Paginated<Activity[]>> =>
     apiClientAuth.get("/activities", { params }).then((r) => {
       const page = r.data as Paginated<Activity[]>;
       page.data?.forEach(normalizeActivity);
@@ -215,6 +217,7 @@ export interface NextStepInput {
   subject: string;
   due_at: string;
   description?: string;
+  contact_id?: string;
 }
 
 export interface BulkStatusResult {
@@ -299,7 +302,11 @@ export function useUpdateActivity() {
       const isCompleted =
         updatedActivity.status === "completed" ||
         Boolean(updatedActivity.completed_at);
-      if (isCompleted && !wasCompleted && shouldRequireFollowUp(updatedActivity)) {
+      if (
+        isCompleted &&
+        !wasCompleted &&
+        shouldRequireFollowUp(updatedActivity)
+      ) {
         requestCompletion({ activity: updatedActivity, stage: "next-step" });
       }
     },

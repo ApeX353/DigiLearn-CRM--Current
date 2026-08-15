@@ -52,6 +52,8 @@ export interface Lead {
   id: string;
   status: LeadStatus;
   lead_name: string;
+  product_id?: string | null;
+  product?: { id: string; name: string; sku?: string | null } | null;
   source: LeadSource;
   estimated_value: number;
   school?: School;
@@ -165,6 +167,7 @@ export const leadInfoSchema = z.object({
   // Campaign/event the lead was captured at (e.g. NASH congress).
   // Survives lead→deal conversion for campaign ROI attribution.
   source_campaign_id: z.string().uuid().optional(),
+  product_id: z.string().uuid().optional(),
 });
 
 export const contactsSchema = z

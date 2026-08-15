@@ -1,4 +1,4 @@
-import * as Mustache from 'mustache';
+import Mustache from 'mustache';
 import { promises as fs } from 'fs';
 import { ITemplateEngine, TemplateData } from '../interfaces';
 

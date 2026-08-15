@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Put,
   Param,
@@ -19,6 +20,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ReviewPaymentEntryRequestDto } from './dto/review-payment-entry-request.dto';
+import {
+  PAYMENT_ENTRY_REQUEST_STATUSES,
+} from './entities/payment-entry-request.entity';
+import type { PaymentEntryRequestStatus } from './entities/payment-entry-request.entity';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -38,13 +44,56 @@ export class PaymentsController {
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
   ) {
-    // C-03: a rep can only record a payment on an invoice they own.
-    const scopeUserId = role === 'sales_rep' ? userId : undefined;
-    const payment = await this.paymentsService.create(dto, userId, scopeUserId);
+    const result = await this.paymentsService.submit(dto, userId, role);
+    if (result.kind === 'approval_request') {
+      return {
+        success: true,
+        kind: result.kind,
+        message: 'Payment entry sent to the manager Approval Queue',
+        data: result.request,
+      };
+    }
     return {
       success: true,
+      kind: result.kind,
       message: 'Payment recorded successfully',
-      data: payment,
+      data: result.payment,
+    };
+  }
+
+  @Get('requests')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'List payment entries awaiting or after review' })
+  async findPaymentEntryRequests(
+    @Query('status') status?: PaymentEntryRequestStatus,
+  ) {
+    const safeStatus = PAYMENT_ENTRY_REQUEST_STATUSES.includes(
+      status as PaymentEntryRequestStatus,
+    )
+      ? status
+      : 'pending';
+    return {
+      success: true,
+      data: await this.paymentsService.findPaymentEntryRequests(safeStatus),
+    };
+  }
+
+  @Patch('requests/:id/review')
+  @Roles('admin', 'sales_manager')
+  @ApiOperation({ summary: 'Approve or reject a payment entry request' })
+  async reviewPaymentEntryRequest(
+    @Param('id') id: string,
+    @Body() dto: ReviewPaymentEntryRequestDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    return {
+      success: true,
+      data: await this.paymentsService.reviewPaymentEntryRequest(
+        id,
+        dto,
+        userId,
+      ),
+      message: `Payment entry ${dto.decision}`,
     };
   }
 

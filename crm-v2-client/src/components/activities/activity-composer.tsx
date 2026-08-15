@@ -44,6 +44,8 @@ import {
 import { PersonPicker } from "~/components/activities/person-picker";
 import { isRichTextEmpty, richTextToPlain } from "~/lib/rich-text";
 import { handleApiError } from "~/api/axios";
+import { useActivityCompletionStore } from "~/stores/use-activity-completion-store";
+import { useAuthStore } from "~/stores/use-auth-store";
 
 /**
  * The activity types shown in the composer's own type strip.
@@ -127,6 +129,8 @@ export function ActivityComposer({
   defaultAssigneeId,
 }: ActivityComposerProps) {
   const create = useCreateActivity();
+  const requestCompletion = useActivityCompletionStore((s) => s.request);
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const { data: staffData } = useStaff({
     page: 1,
     limit: 100,
@@ -145,34 +149,29 @@ export function ActivityComposer({
     () =>
       staff.map((m) => ({
         id: m.id,
-        name:
-          `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim() || m.email,
+        name: `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim() || m.email,
         hint: m.email,
       })),
     [staff],
   );
 
   // Uses `type` rather than `isNote`, which is declared further down.
-  const bodyPlaceholder = type === "note"
-    ? "Write a note…"
-    : type === "call"
-      ? "What was discussed / what to cover…"
-      : type === "whatsapp"
-        ? "The message to send…"
-        : "Notes (optional)";
+  const bodyPlaceholder =
+    type === "note"
+      ? "Write a note…"
+      : type === "call"
+        ? "What was discussed / what to cover…"
+        : type === "whatsapp"
+          ? "The message to send…"
+          : "Notes (optional)";
 
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [due, setDue] = useState<Date | undefined>(undefined);
   const [time, setTime] = useState("09:00");
-  // ASGN2: default to the record's owner; the picker stays editable for
-  // deliberate handoffs.
-  const [assignee, setAssignee] = useState<string>(
-    defaultAssigneeId ?? "unassigned",
-  );
-  useEffect(() => {
-    setAssignee(defaultAssigneeId ?? "unassigned");
-  }, [defaultAssigneeId]);
+  // Ownership is automatic: keep work with the record owner. Only an
+  // unowned record falls back to the person logging the activity.
+  const automaticAssigneeId = defaultAssigneeId ?? currentUserId;
   const [phone, setPhone] = useState(defaultPhone ?? "");
   const [recipients, setRecipients] = useState(defaultEmail ?? "");
   /** The contact the call/WhatsApp/email is with — chosen, never typed. */
@@ -188,6 +187,7 @@ export function ActivityComposer({
   }, [type, defaultPhone, defaultEmail]);
 
   const isNote = type === "note";
+  const completedActionable = !isNote && markDone;
 
   const dueIso = useMemo(() => {
     if (!due) return undefined;
@@ -220,9 +220,7 @@ export function ActivityComposer({
     }
     // The editor leaves `<br>` and empty paragraphs behind after a select-all
     // delete, so emptiness is decided on the rendered text, not the markup.
-    const bodyIsEmpty = supportsRichText
-      ? isRichTextEmpty(body)
-      : !body.trim();
+    const bodyIsEmpty = supportsRichText ? isRichTextEmpty(body) : !body.trim();
     // Subjects and message payloads want the words without the markup.
     const bodyPlain = richTextToPlain(body).trim();
 
@@ -239,9 +237,7 @@ export function ActivityComposer({
         return;
       }
       if (bodyIsEmpty) {
-        toast.error(
-          "Describe what happened before logging this as done.",
-        );
+        toast.error("Describe what happened before logging this as done.");
         return;
       }
     }
@@ -250,8 +246,14 @@ export function ActivityComposer({
         toast.error("Give it a short subject.");
         return;
       }
-      if (!dueIso) {
+      if (!dueIso && !markDone) {
         toast.error("Pick a date — every activity needs a next action.");
+        return;
+      }
+      // Scheduled work must still be in the future. Historical timestamps
+      // remain valid only when "Mark as done" says the work already happened.
+      if (!markDone && dueIso && new Date(dueIso).getTime() <= Date.now()) {
+        toast.error("Choose a future date and time for planned work.");
         return;
       }
       if (type === "call" || type === "whatsapp" || type === "email") {
@@ -282,8 +284,13 @@ export function ActivityComposer({
       // The activity is pinned to the chosen contact so the log always
       // links back to a real person record.
       contact_id: personId ?? contactId,
-      ...(dueIso && { due_at: dueIso }),
-      ...(assignee !== "unassigned" && { assigned_to_id: assignee }),
+      // For a call being logged as already done, this form records the past
+      // interaction only. Its future is chosen immediately in Close the loop;
+      // putting that future date on the source call used to create a follow-up
+      // task AND leave the call looking like work that still needed completion.
+      ...(!markDone && dueIso && { due_at: dueIso }),
+      ...(markDone && dueIso && { scheduled_at: dueIso }),
+      ...(automaticAssigneeId && { assigned_to_id: automaticAssigneeId }),
       // Saved work starts PLANNED so it becomes the record's next step;
       // outcome + follow-up are captured when it is ticked off.
       ...(markDone &&
@@ -296,13 +303,13 @@ export function ActivityComposer({
       ...(isNote && { note: { content: body.trim() } }),
       ...(type === "task" && {
         description: bodyIsEmpty ? undefined : body,
-        task: { status: "todo", priority: "medium" },
+        task: { status: markDone ? "done" : "todo", priority: "medium" },
       }),
       ...(type === "call" && {
         call: {
           phone_number: phone.trim(),
           summary: bodyIsEmpty ? undefined : body,
-          follow_up_date: dueIso,
+          follow_up_date: markDone ? undefined : dueIso,
         },
       }),
       ...(type === "whatsapp" && {
@@ -312,7 +319,7 @@ export function ActivityComposer({
           message: body.trim() || subject.trim(),
           direction: "outbound",
           message_type: "text",
-          follow_up_date: dueIso,
+          follow_up_date: markDone ? undefined : dueIso,
         },
       }),
       ...(type === "email" && {
@@ -326,7 +333,7 @@ export function ActivityComposer({
         meeting: {
           title: subject.trim(),
           platform: "in_person",
-          start_time: dueIso as string,
+          start_time: dueIso ?? new Date().toISOString(),
           // The composer has always collected a body for meetings and then
           // dropped it on the floor. Before the meeting the body is the
           // agenda; ticking "mark as done" makes it the minutes.
@@ -337,7 +344,7 @@ export function ActivityComposer({
     };
 
     create.mutate(payload, {
-      onSuccess: () => {
+      onSuccess: (createdActivity) => {
         toast.success(
           isNote
             ? "Note added"
@@ -348,6 +355,16 @@ export function ActivityComposer({
         reset();
         onCreated?.();
         onClose();
+        if (completedActionable) {
+          // Mark-as-done is the completion for every actionable type. Move
+          // straight to the future-facing half; calls, tasks, meetings,
+          // WhatsApps and emails all owe the same explicit next-step decision.
+          requestCompletion({
+            activity: createdActivity,
+            stage: "next-step",
+            ownerId: automaticAssigneeId ?? createdActivity.assigned_to_id,
+          });
+        }
       },
       onError: (e) =>
         toast.error("Could not save", { description: handleApiError(e) }),
@@ -463,11 +480,7 @@ export function ActivityComposer({
           <div className="flex flex-wrap items-center gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 font-normal"
-                >
+                <Button variant="outline" size="sm" className="h-8 font-normal">
                   <CalendarIcon className="mr-2 h-3.5 w-3.5" />
                   {due ? format(due, "MMM d, yyyy") : "Pick a date"}
                 </Button>
@@ -489,20 +502,13 @@ export function ActivityComposer({
               className="h-8 w-[110px]"
             />
 
-            <Select value={assignee} onValueChange={setAssignee}>
-              <SelectTrigger className="h-8 w-[190px]">
-                <SelectValue placeholder="Assignee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {staff.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {`${m.first_name ?? ""} ${m.last_name ?? ""}`.trim() ||
-                      m.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!markDone &&
+              dueIso &&
+              new Date(dueIso).getTime() <= Date.now() && (
+                <span className="text-xs font-medium text-destructive">
+                  Planned work must be later than now.
+                </span>
+              )}
           </div>
         )}
 

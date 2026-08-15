@@ -103,7 +103,7 @@ describe('DashboardService (leads contacted)', () => {
     jest.clearAllMocks();
   });
 
-  it('resolves target from nested defaults.daily_leads_target', async () => {
+  it('uses the canonical compliance target ahead of nested legacy defaults', async () => {
     settingsService.getSetting.mockResolvedValueOnce({
       value: { daily_leads_target: '55' },
     });
@@ -142,13 +142,12 @@ describe('DashboardService (leads contacted)', () => {
       'admin',
     );
 
-    expect(result.target).toBe(55);
-    expect(result.byRep[0].target).toBe(55);
-    expect(settingsService.getSetting).toHaveBeenCalledTimes(1);
-    expect(settingsService.getSetting).toHaveBeenCalledWith('defaults');
+    expect(result.target).toBe(40);
+    expect(result.byRep[0].target).toBe(40);
+    expect(settingsService.getSetting).not.toHaveBeenCalled();
   });
 
-  it('falls back to dotted defaults.daily_leads_target when nested value is missing', async () => {
+  it('does not consult dotted legacy defaults when compliance is configured', async () => {
     settingsService.getSetting
       .mockResolvedValueOnce({ value: {} })
       .mockResolvedValueOnce({ value: '60' });
@@ -180,13 +179,9 @@ describe('DashboardService (leads contacted)', () => {
       'admin',
     );
 
-    expect(result.target).toBe(60);
-    expect(result.byRep[0].target).toBe(60);
-    expect(settingsService.getSetting).toHaveBeenNthCalledWith(1, 'defaults');
-    expect(settingsService.getSetting).toHaveBeenNthCalledWith(
-      2,
-      'defaults.daily_leads_target',
-    );
+    expect(result.target).toBe(40);
+    expect(result.byRep[0].target).toBe(40);
+    expect(settingsService.getSetting).not.toHaveBeenCalled();
   });
 
   it('falls back to default 40 when settings values are invalid', async () => {

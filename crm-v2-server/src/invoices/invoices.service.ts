@@ -421,6 +421,15 @@ export class InvoicesService {
     const invoice = await this.findOne(id);
     const oldValues = { ...invoice };
 
+    if (
+      dto.status &&
+      ['Paid', 'Partially-Paid', 'Overdue'].includes(dto.status)
+    ) {
+      throw new BadRequestException(
+        'Paid, Partially-Paid, and Overdue are derived from payments and due dates',
+      );
+    }
+
     if (dto.due_date) {
       (dto as any).due_date = new Date(dto.due_date);
     }
@@ -468,6 +477,11 @@ export class InvoicesService {
     status: InvoiceStatus,
     userId: string,
   ): Promise<Invoice> {
+    if (['Paid', 'Partially-Paid', 'Overdue'].includes(status)) {
+      throw new BadRequestException(
+        'Record a payment instead; financial invoice statuses cannot be selected manually',
+      );
+    }
     const invoice = await this.findOne(id);
     const oldStatus = invoice.status;
 

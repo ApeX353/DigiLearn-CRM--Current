@@ -51,7 +51,6 @@ import { Autocomplete } from "~/components/ui/autocomplete";
 import {
   ACTIVITY_TYPES,
   useActivityList,
-  useBulkUpdateActivityStatus,
   useUpdateActivityStatus,
   type Activity,
   type ActivityType,
@@ -233,7 +232,6 @@ export default function ActivitiesPage() {
 
   // ---------- mutations ----------
   const updateStatus = useUpdateActivityStatus();
-  const bulkUpdateStatus = useBulkUpdateActivityStatus();
   const requestCompletion = useActivityCompletionStore((s) => s.request);
 
   /**
@@ -323,30 +321,21 @@ export default function ActivitiesPage() {
 
   async function bulkMarkDone() {
     if (selectedIds.length === 0) return;
-    // Bulk path: we route the FIRST selected activity through the
-    // outcome dialog; once that outcome is captured it's applied to
-    // every row in the batch via the bulk mutation. Keeps the rule
-    // enforced without showing one dialog per selected row.
     const first = allActivities.find(
       (a: Activity) => a.id === selectedIds[0],
     );
     if (!first) return;
+    if (selectedIds.length === 1) {
+      requestCompletion({
+        activity: first,
+        onCompleted: () => setSelectedIds([]),
+      });
+      return;
+    }
     requestCompletion({
       activity: first,
-      onCompleted: async (completedHead) => {
-        const outcome = completedHead.completion_outcome ?? undefined;
-        const remaining = selectedIds.filter((id) => id !== completedHead.id);
-        if (remaining.length > 0 && outcome) {
-          await bulkUpdateStatus.mutateAsync({
-            ids: remaining,
-            status: "completed",
-            outcome,
-            completionNote:
-              completedHead.completion_note ?? undefined,
-          });
-        }
-        setSelectedIds([]);
-      },
+      bulkIds: [...selectedIds],
+      onCompleted: () => setSelectedIds([]),
     });
   }
 
@@ -507,7 +496,7 @@ export default function ActivitiesPage() {
               count={selectedIds.length}
               onClear={clearSelection}
               onMarkDone={bulkMarkDone}
-              pending={bulkUpdateStatus.isPending}
+              pending={false}
             />
             {/* Same timeline the record pages use, not a separate table.
                 These activities all belong to a lead, deal or school, so

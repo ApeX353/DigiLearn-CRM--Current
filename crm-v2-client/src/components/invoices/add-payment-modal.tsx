@@ -1,6 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -40,10 +39,8 @@ import {
   useInvoice,
   type AddPaymentFormValues,
   type Invoice,
-  type InvoicePaymentRecord,
-  type InvoicePaymentRecordResponse,
+  type InvoicePaymentSubmissionResponse,
 } from "~/api/invoices";
-import { useAllocatePayment } from "~/api/payment-terms";
 import { schoolsKeys } from "~/api/schools";
 import { useCurrency } from "~/hooks/use-currency";
 
@@ -54,26 +51,6 @@ interface AddPaymentModalProps {
   defaultAmount?: number;
   description?: string;
 }
-
-const getCreatedPaymentId = (
-  response?: InvoicePaymentRecord | InvoicePaymentRecordResponse,
-) => {
-  if (!response) return null;
-  const payload =
-    (response as InvoicePaymentRecordResponse).data ??
-    (response as InvoicePaymentRecord);
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "id" in payload &&
-    typeof payload.id === "string"
-  ) {
-    return payload.id;
-  }
-
-  return null;
-};
 
 const getInvoiceOutstanding = (targetInvoice?: Invoice | null) =>
   Math.max(
@@ -112,9 +89,8 @@ export function AddPaymentModal({
   description,
 }: AddPaymentModalProps) {
   const queryClient = useQueryClient();
-  const { formatCurrency } = useCurrency();
+  const { currency, formatCurrency } = useCurrency();
   const addPayment = useAddPayment();
-  const allocatePayment = useAllocatePayment();
   const detailInvoiceId = isOpen ? invoice.id : "";
   const { data: invoiceDetail, isLoading: isInvoiceDetailLoading } = useInvoice(detailInvoiceId);
   const resolvedInvoice = invoiceDetail ?? invoice;
@@ -139,10 +115,15 @@ export function AddPaymentModal({
     [payableChildren, selectedChildInvoiceId],
   );
   const targetInvoice = isSummaryInvoice ? selectedChildInvoice : resolvedInvoice;
+  // Payment amounts follow the invoice currency. Invoices currently use the
+  // CRM-wide setting and must not inherit a linked deal/quote's currency.
+  const displayCurrency = currency;
+  const formatPaymentCurrency = (amount: number) =>
+    formatCurrency(amount, displayCurrency);
   const outstanding = getInvoiceOutstanding(targetInvoice);
   const initialAmount =
-    defaultAmount && defaultAmount > 0
-      ? Math.min(defaultAmount, outstanding)
+    defaultAmount !== undefined
+      ? Math.max(0, Math.min(defaultAmount, outstanding))
       : outstanding;
   const isLoadingChildInvoices =
     isSummaryInvoice && isInvoiceDetailLoading && !invoiceDetail;
@@ -226,14 +207,14 @@ export function AddPaymentModal({
 
     if (values.amount > outstanding) {
       form.setError("amount", {
-        message: `Amount cannot exceed outstanding balance of ${formatCurrency(outstanding)}`,
+        message: `Amount cannot exceed outstanding balance of ${formatPaymentCurrency(outstanding)}`,
       });
       return;
     }
 
     try {
       const reference = values.reference_number || undefined;
-      const paymentResponse = await addPayment.mutateAsync({
+      const paymentResponse = (await addPayment.mutateAsync({
         data: {
           invoice_id: targetInvoice.id,
           amount: values.amount,
@@ -248,37 +229,13 @@ export function AddPaymentModal({
           reference,
           notes: values.notes || undefined,
         },
-      });
-      const paymentId = getCreatedPaymentId(paymentResponse);
-      let hasShownOutcomeToast = false;
-
-      if (paymentId) {
-        try {
-          await allocatePayment.mutateAsync({ paymentId });
-          toast.success("Payment recorded and allocated using FIFO");
-          hasShownOutcomeToast = true;
-        } catch (allocationError) {
-          const status = axios.isAxiosError(allocationError)
-            ? allocationError.response?.status
-            : undefined;
-
-          if (status === 401 || status === 403) {
-            toast.warning(
-              "Payment recorded. FIFO auto-allocation requires admin or sales manager access.",
-            );
-          } else {
-            toast.warning(
-              "Payment recorded, but FIFO allocation did not complete. Please retry from the invoice schedule.",
-            );
-          }
-
-          hasShownOutcomeToast = true;
-        }
-      }
+      })) as InvoicePaymentSubmissionResponse;
 
       await invalidateRelatedQueries();
 
-      if (!hasShownOutcomeToast) {
+      if (paymentResponse.kind === "approval_request") {
+        toast.success("Payment entry sent to the manager Approval Queue");
+      } else {
         toast.success("Payment recorded successfully");
       }
 
@@ -289,7 +246,7 @@ export function AddPaymentModal({
     }
   };
 
-  const isSubmitting = addPayment.isPending || allocatePayment.isPending;
+  const isSubmitting = addPayment.isPending;
   const isSubmitDisabled =
     isSubmitting ||
     isLoadingChildInvoices ||
@@ -341,7 +298,7 @@ export function AddPaymentModal({
                 <SelectContent>
                   {payableChildren.map((childInvoice) => (
                     <SelectItem key={childInvoice.id} value={childInvoice.id}>
-                      {`${childInvoice.invoice_number} • ${formatCurrency(getInvoiceOutstanding(childInvoice))} outstanding • Due ${formatInvoiceDueDate(childInvoice.due_date)}`}
+                      {`${childInvoice.invoice_number} • ${formatCurrency(getInvoiceOutstanding(childInvoice), displayCurrency)} outstanding • Due ${formatInvoiceDueDate(childInvoice.due_date)}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -361,18 +318,18 @@ export function AddPaymentModal({
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Invoice Total</span>
           <span className="font-medium">
-            {formatCurrency(Number(targetInvoice?.total || 0))}
+            {formatPaymentCurrency(Number(targetInvoice?.total || 0))}
           </span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Amount Paid</span>
           <span className="font-medium">
-            {formatCurrency(Number(targetInvoice?.amount_paid || 0))}
+            {formatPaymentCurrency(Number(targetInvoice?.amount_paid || 0))}
           </span>
         </div>
         <div className="flex justify-between text-sm font-semibold border-t pt-1">
           <span>Outstanding</span>
-          <span>{formatCurrency(outstanding)}</span>
+          <span>{formatPaymentCurrency(outstanding)}</span>
         </div>
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
@@ -392,7 +349,7 @@ export function AddPaymentModal({
                   <FormControl>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                        $
+                        {displayCurrency}
                       </span>
                       <Input
                         {...field}
@@ -400,7 +357,7 @@ export function AddPaymentModal({
                         step="0.01"
                         min="0.01"
                         max={outstanding}
-                        className="pl-7"
+                        className="pl-14"
                         onChange={(e) =>
                           field.onChange(parseFloat(e.target.value) || 0)
                         }

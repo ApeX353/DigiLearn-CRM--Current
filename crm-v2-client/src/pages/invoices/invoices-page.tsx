@@ -47,6 +47,7 @@ import {
 import { useCurrency } from "~/hooks/use-currency";
 import { AddPaymentModal } from "~/components/invoices/add-payment-modal";
 import { InvoicePreviewModal } from "~/components/invoices/invoice-preview-modal";
+import { Badge } from "~/components/ui/badge";
 
 type ViewMode = "table" | "grid";
 type StatsPeriod = keyof InvoiceStats;
@@ -56,6 +57,18 @@ const PERIOD_LABELS: Record<StatsPeriod, string> = {
   quarterly: "Quarterly",
   yearly: "Yearly",
 };
+
+const getOutstanding = (invoice: Invoice) =>
+  Math.max(Number(invoice.total || 0) - Number(invoice.amount_paid || 0), 0);
+
+const getPaymentState = (invoice: Invoice) => {
+  const paid = Number(invoice.amount_paid || 0);
+  const outstanding = getOutstanding(invoice);
+  return paid <= 0 ? "Unpaid" : outstanding <= 0 ? "Paid" : "Partial";
+};
+
+const isDocumentState = (status: InvoiceStatus) =>
+  status === "Draft" || status === "Sent" || status === "Cancelled";
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
@@ -345,7 +358,14 @@ export default function InvoicesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <InvoiceStatusBadge status={invoice.status} />
+                        <div className="flex flex-wrap gap-1">
+                          {isDocumentState(invoice.status) && (
+                            <InvoiceStatusBadge status={invoice.status} />
+                          )}
+                          <Badge variant="outline">
+                            Payment: {getPaymentState(invoice)}
+                          </Badge>
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {format(new Date(invoice.created_at), "MMM dd, yyyy")}
@@ -359,11 +379,11 @@ export default function InvoicesPage() {
                         {formatCurrency(invoice.total)}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
-                        {formatCurrency(invoice.total - invoice.amount_paid)}
+                        {formatCurrency(getOutstanding(invoice))}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {invoice.status !== "Paid" &&
+                          {getOutstanding(invoice) > 0 &&
                             invoice.status !== "Cancelled" && (
                               <Button
                                 variant="ghost"
@@ -423,7 +443,14 @@ export default function InvoicesPage() {
                           {invoice.school?.name || invoice.client_name}
                         </p>
                       </div>
-                      <InvoiceStatusBadge status={invoice.status} />
+                      <div className="flex flex-col items-end gap-1">
+                        {isDocumentState(invoice.status) && (
+                          <InvoiceStatusBadge status={invoice.status} />
+                        )}
+                        <Badge variant="outline">
+                          Payment: {getPaymentState(invoice)}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -440,20 +467,25 @@ export default function InvoicesPage() {
 
                     <Separator />
 
-                    <div className="flex items-center justify-between">
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <p className="text-xs text-muted-foreground">Amount</p>
-                        <p className="text-2xl font-bold">
+                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="text-lg font-bold">
                           {formatCurrency(invoice.total)}
                         </p>
                       </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Paid</p>
+                        <p className="text-lg font-bold">
+                          {formatCurrency(Number(invoice.amount_paid || 0))}
+                        </p>
+                      </div>
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Created</p>
-                        <p className="text-sm font-medium">
-                          {format(
-                            new Date(invoice.created_at),
-                            "MMM dd, yyyy"
-                          )}
+                        <p className="text-xs text-muted-foreground">
+                          Outstanding
+                        </p>
+                        <p className="text-lg font-bold">
+                          {formatCurrency(getOutstanding(invoice))}
                         </p>
                       </div>
                     </div>
@@ -466,7 +498,7 @@ export default function InvoicesPage() {
                       </div>
                     )}
 
-                    {invoice.status !== "Paid" &&
+                    {getOutstanding(invoice) > 0 &&
                       invoice.status !== "Cancelled" && (
                         <Button
                           variant="outline"

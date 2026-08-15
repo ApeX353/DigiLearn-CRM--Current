@@ -8,7 +8,15 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, EntityManager, In, ILike, Brackets, Not } from 'typeorm';
+import {
+  Repository,
+  DataSource,
+  EntityManager,
+  In,
+  ILike,
+  Brackets,
+  Not,
+} from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { addDays } from 'date-fns';
 import {
@@ -213,6 +221,23 @@ export class DealsService {
       throw new ConflictException('Lead has already been converted to a deal');
     }
 
+    // Always-on pipeline entry bar: reps may only put real commercial work
+    // on the money board. Managers/admins retain an explicit override.
+    const mayOverrideEntryBar =
+      userRoles.includes('admin') || userRoles.includes('sales_manager');
+    if (!mayOverrideEntryBar) {
+      if (lead.status !== 'Qualified' && !lead.commercial_intent) {
+        throw new BadRequestException(
+          `Lead is at "${lead.status}" with no commercial signal yet. Qualify it or capture commercial intent before creating a deal.`,
+        );
+      }
+      if (!dto.value || Number(dto.value) <= 0) {
+        throw new BadRequestException(
+          'A deal needs a value greater than 0 because the pipeline is a money view.',
+        );
+      }
+    }
+
     // Demo + Commercial-Intent gate (default OFF; enabled by admins
     // via Settings → Compliance & Controls). Throws BadRequest with
     // a precise list of missing fields so the UI can render an
@@ -315,6 +340,16 @@ export class DealsService {
         );
         await manager.save(DealCompetitor, competitors);
       }
+
+      // Seed health at deal birth after competitor evidence is saved. A
+      // persisted default 0 with no calculation made the pipeline average
+      // look critically low until somebody happened to move the card or press
+      // the manual Calculate button.
+      await this.dealHealthCalculationService.calculateDealHealth({
+        dealId,
+        userId,
+        manager,
+      });
 
       // Rulebook §5: "First deal task is created with due date." A deal
       // born with nothing planned starts life already violating the
@@ -438,15 +473,18 @@ export class DealsService {
      3. FIND PIPELINE DEALS
   ======================================== */
 
-  async findPipelineDeals(pipelineId: string, {
-    status,
-    search,
-    assigned_to,
-  }: {
-    status?: DealCloseStatus;
-    search?: string
-    assigned_to?: string;
-  } = {}): Promise<Deal[]> {
+  async findPipelineDeals(
+    pipelineId: string,
+    {
+      status,
+      search,
+      assigned_to,
+    }: {
+      status?: DealCloseStatus;
+      search?: string;
+      assigned_to?: string;
+    } = {},
+  ): Promise<Deal[]> {
     return this.dealRepository.find({
       where: {
         pipeline_id: pipelineId,
@@ -463,12 +501,22 @@ export class DealsService {
   async getPipelineSummary(
     pipelineId: string,
     assignedTo?: string,
+    dateFrom?: string,
+    dateTo?: string,
   ): Promise<{
     pipeline_id: string;
     total_deals: number;
+    open_deals: number;
     pipeline_value: number;
+    pending_collections: number;
+    overdue_deals: number;
     deals_with_overdue_invoices: number;
     avg_deal_health: number;
+    health_scored_deals: number;
+    won_deals: number;
+    won_invoice_total: number;
+    lost_deals: number;
+    lost_deal_value: number;
   }> {
     const pipeline = await this.pipelineRepository.findOne({
       where: { id: pipelineId },
@@ -477,55 +525,198 @@ export class DealsService {
       throw new NotFoundException('Pipeline not found');
     }
 
-    const dealTotalsQb = this.dealRepository
+    const allDealsQb = this.dealRepository
       .createQueryBuilder('deal')
       .select('COUNT(deal.id)', 'totalDeals')
+      .where('deal.pipeline_id = :pipelineId', { pipelineId });
+    if (assignedTo) {
+      allDealsQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+    }
+
+    const openDealsQb = this.dealRepository
+      .createQueryBuilder('deal')
+      .select('COUNT(deal.id)', 'openDeals')
       .addSelect('COALESCE(SUM(deal.value), 0)', 'pipelineValue')
-      .addSelect('COALESCE(AVG(deal.health_score), 0)', 'avgDealHealth')
+      // A score of 0 with no timestamp means "never calculated", not
+      // "critical health". Excluding it prevents uninitialised records
+      // from silently dragging the team average down.
+      .addSelect(
+        'COALESCE(AVG(deal.health_score) FILTER (WHERE deal.health_score_last_calculated IS NOT NULL), 0)',
+        'avgDealHealth',
+      )
+      .addSelect(
+        'COUNT(deal.id) FILTER (WHERE deal.health_score_last_calculated IS NOT NULL)',
+        'healthScoredDeals',
+      )
       .where('deal.pipeline_id = :pipelineId', { pipelineId })
       .andWhere('deal.close_status = :ongoingStatus', {
         ongoingStatus: DealCloseStatus.ONGOING,
       });
     if (assignedTo) {
-      dealTotalsQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+      openDealsQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
     }
-    const dealTotals = await dealTotalsQb.getRawOne<{
-      totalDeals: string;
-      pipelineValue: string;
-      avgDealHealth: string;
-    }>();
+    const [allDeals, openDeals] = await Promise.all([
+      allDealsQb.getRawOne<{ totalDeals: string }>(),
+      openDealsQb.getRawOne<{
+        openDeals: string;
+        pipelineValue: string;
+        avgDealHealth: string;
+        healthScoredDeals: string;
+      }>(),
+    ]);
 
-    const overdueQb = this.dataSource
-      .createQueryBuilder()
-      .select('COUNT(DISTINCT deal.id)', 'overdueDeals')
-      .from(Deal, 'deal')
-      .innerJoin(Invoice, 'invoice', 'invoice.deal_id = deal.id')
+    // Pipeline "overdue" means deals past the current stage SLA. Invoice
+    // debt is a separate financial signal exposed as Pending Collections.
+    const stageOverdueQb = this.dealRepository
+      .createQueryBuilder('deal')
+      .innerJoin('deal.current_stage', 'stage')
+      .select('COUNT(deal.id)', 'overdueDeals')
       .where('deal.pipeline_id = :pipelineId', { pipelineId })
       .andWhere('deal.close_status = :ongoingStatus', {
         ongoingStatus: DealCloseStatus.ONGOING,
       })
-      .andWhere('invoice.parent_invoice_id IS NULL')
+      .andWhere('stage.sla_days > 0')
+      .andWhere(
+        "deal.current_stage_since + (stage.sla_days * INTERVAL '1 day') < NOW()",
+      );
+    if (assignedTo) {
+      stageOverdueQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+    }
+
+    const collectionsQb = this.dataSource
+      .createQueryBuilder()
+      .select(
+        'COUNT(DISTINCT deal.id) FILTER (WHERE COALESCE(invoice.grace_due_date, invoice.due_date) < NOW())',
+        'overdueInvoiceDeals',
+      )
+      .addSelect(
+        'COALESCE(SUM(GREATEST(invoice.total - invoice.amount_paid, 0)), 0)',
+        'pendingCollections',
+      )
+      .from(Deal, 'deal')
+      .innerJoin(Invoice, 'invoice', 'invoice.deal_id = deal.id')
+      .where('deal.pipeline_id = :pipelineId', { pipelineId })
+      // A split-payment master is a summary of its child invoices. Counting
+      // both would double the invoiced value and outstanding balance.
+      .andWhere(
+        '(invoice.is_summary_invoice = false OR invoice.is_summary_invoice IS NULL)',
+      )
+      // Financial truth comes from payments. A historical manually selected
+      // `Paid` label must not hide an unpaid balance (Investigation 3).
+      .andWhere('invoice.status != :draftStatus', { draftStatus: 'Draft' })
       .andWhere('invoice.payment_status != :paidStatus', { paidStatus: 'Paid' })
       .andWhere('invoice.status != :cancelledStatus', {
         cancelledStatus: 'Cancelled',
       })
-      .andWhere('COALESCE(invoice.grace_due_date, invoice.due_date) < NOW()');
+      .andWhere('GREATEST(invoice.total - invoice.amount_paid, 0) > 0');
     if (assignedTo) {
-      overdueQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+      collectionsQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
     }
-    const overdueDeals = await overdueQb.getRawOne<{ overdueDeals: string }>();
+    const closedTotalsQb = this.dataSource
+      .createQueryBuilder()
+      .select(
+        "COUNT(deal.id) FILTER (WHERE deal.close_status = 'won')",
+        'wonDeals',
+      )
+      .addSelect(
+        "COUNT(deal.id) FILTER (WHERE deal.close_status = 'lost')",
+        'lostDeals',
+      )
+      .addSelect(
+        "COALESCE(SUM(deal.value) FILTER (WHERE deal.close_status = 'lost'), 0)",
+        'lostDealValue',
+      )
+      .from(Deal, 'deal')
+      .where('deal.pipeline_id = :pipelineId', { pipelineId })
+      .andWhere('deal.close_status IN (:...closedStatuses)', {
+        closedStatuses: [DealCloseStatus.WON, DealCloseStatus.LOST],
+      });
+    if (assignedTo) {
+      closedTotalsQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+    }
+    if (dateFrom) {
+      closedTotalsQb.andWhere('deal.actual_close_date >= :dateFrom', {
+        dateFrom: new Date(dateFrom),
+      });
+    }
+    if (dateTo) {
+      closedTotalsQb.andWhere('deal.actual_close_date <= :dateTo', {
+        dateTo: new Date(dateTo),
+      });
+    }
 
-    const totalDeals = Number(dealTotals?.totalDeals ?? 0);
-    const pipelineValue = Number(dealTotals?.pipelineValue ?? 0);
-    const avgDealHealth = Number(dealTotals?.avgDealHealth ?? 0);
-    const dealsWithOverdueInvoices = Number(overdueDeals?.overdueDeals ?? 0);
+    // Won value is actual invoiced value, not the deal's earlier estimate.
+    // Keep this separate from the deal-count query so multiple invoices do
+    // not multiply the won/lost counts or lost deal value.
+    const wonInvoiceQb = this.dataSource
+      .createQueryBuilder()
+      .select('COALESCE(SUM(invoice.total), 0)', 'wonInvoiceTotal')
+      .from(Invoice, 'invoice')
+      .innerJoin(Deal, 'deal', 'deal.id = invoice.deal_id')
+      .where('deal.pipeline_id = :pipelineId', { pipelineId })
+      .andWhere('deal.close_status = :wonStatus', {
+        wonStatus: DealCloseStatus.WON,
+      })
+      .andWhere(
+        '(invoice.is_summary_invoice = false OR invoice.is_summary_invoice IS NULL)',
+      )
+      .andWhere('invoice.status != :cancelledStatus', {
+        cancelledStatus: 'Cancelled',
+      });
+    if (assignedTo) {
+      wonInvoiceQb.andWhere('deal.assigned_to = :assignedTo', { assignedTo });
+    }
+    if (dateFrom) {
+      wonInvoiceQb.andWhere('deal.actual_close_date >= :dateFrom', {
+        dateFrom: new Date(dateFrom),
+      });
+    }
+    if (dateTo) {
+      wonInvoiceQb.andWhere('deal.actual_close_date <= :dateTo', {
+        dateTo: new Date(dateTo),
+      });
+    }
+
+    const [stageOverdue, collections, closedTotals, wonInvoices] =
+      await Promise.all([
+        stageOverdueQb.getRawOne<{ overdueDeals: string }>(),
+        collectionsQb.getRawOne<{
+          overdueInvoiceDeals: string;
+          pendingCollections: string;
+        }>(),
+        closedTotalsQb.getRawOne<{
+          wonDeals: string;
+          lostDeals: string;
+          lostDealValue: string;
+        }>(),
+        wonInvoiceQb.getRawOne<{ wonInvoiceTotal: string }>(),
+      ]);
+
+    const pipelineValue = Number(openDeals?.pipelineValue ?? 0);
+    const avgDealHealth = Number(openDeals?.avgDealHealth ?? 0);
 
     return {
       pipeline_id: pipelineId,
-      total_deals: totalDeals,
+      total_deals: Number(allDeals?.totalDeals ?? 0),
+      open_deals: Number(openDeals?.openDeals ?? 0),
       pipeline_value: Number(pipelineValue.toFixed(2)),
-      deals_with_overdue_invoices: dealsWithOverdueInvoices,
+      pending_collections: Number(
+        Number(collections?.pendingCollections ?? 0).toFixed(2),
+      ),
+      overdue_deals: Number(stageOverdue?.overdueDeals ?? 0),
+      deals_with_overdue_invoices: Number(
+        collections?.overdueInvoiceDeals ?? 0,
+      ),
       avg_deal_health: Number(avgDealHealth.toFixed(2)),
+      health_scored_deals: Number(openDeals?.healthScoredDeals ?? 0),
+      won_deals: Number(closedTotals?.wonDeals ?? 0),
+      won_invoice_total: Number(
+        Number(wonInvoices?.wonInvoiceTotal ?? 0).toFixed(2),
+      ),
+      lost_deals: Number(closedTotals?.lostDeals ?? 0),
+      lost_deal_value: Number(
+        Number(closedTotals?.lostDealValue ?? 0).toFixed(2),
+      ),
     };
   }
 
@@ -575,6 +766,12 @@ export class DealsService {
         newValues.stage = newStage.name;
 
         await manager.update(Deal, id, transitionUpdate);
+
+        await this.dealHealthCalculationService.calculateDealHealth({
+          dealId: id,
+          userId,
+          manager,
+        });
       });
     }
 
@@ -761,12 +958,13 @@ export class DealsService {
       );
     }
 
-    const existingPendingRequest = await this.dealRollbackRequestRepository.findOne({
-      where: {
-        deal_id: dealId,
-        status: 'pending',
-      },
-    });
+    const existingPendingRequest =
+      await this.dealRollbackRequestRepository.findOne({
+        where: {
+          deal_id: dealId,
+          status: 'pending',
+        },
+      });
 
     if (existingPendingRequest) {
       throw new ConflictException(
@@ -892,15 +1090,16 @@ export class DealsService {
 
     if (dto.decision === 'approved') {
       await this.dataSource.transaction(async (manager) => {
-        const rollbackRequestRepository = manager.getRepository(
-          DealRollbackRequest,
-        );
+        const rollbackRequestRepository =
+          manager.getRepository(DealRollbackRequest);
         const request = await rollbackRequestRepository.findOne({
           where: { id },
         });
 
         if (!request) {
-          throw new NotFoundException(`Rollback request with ID ${id} not found`);
+          throw new NotFoundException(
+            `Rollback request with ID ${id} not found`,
+          );
         }
 
         if (request.status !== 'pending') {
@@ -1777,10 +1976,15 @@ export class DealsService {
   }
 
   private normalizeStageName(name: string): string {
-    return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   }
 
-  private getTerminalStageKind(name: string): DealCloseStatus.WON | DealCloseStatus.LOST | null {
+  private getTerminalStageKind(
+    name: string,
+  ): DealCloseStatus.WON | DealCloseStatus.LOST | null {
     const normalized = this.normalizeStageName(name);
     if (/\blost\b/.test(normalized)) {
       return DealCloseStatus.LOST;
@@ -2019,7 +2223,10 @@ export class DealsService {
       if (terminalKind === DealCloseStatus.LOST && notes?.trim()) {
         closeTransition.lostReason = notes.trim();
       }
-    } else if (deal.closeStatus && deal.closeStatus !== DealCloseStatus.ONGOING) {
+    } else if (
+      deal.closeStatus &&
+      deal.closeStatus !== DealCloseStatus.ONGOING
+    ) {
       // Coming back out of a terminal stage — reopen the deal.
       closeTransition.closeStatus = DealCloseStatus.ONGOING;
       closeTransition.actualCloseDate = null as unknown as Date;

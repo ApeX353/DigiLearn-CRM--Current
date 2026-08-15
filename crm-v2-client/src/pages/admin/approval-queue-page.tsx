@@ -73,6 +73,8 @@ import { useImportBatches } from "~/api/leads/import-batches";
 import { useStaff } from "~/api/users";
 import { useAuthStore } from "~/stores/use-auth-store";
 import { RequestEnquiry } from "~/components/admin/request-enquiry";
+import { PaymentEntryApprovals } from "~/components/admin/payment-entry-approvals";
+import { usePaymentEntryRequests } from "~/api/payment-entry-requests";
 
 /**
  * Phase C.2 — Manager approval queue.
@@ -1747,14 +1749,18 @@ export default function ApprovalQueuePage() {
     (sum, b) => sum + (b.total_rows ?? 0),
     0,
   );
+  const paymentEntriesQuery = usePaymentEntryRequests("pending");
+  const paymentEntryCount = paymentEntriesQuery.data?.length ?? 0;
+  const totalPendingCount =
+    pendingCount + autoAssignCount + importCount + paymentEntryCount;
 
   return (
     <Container>
       <PageHeader
         title="Approval Queue"
         subtitle={
-          pendingCount > 0
-            ? `${pendingCount} pending request${pendingCount === 1 ? "" : "s"} awaiting review`
+          totalPendingCount > 0
+            ? `${totalPendingCount} pending request${totalPendingCount === 1 ? "" : "s"} awaiting review`
             : "No pending requests"
         }
       />
@@ -1837,6 +1843,17 @@ export default function ApprovalQueuePage() {
                     </Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger
+                  value="payment-entries"
+                  data-testid="approval-tab-payment-entries"
+                >
+                  Payment entries
+                  {paymentEntryCount > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {paymentEntryCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="pending">
                 <QueueTable status="pending" kind={kind} />
@@ -1858,6 +1875,9 @@ export default function ApprovalQueuePage() {
               </TabsContent>
               <TabsContent value="imports">
                 <ImportApprovalsQueue />
+              </TabsContent>
+              <TabsContent value="payment-entries">
+                <PaymentEntryApprovals />
               </TabsContent>
             </Tabs>
           </CardContent>

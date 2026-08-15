@@ -1,6 +1,7 @@
 import type { User } from "~/stores/use-auth-store";
 import type { Lead } from "../leads";
 import type { Deal } from "../deals";
+import type { Contact } from "../contacts";
 
 // Activity Logs (existing)
 export const LOG_ACTIONS = [
@@ -328,6 +329,7 @@ export interface Activity {
   lead?: Lead;
   deal?: Deal;
   contact_id?: string;
+  contact?: Contact;
   assigned_to_id?: string | null;
   assigned_to?: User;
   created_by?: User;

@@ -4,7 +4,6 @@ import { ListOrdered, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import {
-  INVOICE_STATUSES,
   useInvoice,
   useUpdateInvoiceStatus,
   type InvoiceStatus,
@@ -45,6 +44,8 @@ import {
 } from "~/components/ui/table";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Separator } from "../ui/separator";
+import { Badge } from "~/components/ui/badge";
+import { AddPaymentModal } from "./add-payment-modal";
 
 interface InvoicePreviewModalProps {
   open: boolean;
@@ -99,10 +100,13 @@ export function InvoicePreviewModal({
 
   const [nextStatus, setNextStatus] = useState<InvoiceStatus | "">("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [paymentIntent, setPaymentIntent] = useState<
+    "Paid" | "Partially-Paid" | null
+  >(null);
 
   useEffect(() => {
     if (!invoice) return;
-    setNextStatus(invoice.status);
+    setNextStatus("");
   }, [invoice]);
 
   const hasStatusChange =
@@ -110,8 +114,19 @@ export function InvoicePreviewModal({
 
   const availableStatuses = useMemo(() => {
     if (!invoice) return [] as InvoiceStatus[];
-    return INVOICE_STATUSES.filter((status) => status !== invoice.status);
+    return (["Draft", "Sent", "Cancelled"] as InvoiceStatus[]).filter(
+      (status) => status !== invoice.status,
+    );
   }, [invoice]);
+
+  const handleStatusSelection = (status: InvoiceStatus) => {
+    if (status === "Paid" || status === "Partially-Paid") {
+      setNextStatus("");
+      setPaymentIntent(status);
+      return;
+    }
+    setNextStatus(status);
+  };
 
   const handleConfirmStatusUpdate = async () => {
     if (!invoice || !nextStatus || nextStatus === invoice.status) {
@@ -150,6 +165,16 @@ export function InvoicePreviewModal({
   const invoiceTotal = invoice ? toNum(invoice.total) : totals.total;
   const amountPaid = invoice ? toNum(invoice.amount_paid) : 0;
   const outstanding = Math.max(invoiceTotal - amountPaid, 0);
+  // Invoices do not persist their own currency. The CRM currency setting is
+  // therefore authoritative; inheriting a linked deal/quote currency can
+  // mislabel a USD invoice (for example, Wanezi was shown as ZAR).
+  const formatInvoiceCurrency = (amount: number) => formatCurrency(amount);
+  const paymentState =
+    amountPaid <= 0 ? "Unpaid" : outstanding <= 0 ? "Paid" : "Partial";
+  const documentState =
+    invoice && ["Draft", "Sent", "Cancelled"].includes(invoice.status)
+      ? invoice.status
+      : null;
 
   return (
     <>
@@ -159,22 +184,36 @@ export function InvoicePreviewModal({
             <DialogHeader className="flex flex-row items-center border-b px-6 py-4">
               <DialogTitle>
                 <span className="mr-2">Invoice Preview</span>
-                {invoice && <InvoiceStatusBadge status={invoice.status} />}
+                {documentState && (
+                  <InvoiceStatusBadge status={documentState as InvoiceStatus} />
+                )}
+                {invoice && (
+                  <Badge variant="outline" className="ml-2">
+                    Payment: {paymentState}
+                  </Badge>
+                )}
               </DialogTitle>
               <div className="ml-auto mr-8">
                 <Select
                   value={nextStatus}
-                  onValueChange={(value) => setNextStatus(value as InvoiceStatus)}
+                  onValueChange={(value) =>
+                    handleStatusSelection(value as InvoiceStatus)
+                  }
                   disabled={!invoice}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    {invoice && (
-                      <SelectItem value={invoice.status}>
-                        {invoice.status}
-                      </SelectItem>
+                    {outstanding > 0 && (
+                      <>
+                        <SelectItem value="Partially-Paid">
+                          Record partial payment...
+                        </SelectItem>
+                        <SelectItem value="Paid">
+                          Record full payment...
+                        </SelectItem>
+                      </>
                     )}
                     {availableStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
@@ -219,15 +258,15 @@ export function InvoicePreviewModal({
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="font-semibold">{formatCurrency(invoiceTotal)}</p>
+                    <p className="font-semibold">{formatInvoiceCurrency(invoiceTotal)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Amount Paid</p>
-                    <p className="font-semibold">{formatCurrency(amountPaid)}</p>
+                    <p className="font-semibold">{formatInvoiceCurrency(amountPaid)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Outstanding</p>
-                    <p className="font-semibold">{formatCurrency(outstanding)}</p>
+                    <p className="font-semibold">{formatInvoiceCurrency(outstanding)}</p>
                   </div>
                 </div>
               )}
@@ -275,7 +314,7 @@ export function InvoicePreviewModal({
                                 <TableCell>{item.description}</TableCell>
                                 <TableCell>{item.quantity}</TableCell>
                                 <TableCell>
-                                  {formatCurrency(toNum(item.unit_price))}
+                                  {formatInvoiceCurrency(toNum(item.unit_price))}
                                 </TableCell>
                                 <TableCell>
                                   {toNum(item.discount).toFixed(2)}%
@@ -284,7 +323,7 @@ export function InvoicePreviewModal({
                                   {toNum(item.tax_rate).toFixed(2)}%
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {formatCurrency(amounts.total)}
+                                  {formatInvoiceCurrency(amounts.total)}
                                 </TableCell>
                               </TableRow>
                             );
@@ -298,26 +337,26 @@ export function InvoicePreviewModal({
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span className="font-medium">
-                          {formatCurrency(totals.subtotal)}
+                          {formatInvoiceCurrency(totals.subtotal)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Discount</span>
                         <span className="font-medium text-green-600">
-                          -{formatCurrency(totals.totalDiscount)}
+                          -{formatInvoiceCurrency(totals.totalDiscount)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Tax</span>
                         <span className="font-medium">
-                          {formatCurrency(totals.totalTax)}
+                          {formatInvoiceCurrency(totals.totalTax)}
                         </span>
                       </div>
                       <Separator />
                       <div className="flex justify-between">
                         <span className="font-semibold">Total</span>
                         <span className="text-xl font-bold text-primary">
-                          {formatCurrency(invoiceTotal)}
+                          {formatInvoiceCurrency(invoiceTotal)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -325,7 +364,7 @@ export function InvoicePreviewModal({
                           Amount Paid
                         </span>
                         <span className="font-medium text-green-600">
-                          {formatCurrency(amountPaid)}
+                          {formatInvoiceCurrency(amountPaid)}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -333,7 +372,7 @@ export function InvoicePreviewModal({
                           Balance Due
                         </span>
                         <span className="font-semibold">
-                          {formatCurrency(outstanding)}
+                          {formatInvoiceCurrency(outstanding)}
                         </span>
                       </div>
                     </div>
@@ -403,6 +442,20 @@ export function InvoicePreviewModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {invoice && paymentIntent && (
+        <AddPaymentModal
+          isOpen={true}
+          onClose={() => setPaymentIntent(null)}
+          invoice={invoice}
+          defaultAmount={paymentIntent === "Paid" ? outstanding : 0}
+          description={
+            paymentIntent === "Paid"
+              ? `Record the full outstanding payment for ${invoice.invoice_number}.`
+              : `Enter how much was paid for ${invoice.invoice_number}. Sales-rep entries are sent to the manager Approval Queue.`
+          }
+        />
+      )}
     </>
   );
 }

@@ -33,6 +33,8 @@ export interface Invoice {
   quote_id?: string;
   school_id: string;
   school?: { id: string; name: string };
+  deal?: { id?: string; currency?: string | null };
+  quote?: { id?: string; currency?: string | null };
   client_name: string;
   client_email?: string;
   client_address?: string;
@@ -96,6 +98,12 @@ export interface InvoicePaymentRecord {
   notes?: string | null;
   allocated_amount?: number;
   unallocated_amount?: number;
+  recorded_by_id?: string | null;
+  recorded_by?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  } | null;
 }
 
 export interface InvoicePaymentAllocation {
@@ -132,8 +140,14 @@ export interface InvoicePaymentSchedule {
   installments: InvoicePaymentScheduleInstallment[];
 }
 
-export interface InvoicePaymentRecordResponse {
-  data?: InvoicePaymentRecord;
+export interface InvoicePaymentSubmissionResponse {
+  kind: "payment" | "approval_request";
+  data?: InvoicePaymentRecord | {
+    id: string;
+    invoice_id: string;
+    amount: number;
+    status: "pending" | "approved" | "rejected";
+  };
   success?: boolean;
   message?: string;
 }
@@ -218,9 +232,9 @@ export interface UpdateInvoiceItemDto {
 }
 
 export const invoiceItemSchema = z.object({
-  product_id: z.string().optional(),
-  description: z.string().min(1, "Description is required"),
-  quantity: z.number().min(0),
+  product_id: z.string().trim().optional(),
+  description: z.string().trim().min(1, "Description is required"),
+  quantity: z.number().positive("Quantity must be greater than zero"),
   unit_price: z.number().min(0),
   discount: z.number().min(0),
   tax_rate: z.number().min(0),

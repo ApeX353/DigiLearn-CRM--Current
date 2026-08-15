@@ -196,18 +196,30 @@ flowchart TB
   act --> comp[PATCH /activities/:id/status = completed]
   comp --> oc{outcome supplied?}
   oc -->|no| rej2[400 · outcome is mandatory]
-  oc -->|yes| gate{single-status route:<br/>enforce_next_step_on_completion?}
-  gate -->|on, and no other open step, and no next_step payload| rej3[400 · NEXT2 trap]
-  gate -->|off or satisfied| done[status = completed<br/>completionMoment()]
+  oc -->|yes| gate{actionable work on an<br/>active lead / deal?}
+  gate -->|yes, no next_step payload| rej3[400 · next step required]
+  gate -->|terminal / standalone| done[status = completed<br/>completionMoment()]
+  gate -->|next_step supplied| tx[one transaction:<br/>complete source + create dated follow-up<br/>+ matching subtype row]
+  tx --> done
   done --> prop[contact types only:<br/>last_contacted_at moves forward only<br/>last_action_at = now]
-  done --> prompt[client then asks for the next step]
+  done --> prompt[client closes the loop]
 ```
 
-The **NEXT2 trap** remains in the code path: the client marks done first and
-enqueues the follow-up prompt only after success, so it never sends the
-`next_step` payload the server wants before completion. The policy defaults
-**off**; its current database value is runtime state, not something the
-repository proves.
+The normal completion flow collects the outcome, note and next-step decision
+before sending `PATCH /activities/:id/status`. For actionable work on an active
+lead or deal, the server requires `next_step` for every role and does not treat
+an unrelated existing task as satisfaction. Completion, the new Activity and
+its Task/Call/Email/Meeting/WhatsApp subtype are one transaction. Call,
+WhatsApp and Email select the intended contact (auto-selecting a sole person);
+the atomic payload carries that contact id. Missing channel evidence can be
+captured and audit-saved on the contact before scheduling. The server validates
+that an explicitly selected contact belongs to the parent lead's school before
+using that person's phone/email in the transaction.
+
+After-the-fact paths (an inline interaction created already complete, generic
+update safety net, and bulk completion) enqueue a blocking `stage=next-step`
+obligation. These obligations persist in tab `sessionStorage`, restore after a
+refresh and cannot be dismissed until the record has a dated future/decision.
 
 The **propagation** box is why bulk-completing history is dangerous — it
 updates activity and lead timestamps. `completionMoment()` uses the
@@ -222,12 +234,12 @@ status but does **not** clear `completed_at`, outcome or completion note.
   `PUT /activities/:id` can change status without the status-transition
   side effects. The `enforce_outcome_on_completion` setting is defined and
   editable but is not read by server code.
-- The next-step gate runs only on the single-item status route, not bulk or
-  generic update. Its query counts any other open actionable activity; it
-  does not require a future `due_at`/`scheduled_at`.
-- A supplied `next_step` is inserted **after** the completion save and
-  outside a shared transaction. Failure is logged and the completion stays,
-  so the operation is not atomic despite older comments describing it so.
+- The single-item status route enforces a future next-step payload before
+  persistence. Bulk and generic/update-created completions use the persisted
+  client obligation described above; they do not currently carry one atomic
+  next-step payload per row.
+- A supplied `next_step` is inserted in the same transaction as completion,
+  including the matching subtype row. A failure rolls the completion back.
 - Lead temperature is recalculated after activity **creation**, including a
   create that arrives completed, but not when an existing activity is later
   completed through the status route.
@@ -600,10 +612,10 @@ Deleting a lead supersedes its pending proposals so none dangle as orphan rows.
 
 ## 10. Domain rules that govern behaviour
 
-- **Active Leads** is a server-side view, not a client page filter: assigned,
-  non-deleted leads in New, Contacted, Nurture or Qualified. Unassigned,
-  Disqualified and Converted remain available through their individual views
-  but do not contribute to the Active count.
+- **Active Leads** is a server-side lifecycle view, not an assignment filter:
+  every visible, non-deleted lead except Disqualified and Converted. Unassigned
+  live leads therefore count as Active. **All Leads** remains a separate first
+  tab and sends no status/active filter.
 - **Disqualification evidence:** every rep request carries a controlled reason
   plus mandatory explanation. Sales-manager approval applies Disqualified in
   the decision transaction. Direct manager/admin decisions record the same
@@ -625,10 +637,11 @@ Deleting a lead supersedes its pending proposals so none dangle as orphan rows.
 - **`outcome` is a fixed enum, not free text.** Explanation belongs in
   `completion_note`. When the true result is unknown,
   `relationship_touchpoint_complete` asserts contact happened and no more.
-- **Next-step compliance** (`enforce_next_step_on_completion`): the server
-  wants the next step *before*, while the client asks *after* and never
-  sends the payload. The repository default is **off**; verify the live
-  setting before enabling it and fix the §4.1 enforcement gaps first.
+- **Next-step compliance:** single-item completion of actionable work on an
+  active lead/deal always requires the next step before completion, regardless
+  of role or another open task. The setting remains in the settings catalogue
+  for compatibility but no longer weakens this completion invariant. See §4.1
+  for the explicitly after-the-fact bulk/create safety-net boundary.
 - **City is mandatory** for user-created schools, exempt for
   admin/admin_support so the bulk import can run. The exemption lives in
   **two** places — `SchoolsService` *and* the lead-creation path in

@@ -79,7 +79,12 @@ export default function CompactDealCard({
     ? differenceInDays(new Date(), new Date(deal.currentStageSince))
     : 0;
 
-  const overSLA = stage.sla_days > 0 && daysInStage > stage.sla_days;
+  const stageBreachAt = deal.currentStageSince
+    ? new Date(deal.currentStageSince).getTime() +
+      stage.sla_days * 24 * 60 * 60 * 1000
+    : null;
+  const overSLA =
+    stage.sla_days > 0 && stageBreachAt !== null && Date.now() > stageBreachAt;
   const atRisk =
     stage.sla_days > 0 && !overSLA && daysInStage >= stage.sla_days * 0.8;
 
@@ -96,8 +101,7 @@ export default function CompactDealCard({
   const daysSinceContact = deal.last_contacted_at
     ? differenceInDays(new Date(), new Date(deal.last_contacted_at))
     : null;
-  const isCold =
-    daysSinceContact === null ? false : daysSinceContact > 7;
+  const isCold = daysSinceContact === null ? false : daysSinceContact > 7;
 
   const stageColor = stage.color || "oklch(0.55 0.2 262)";
 
@@ -106,8 +110,7 @@ export default function CompactDealCard({
       className={cn(
         "group relative py-0 cursor-grab active:cursor-grabbing",
         "transition-all duration-150 hover:shadow-md hover:border-border-strong",
-        isDragging &&
-          "shadow-xl ring-2 ring-primary/60 rotate-1 scale-[1.02]",
+        isDragging && "shadow-xl ring-2 ring-primary/60 rotate-1 scale-[1.02]",
         overSLA && "border-destructive/70",
         atRisk && !overSLA && "border-[oklch(0.78_0.15_67)]",
       )}
@@ -308,7 +311,10 @@ function DealActivitySignal({
         size="xs"
         className="shrink-0"
       />
-      <span className="truncate" title={nextActivity.subject || label || undefined}>
+      <span
+        className="truncate"
+        title={nextActivity.subject || label || undefined}
+      >
         {label || "Scheduled"}
         {nextActivity.subject ? ` · ${nextActivity.subject}` : ""}
       </span>

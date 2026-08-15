@@ -378,10 +378,19 @@ export class DashboardService {
       'qualification_score_min',
     );
 
-    const qualQb = this.qualificationRepo
-      .createQueryBuilder('q')
-      .leftJoin('q.lead', 'lead')
+    const perLeadScores = this.qualificationRepo
+      .createQueryBuilder('qualification')
+      .select('qualification.lead_id', 'lead_id')
+      .addSelect('MAX(qualification.qualification_score)', 'score')
+      .groupBy('qualification.lead_id');
+    const qualQb = this.leadRepo
+      .createQueryBuilder('lead')
       .leftJoin('lead.school', 'school')
+      .leftJoin(
+        `(${perLeadScores.getQuery()})`,
+        'lead_score',
+        'lead_score.lead_id = lead.id',
+      )
       .where('lead.deleted_at IS NULL');
 
     if (userRole === 'sales_rep')
@@ -397,22 +406,19 @@ export class DashboardService {
     // threshold. `qualified` therefore never exceeds `total`.
     const qualStats = await qualQb
       .setParameter('qualThreshold', qualThreshold)
-      .select('COUNT(DISTINCT q.lead_id)', 'total')
+      .select('COUNT(lead.id)', 'total')
       .addSelect(
-        'COUNT(DISTINCT CASE WHEN q.qualification_score >= :qualThreshold THEN q.lead_id END)',
+        'COUNT(CASE WHEN lead_score.score >= :qualThreshold THEN 1 END)',
         'qualified',
       )
-      .addSelect('AVG(q.qualification_score)', 'avgScore')
+      .addSelect('AVG(COALESCE(lead_score.score, 0))', 'avgScore')
       .getRawOne();
 
     // The stored score is 0–100; the dashboard presents it on a 1–5
     // scale. Convert, round to one decimal, and clamp to 1–5 (0 only
     // when there is no data at all so the tile reads "no score yet").
     const rawAvgScore = Number(qualStats?.avgScore || 0);
-    const averageScore =
-      rawAvgScore > 0
-        ? Math.min(5, Math.max(1, Math.round((rawAvgScore / 100) * 5 * 10) / 10))
-        : 0;
+    const averageScore = Math.round(rawAvgScore * 10) / 10;
 
     return {
       cashCollected,
@@ -1221,6 +1227,12 @@ export class DashboardService {
     const leads = await leadQb.getMany();
     const totalLeads = leads.length;
     const convertedLeads = leads.filter((l) => l.status === 'Converted').length;
+    const disqualifiedLeads = leads.filter(
+      (l) => l.status === 'Disqualified',
+    ).length;
+    // One definition everywhere: active = all visible, non-deleted leads
+    // except the two terminal statuses. Assignment is not a lifecycle state.
+    const activeLeads = totalLeads - convertedLeads - disqualifiedLeads;
     const qualifiedLeads = leads.filter(
       (l) => l.status === 'Qualified' || l.status === 'Converted',
     ).length;
@@ -1244,9 +1256,29 @@ export class DashboardService {
 
     const wonDeals = await wonQb.getCount();
     const demoToSaleRate = totalLeads > 0 ? (wonDeals / totalLeads) * 100 : 0;
+    const conversionRate = leadToSchoolRate;
+    const convertedWithDates = leads.filter(
+      (lead) => lead.status === 'Converted' && lead.converted_at,
+    );
+    const avgDaysToConvert =
+      convertedWithDates.length > 0
+        ? convertedWithDates.reduce((sum, lead) => {
+            const elapsed =
+              new Date(lead.converted_at as Date).getTime() -
+              new Date(lead.created_at).getTime();
+            return sum + Math.max(elapsed / 86_400_000, 0);
+          }, 0) / convertedWithDates.length
+        : 0;
 
     return {
       totalLeads,
+      // Client-facing contract used by LeadConversionWidget.
+      converted: convertedLeads,
+      disqualified: disqualifiedLeads,
+      active: activeLeads,
+      conversionRate: Math.round(conversionRate * 10) / 10,
+      avgDaysToConvert: Math.round(avgDaysToConvert * 10) / 10,
+      // Backwards-compatible names retained for any external consumers.
       convertedLeads,
       qualifiedLeads,
       leadToSchoolRate: Math.round(leadToSchoolRate * 10) / 10,
@@ -1383,11 +1415,42 @@ export class DashboardService {
     userId: string,
     userRole: string,
   ) {
-    // Base query with lead join for RBAC
-    const qb = this.qualificationRepo
-      .createQueryBuilder('q')
-      .leftJoin('q.lead', 'lead')
+    // Reduce qualification history to one row per lead before calculating
+    // overview metrics. Starting from qualification rows inflated totals and
+    // omitted leads that had no form; both disagreed with the KPI tile.
+    const perLeadQualification = this.qualificationRepo
+      .createQueryBuilder('qualification')
+      .select('qualification.lead_id', 'lead_id')
+      .addSelect('MAX(qualification.qualification_score)', 'score')
+      .addSelect(
+        'MAX(CASE WHEN qualification.has_needs = true THEN 1 ELSE 0 END)',
+        'has_needs',
+      )
+      .addSelect(
+        'MAX(CASE WHEN qualification.has_plan_type = true THEN 1 ELSE 0 END)',
+        'has_plan_type',
+      )
+      .addSelect(
+        'MAX(CASE WHEN qualification.has_timeline = true THEN 1 ELSE 0 END)',
+        'has_timeline',
+      )
+      .addSelect(
+        'MAX(CASE WHEN qualification.has_budget = true THEN 1 ELSE 0 END)',
+        'has_budget',
+      )
+      .addSelect(
+        'MAX(CASE WHEN qualification.has_verified_contact = true THEN 1 ELSE 0 END)',
+        'has_verified_contact',
+      )
+      .groupBy('qualification.lead_id');
+    const qb = this.leadRepo
+      .createQueryBuilder('lead')
       .leftJoin('lead.school', 'school')
+      .leftJoin(
+        `(${perLeadQualification.getQuery()})`,
+        'lead_qualification',
+        'lead_qualification.lead_id = lead.id',
+      )
       .where('lead.deleted_at IS NULL');
 
     if (userRole === 'sales_rep')
@@ -1399,30 +1462,30 @@ export class DashboardService {
 
     // Aggregate stats
     const stats = await qb
-      .select('COUNT(*)', 'total')
+      .select('COUNT(lead.id)', 'total')
       .addSelect(
-        'SUM(CASE WHEN q.is_qualified = true THEN 1 ELSE 0 END)',
+        'COUNT(CASE WHEN lead_qualification.score >= 80 THEN 1 END)',
         'qualified',
       )
-      .addSelect('AVG(q.qualification_score)', 'avgScore')
+      .addSelect('AVG(COALESCE(lead_qualification.score, 0))', 'avgScore')
       .addSelect(
-        'SUM(CASE WHEN q.has_needs = true THEN 1 ELSE 0 END)',
+        'SUM(COALESCE(lead_qualification.has_needs, 0))',
         'withNeeds',
       )
       .addSelect(
-        'SUM(CASE WHEN q.has_plan_type = true THEN 1 ELSE 0 END)',
+        'SUM(COALESCE(lead_qualification.has_plan_type, 0))',
         'withPlanType',
       )
       .addSelect(
-        'SUM(CASE WHEN q.has_timeline = true THEN 1 ELSE 0 END)',
+        'SUM(COALESCE(lead_qualification.has_timeline, 0))',
         'withTimeline',
       )
       .addSelect(
-        'SUM(CASE WHEN q.has_budget = true THEN 1 ELSE 0 END)',
+        'SUM(COALESCE(lead_qualification.has_budget, 0))',
         'withBudget',
       )
       .addSelect(
-        'SUM(CASE WHEN q.has_verified_contact = true THEN 1 ELSE 0 END)',
+        'SUM(COALESCE(lead_qualification.has_verified_contact, 0))',
         'withContact',
       )
       .getRawOne();
@@ -1478,16 +1541,20 @@ export class DashboardService {
       .slice(0, 10);
 
     // Score distribution
-    const distribution = await this.qualificationRepo
-      .createQueryBuilder('q')
-      .leftJoin('q.lead', 'lead')
+    const distribution = await this.leadRepo
+      .createQueryBuilder('lead')
       .leftJoin('lead.school', 'school')
+      .leftJoin(
+        `(${perLeadQualification.getQuery()})`,
+        'lead_qualification',
+        'lead_qualification.lead_id = lead.id',
+      )
       .where('lead.deleted_at IS NULL')
       .select(
         `CASE
-          WHEN q.qualification_score >= 80 THEN 'qualified'
-          WHEN q.qualification_score >= 60 THEN 'warm'
-          WHEN q.qualification_score >= 30 THEN 'developing'
+          WHEN lead_qualification.score >= 80 THEN 'qualified'
+          WHEN lead_qualification.score >= 60 THEN 'warm'
+          WHEN lead_qualification.score >= 30 THEN 'developing'
           ELSE 'cold'
         END`,
         'bucket',

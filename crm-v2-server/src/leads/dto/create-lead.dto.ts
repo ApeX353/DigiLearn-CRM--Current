@@ -40,6 +40,13 @@ export class CreateLeadDto {
   @IsUUID()
   school_id?: string;
 
+  @ApiPropertyOptional({
+    description: 'Optional catalogue product this pursuit is about',
+  })
+  @IsOptional()
+  @IsUUID()
+  product_id?: string;
+
   @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174001' })
   @IsOptional()
   @IsUUID()

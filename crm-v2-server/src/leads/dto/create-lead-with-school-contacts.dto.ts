@@ -241,6 +241,13 @@ export class LeadInfoDto {
   notes?: string;
 
   @ApiPropertyOptional({
+    description: 'Optional catalogue product this pursuit is about',
+  })
+  @IsOptional()
+  @IsUUID()
+  product_id?: string;
+
+  @ApiPropertyOptional({
     description: 'Campaign/event this lead was sourced from',
   })
   @IsOptional()

@@ -5,6 +5,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -16,18 +17,23 @@ import {
 } from '../entities/activity.entity';
 
 /**
- * Phase B — atomic next-step payload. When the
- * `enforce_next_step_on_completion` policy is on AND no future
- * actionable activity exists on the parent lead/deal, the caller
- * must include this so the server schedules the follow-up in the
- * SAME transaction as the completion. Optional in all other cases.
+ * Atomic next-step payload. Every newly completed actionable activity on an
+ * active lead/deal must carry this payload. The source completion and its new
+ * follow-up are saved in the same transaction. Existing open work and the
+ * caller's role do not satisfy this obligation.
  */
 export class NextStepPayloadDto {
-  @ApiProperty({ enum: ActivityType, description: 'Type of follow-up activity' })
+  @ApiProperty({
+    enum: ActivityType,
+    description: 'Type of follow-up activity',
+  })
   @IsEnum(ActivityType)
   type: ActivityType;
 
-  @ApiProperty({ description: 'Subject of the follow-up activity', maxLength: 255 })
+  @ApiProperty({
+    description: 'Subject of the follow-up activity',
+    maxLength: 255,
+  })
   @IsString()
   @MaxLength(255)
   subject: string;
@@ -41,6 +47,13 @@ export class NextStepPayloadDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Contact selected for this follow-up activity',
+  })
+  @IsOptional()
+  @IsUUID()
+  contact_id?: string;
 }
 
 /**
@@ -82,7 +95,7 @@ export class UpdateStatusDto {
   @ApiPropertyOptional({
     type: NextStepPayloadDto,
     description:
-      'Phase B: optional follow-up activity to schedule atomically alongside the completion. Required by the server only when the next-step compliance policy is on AND no other future actionable activity exists on the parent lead/deal.',
+      'Follow-up scheduled atomically alongside completion. Required when a newly completed actionable activity belongs to an active lead or deal.',
   })
   @IsOptional()
   @IsObject()

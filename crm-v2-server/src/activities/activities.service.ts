@@ -27,14 +27,19 @@ import { Task, TaskPriority, TaskStatus } from './entities/tasks.entity';
 import { Note } from './entities/notes.entity';
 import { Call } from './entities/calls.entity';
 import { Email } from './entities/emails.entity';
-import { Meeting } from './entities/meetings.entity';
-import { WhatsAppMessage } from './entities/whats-app.entity';
+import { Meeting, MeetingPlatform } from './entities/meetings.entity';
+import {
+  WhatsAppDirection,
+  WhatsAppMessage,
+  WhatsAppMessageType,
+} from './entities/whats-app.entity';
 import { Demo } from './entities/demos.entity';
 import { ActivityAttachment } from './entities/activity-attachments.entity';
 import { ActivityComment } from './entities/activity-comments.entity';
 import { Lead } from '../leads/entities/lead.entity';
 import { Deal } from '../deals/entities/deal.entity';
 import { User } from '../users/entities/user.entity';
+import { Contact } from '../contacts/entities/contact.entity';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { CreateActivityCommentDto } from './dto/create-activity-comment.dto';
@@ -117,12 +122,11 @@ export class ActivitiesService {
   /**
    * Phase B — write-time activity discipline gate.
    *
-   * When the `enforce_next_step_on_completion` policy switch is on,
-   * a sales rep marking an actionable activity (call/email/meeting/
-   * whatsapp/task) completed must EITHER have a future open
-   * actionable activity already on the same lead/deal, OR include a
-   * `next_step` follow-up sub-payload that the caller asks the
-   * server to schedule. Admins and sales managers always bypass.
+   * A user marking an actionable activity (call/email/meeting/whatsapp/task)
+   * completed must include a `next_step` follow-up payload unless the record
+   * itself is being closed. An unrelated existing task does not describe the
+   * future created by this completion, and elevated roles follow the same
+   * discipline when doing sales work.
    *
    * Returns silently if the gate is satisfied; throws BadRequestException
    * with an actionable message otherwise.
@@ -141,49 +145,26 @@ export class ActivitiesService {
     ];
     if (!ACTIONABLE.includes(activity.type)) return; // notes are exempt
 
-    const isManagerOrAdmin =
-      userRoles.includes('admin') ||
-      userRoles.includes('sales_manager') ||
-      userRoles.includes('admin_support');
-    if (isManagerOrAdmin) return;
-
-    const enforce = await this.complianceSettings.getBoolean(
-      'enforce_next_step_on_completion',
-    );
-    if (!enforce) return;
-
-    if (nextStepProvided) return; // caller is creating one atomically
+    void userRoles;
 
     // No parent record means there's no place to schedule a next
     // step — the gate doesn't apply (e.g. an internal-only task with
     // no lead/deal). Bail out gracefully rather than building an
     // empty SQL Brackets clause that TypeORM rejects.
     if (!activity.lead_id && !activity.deal_id) return;
-
-    // Existing future activity satisfies the gate. Same predicate the
-    // dashboard uses for next-step compliance %.
-    const futureCount = await this.activityRepository
-      .createQueryBuilder('a')
-      .where('a.id <> :id', { id: activity.id })
-      .andWhere('a.type IN (:...types)', { types: ACTIONABLE })
-      .andWhere("a.status NOT IN ('completed','cancelled')")
-      .andWhere(
-        new Brackets((qb) => {
-          if (activity.lead_id) {
-            qb.where('a.lead_id = :lid', { lid: activity.lead_id });
-          }
-          if (activity.deal_id) {
-            qb.orWhere('a.deal_id = :did', { did: activity.deal_id });
-          }
-        }),
-      )
-      .getCount();
-
-    if (futureCount === 0) {
-      throw new BadRequestException(
-        'Next-step compliance: completing this activity requires either a future scheduled activity on the same lead/deal, or a `next_step` follow-up payload. Schedule the next step before marking this completed.',
-      );
+    if (
+      activity.lead?.status === 'Disqualified' ||
+      activity.lead?.status === 'Converted' ||
+      activity.deal?.closeStatus === 'won' ||
+      activity.deal?.closeStatus === 'lost'
+    ) {
+      return;
     }
+    if (nextStepProvided) return;
+
+    throw new BadRequestException(
+      'Next-step compliance: every completed activity on an active lead or deal requires its own `next_step` follow-up payload.',
+    );
   }
 
   // ============================================================
@@ -341,7 +322,9 @@ export class ActivitiesService {
           commercial_intent:
             updates.commercial_intent ?? lead.commercial_intent,
         },
-        actorUserId ?? lead.assigned_to ?? '00000000-0000-0000-0000-000000000000',
+        actorUserId ??
+          lead.assigned_to ??
+          '00000000-0000-0000-0000-000000000000',
         `Lead updated: ${summaryBits.join(' · ')}`,
       );
     }
@@ -390,7 +373,15 @@ export class ActivitiesService {
     ) {
       return;
     }
-    if (dueAt || scheduledAt) return;
+    const plannedFor = dueAt ?? scheduledAt;
+    if (plannedFor) {
+      if (new Date(plannedFor).getTime() <= Date.now()) {
+        throw new BadRequestException(
+          'Planned activities must be scheduled for a future date and time',
+        );
+      }
+      return;
+    }
 
     const enforce = await this.complianceSettings.getBoolean(
       'require_activity_due_date',
@@ -503,8 +494,22 @@ export class ActivitiesService {
         ...activityData
       } = dto;
 
+      // Creating an activity is not a reassignment operation. Keep work with
+      // the lead/deal owner; only an unowned record falls back to its creator.
+      const [parentLead, parentDeal] = await Promise.all([
+        dto.lead_id
+          ? manager.findOne(Lead, { where: { id: dto.lead_id } })
+          : null,
+        dto.deal_id
+          ? manager.findOne(Deal, { where: { id: dto.deal_id } })
+          : null,
+      ]);
+      const automaticAssigneeId =
+        parentDeal?.assigned_to ?? parentLead?.assigned_to ?? userId;
+
       const activity = manager.create(Activity, {
         ...activityData,
+        assigned_to_id: automaticAssigneeId,
         // A "log a past interaction" create may carry the outcome and the
         // account of what happened. A scheduled create cannot have an
         // outcome yet, so both are stripped (not errored) unless the
@@ -615,7 +620,12 @@ export class ActivitiesService {
               activity_id: savedActivity.id,
             });
             const savedEmail = await manager.save(Email, emailEntity);
-            await this.sendActivityEmail(manager, savedEmail, userId);
+            // A future email next step is a commitment, not an instruction to
+            // send immediately. Logged/sent email activities arrive completed;
+            // scheduled email activities retain their subtype without dispatch.
+            if (savedActivity.status === ActivityStatus.COMPLETED) {
+              await this.sendActivityEmail(manager, savedEmail, userId);
+            }
           }
           break;
 
@@ -718,8 +728,7 @@ export class ActivitiesService {
           // connection), so we mark the parent activity for post-
           // commit derivation by storing the lead id locally and
           // running the pass after the transaction returns below.
-          (savedActivity as any).__deriveDemoForLeadId =
-            savedActivity.lead_id;
+          (savedActivity as any).__deriveDemoForLeadId = savedActivity.lead_id;
           break;
         }
       }
@@ -760,7 +769,9 @@ export class ActivitiesService {
 
       // Recalculate lead temperature after activity creation
       if (savedActivity.lead_id && this.leadTemperatureService) {
-        this.leadTemperatureService.recalculate(savedActivity.lead_id).catch(() => {});
+        this.leadTemperatureService
+          .recalculate(savedActivity.lead_id)
+          .catch(() => {});
       }
 
       // Demo + Commercial-Intent derivation. Only fires when the
@@ -828,7 +839,13 @@ export class ActivitiesService {
       .leftJoinAndSelect('activity.created_by', 'created_by')
       .leftJoinAndSelect('activity.assigned_to', 'assigned_to')
       .leftJoinAndSelect('activity.lead', 'lead')
+      .leftJoinAndSelect('lead.primary_contact', 'lead_primary_contact')
       .leftJoinAndSelect('activity.deal', 'deal')
+      .leftJoinAndSelect('deal.lead', 'deal_lead')
+      .leftJoinAndSelect(
+        'deal_lead.primary_contact',
+        'deal_lead_primary_contact',
+      )
       .leftJoinAndSelect('activity.contact', 'contact')
       .leftJoinAndSelect('lead.school', 'school');
 
@@ -1070,7 +1087,10 @@ export class ActivitiesService {
       // sorts by when it was logged. That lands both senses of
       // "today's activities" — due today, and logged today — on page
       // one, which is what the page is asked for.
-      qb.orderBy('COALESCE(activity.due_at, activity.scheduled_at, activity.created_at)', 'DESC');
+      qb.orderBy(
+        'COALESCE(activity.due_at, activity.scheduled_at, activity.created_at)',
+        'DESC',
+      );
       // Tie-break same-dated rows by task urgency. Postgres has no
       // FIELD(); emulate it with a nested CASE so task rows sort
       // URGENT → HIGH → MEDIUM → LOW and non-tasks fall to the end.
@@ -1120,7 +1140,10 @@ export class ActivitiesService {
         'created_by',
         'assigned_to',
         'lead',
+        'lead.primary_contact',
         'deal',
+        'deal.lead',
+        'deal.lead.primary_contact',
         'contact',
         'task',
         'note',
@@ -1270,14 +1293,9 @@ export class ActivitiesService {
           );
         }
 
-        // NEXT-STEP enforcement on this path is DEFERRED on purpose: the
-        // `enforce_next_step_on_completion` setting is tied to the open
-        // NEXT2 design conflict (the client marks done first and only asks
-        // for the follow-up afterwards, never sending it before completion).
-        // Extending the gate here would spread that 400 trap to the edit
-        // path. Re-enable only after NEXT2 (client rebuild to submit the
-        // next step WITH the completion) is done. `userRoles` is plumbed
-        // through and ready for that.
+        // Generic edit DTOs do not carry next_step. The client therefore
+        // persists a blocking stage="next-step" obligation after a successful
+        // transition. The dedicated status route remains the atomic path.
       }
 
       await manager.save(Activity, activity);
@@ -1350,6 +1368,7 @@ export class ActivitiesService {
       subject: string;
       due_at: string;
       description?: string;
+      contact_id?: string;
     },
     userRoles: string[] = [],
     scopeUserId?: string,
@@ -1370,6 +1389,20 @@ export class ActivitiesService {
       );
     }
 
+    // A next step is future work. Enforce this at the write boundary so a
+    // stale browser, direct API call, or elevated role cannot schedule an
+    // already-overdue follow-up. Historical timestamps remain valid on the
+    // completed source activity; only the new next_step is constrained.
+    if (
+      status === ActivityStatus.COMPLETED &&
+      nextStep &&
+      new Date(nextStep.due_at).getTime() <= Date.now()
+    ) {
+      throw new BadRequestException(
+        'The next-step due date must be later than now',
+      );
+    }
+
     // Phase B — next-step compliance gate. Runs BEFORE persistence so
     // a denied request never moves the activity into completed.
     if (
@@ -1377,6 +1410,71 @@ export class ActivitiesService {
       oldStatus !== ActivityStatus.COMPLETED
     ) {
       await this.assertNextStepCompliance(activity, !!nextStep, userRoles);
+    }
+
+    const parentPrimaryContact =
+      activity.lead?.primary_contact ??
+      activity.deal?.lead?.primary_contact ??
+      (activity.lead?.primary_contact_id
+        ? await this.dataSource.manager.findOne(Contact, {
+            where: { id: activity.lead.primary_contact_id },
+          })
+        : activity.deal?.lead?.primary_contact_id
+          ? await this.dataSource.manager.findOne(Contact, {
+              where: { id: activity.deal.lead.primary_contact_id },
+            })
+          : null);
+    const selectedNextStepContact = nextStep?.contact_id
+      ? await this.dataSource.manager.findOne(Contact, {
+          where: { id: nextStep.contact_id },
+        })
+      : null;
+    if (nextStep?.contact_id && !selectedNextStepContact) {
+      throw new BadRequestException(
+        'The selected next-step contact no longer exists',
+      );
+    }
+    const parentSchoolId =
+      activity.lead?.school_id ?? activity.deal?.lead?.school_id;
+    if (
+      selectedNextStepContact &&
+      parentSchoolId &&
+      selectedNextStepContact.school_id !== parentSchoolId
+    ) {
+      throw new BadRequestException(
+        'The selected next-step contact does not belong to this lead',
+      );
+    }
+    const nextStepContact =
+      selectedNextStepContact ?? activity.contact ?? parentPrimaryContact;
+    const nextStepPhone =
+      nextStep?.type === ActivityType.WHATSAPP
+        ? (nextStepContact?.whatsapp_number ??
+          nextStepContact?.phone ??
+          (!nextStepContact
+            ? (activity.whatsapp_message?.phone_number ??
+              activity.call?.phone_number)
+            : undefined))
+        : (nextStepContact?.phone ??
+          nextStepContact?.whatsapp_number ??
+          (!nextStepContact
+            ? (activity.call?.phone_number ??
+              activity.whatsapp_message?.phone_number)
+            : undefined));
+    const nextStepEmail = nextStepContact?.email ?? null;
+    if (
+      (nextStep?.type === ActivityType.WHATSAPP ||
+        nextStep?.type === ActivityType.CALL) &&
+      !nextStepPhone
+    ) {
+      throw new BadRequestException(
+        `This contact needs a phone number before scheduling a ${nextStep.type} next step`,
+      );
+    }
+    if (nextStep?.type === ActivityType.EMAIL && !nextStepEmail) {
+      throw new BadRequestException(
+        'This contact needs an email address before scheduling an email next step',
+      );
     }
 
     activity.status = status;
@@ -1387,40 +1485,109 @@ export class ActivitiesService {
       activity.completion_note = completionNote ?? null;
     }
 
-    await this.activityRepository.save(activity);
-
-    // If the caller supplied a next_step payload, schedule it now.
-    // Done AFTER the parent save so we know the parent persisted; if
-    // the next_step insert fails the parent completion still stands
-    // (the gate already passed because the caller provided it). We
-    // log a warning so it shows up in audit but don't unwind the
-    // completion — that would be more confusing than helpful.
+    // Save the completion and its correctly-typed follow-up as one unit.
+    // Any subtype failure rolls the source completion back too.
     if (
       status === ActivityStatus.COMPLETED &&
       nextStep &&
       (activity.lead_id || activity.deal_id)
     ) {
       try {
-        const followUp = this.activityRepository.create({
-          type: nextStep.type,
-          subject: nextStep.subject,
-          description: nextStep.description ?? undefined,
-          due_at: new Date(nextStep.due_at),
-          status: ActivityStatus.SCHEDULED,
-          lead_id: activity.lead_id ?? undefined,
-          deal_id: activity.deal_id ?? undefined,
-          contact_id: activity.contact_id ?? undefined,
-          assigned_to_id: activity.assigned_to_id ?? userId,
-          created_by_id: userId,
+        await this.dataSource.transaction(async (statusManager) => {
+          await statusManager.save(Activity, activity);
+          const followUp = statusManager.create(Activity, {
+            type: nextStep.type,
+            subject: nextStep.subject,
+            description: nextStep.description ?? undefined,
+            due_at: new Date(nextStep.due_at),
+            status: ActivityStatus.SCHEDULED,
+            lead_id: activity.lead_id ?? undefined,
+            deal_id: activity.deal_id ?? undefined,
+            contact_id: nextStep.contact_id ?? activity.contact_id ?? undefined,
+            // Follow-up ownership is automatic: keep work with the deal/lead
+            // owner, or give an unowned record to the person entering the task.
+            assigned_to_id:
+              activity.deal?.assigned_to ??
+              activity.lead?.assigned_to ??
+              userId,
+            created_by_id: userId,
+          });
+          const savedFollowUp = await statusManager.save(Activity, followUp);
+          if (nextStep.type === ActivityType.TASK) {
+            await statusManager.save(
+              Task,
+              statusManager.create(Task, {
+                activity_id: savedFollowUp.id,
+                status: TaskStatus.TODO,
+                priority: TaskPriority.MEDIUM,
+              }),
+            );
+          }
+          if (nextStep.type === ActivityType.CALL && nextStepPhone) {
+            await statusManager.save(
+              Call,
+              statusManager.create(Call, {
+                activity_id: savedFollowUp.id,
+                phone_number: nextStepPhone,
+                outcome: null,
+                notes: nextStep.description,
+                follow_up_required: false,
+              }),
+            );
+          }
+          if (nextStep.type === ActivityType.MEETING) {
+            const start = new Date(nextStep.due_at);
+            await statusManager.save(
+              Meeting,
+              statusManager.create(Meeting, {
+                activity_id: savedFollowUp.id,
+                title: nextStep.subject,
+                platform: MeetingPlatform.OTHER,
+                start_time: start,
+                end_time: new Date(start.getTime() + 30 * 60 * 1000),
+              }),
+            );
+          }
+          if (nextStep.type === ActivityType.EMAIL && nextStepEmail) {
+            const creator = await statusManager.findOne(User, {
+              where: { id: userId },
+            });
+            if (!creator) {
+              throw new NotFoundException(`User ${userId} not found`);
+            }
+            await statusManager.save(
+              Email,
+              statusManager.create(Email, {
+                activity_id: savedFollowUp.id,
+                subject: nextStep.subject,
+                body: nextStep.description?.trim() || nextStep.subject,
+                to_recipients: JSON.stringify([{ email: nextStepEmail }]),
+                from_email: creator.email,
+              }),
+            );
+          }
+          if (nextStep.type === ActivityType.WHATSAPP && nextStepPhone) {
+            await statusManager.save(
+              WhatsAppMessage,
+              statusManager.create(WhatsAppMessage, {
+                activity_id: savedFollowUp.id,
+                phone_number: nextStepPhone,
+                message: nextStep.description?.trim() || nextStep.subject,
+                direction: WhatsAppDirection.OUTBOUND,
+                message_type: WhatsAppMessageType.TEXT,
+              }),
+            );
+          }
         });
-        await this.activityRepository.save(followUp);
       } catch (e: any) {
-        // Non-fatal — log so audit can investigate.
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[ActivitiesService.updateStatus] failed to schedule next_step for activity ${id}: ${e?.message}`,
+        // Never report success when the promised next step was not created.
+        // The shared transaction has also rolled the source completion back.
+        throw new BadRequestException(
+          `Could not schedule the next step: ${e?.message ?? 'unknown error'}`,
         );
       }
+    } else {
+      await this.activityRepository.save(activity);
     }
 
     // When a contact activity actually completes, propagate to the
@@ -1545,12 +1712,9 @@ export class ActivitiesService {
 
         activity.status = status;
 
-        // NEXT-STEP enforcement on bulk is DEFERRED on purpose — same reason
-        // as the edit path: the `enforce_next_step_on_completion` setting is
-        // tied to the open NEXT2 client trap (done-first, next-step-after).
-        // Wiring it here would spread the unclearable 400 to bulk-complete.
-        // Re-enable only once NEXT2 (client) is fixed. `userRoles` is plumbed
-        // and ready.
+        // Bulk has one common outcome/note but each active parent needs its own
+        // future. The response identifies candidates and the client persists a
+        // blocking stage="next-step" obligation for each one.
 
         if (status === ActivityStatus.COMPLETED && !activity.completed_at) {
           // ACT4: same rule as the single path — overdue history keeps
@@ -1608,14 +1772,14 @@ export class ActivitiesService {
 
     // Re-fetch with relations so the response mirrors the shape of
     // single-item updates (callers render the updated cards directly).
-    const updated = await Promise.all(
-      updatedIds.map((id) => this.findOne(id)),
-    );
+    const updated = await Promise.all(updatedIds.map((id) => this.findOne(id)));
 
     const FOLLOW_UP_TYPES: ActivityType[] = [
       ActivityType.MEETING,
       ActivityType.CALL,
       ActivityType.TASK,
+      ActivityType.WHATSAPP,
+      ActivityType.EMAIL,
     ];
     const followUpCandidates =
       status === ActivityStatus.COMPLETED
@@ -1635,10 +1799,7 @@ export class ActivitiesService {
     // If this was a meeting, fan out to the calendar-sync + cancellation
     // email pipeline BEFORE we drop the row — we need the Meeting
     // subrecord (attendees, start time) to render the notice.
-    if (
-      activity.type === ActivityType.MEETING &&
-      this.meetingCancellation
-    ) {
+    if (activity.type === ActivityType.MEETING && this.meetingCancellation) {
       await this.meetingCancellation.cancelMeetingForActivity(id, userId);
     }
 

@@ -49,6 +49,7 @@ import {
   useSchools,
 } from "~/api/schools";
 import { CONTACT_ROLES, PREFERRED_CONTACT_METHODS } from "~/api/contacts";
+import { useProducts } from "~/api/products";
 import { Plus, Trash2, Save, Building2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "~/components/ui/label";
@@ -96,6 +97,12 @@ export default function CreateNewLeadPage() {
   const isSalesRep = currentUser?.roles?.includes("sales_rep") ?? false;
   const cannotAssignToUser = ability.cannot("create", "Lead", "assigned_to");
   const canAssign = !isSalesRep && !cannotAssignToUser;
+  const { data: productsData } = useProducts({
+    page: 1,
+    limit: 100,
+    is_active: true,
+  });
+  const productOptions = productsData?.data ?? [];
 
   const form = useForm<AddLeadValues>({
     resolver: zodResolver(createLeadSchema),
@@ -350,6 +357,51 @@ export default function CreateNewLeadPage() {
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="lead.product_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Product interest</FormLabel>
+                        <Select
+                          value={field.value ?? "none"}
+                          onValueChange={(value) => {
+                            const productId =
+                              value === "none" ? undefined : value;
+                            field.onChange(productId);
+                            const product = productOptions.find(
+                              (option) => option.id === productId,
+                            );
+                            if (product && !form.getValues("lead.name").trim()) {
+                              form.setValue("lead.name", product.name, {
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Pick from the catalogue (optional)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">No product selected</SelectItem>
+                            {productOptions.map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {product.name}
+                                {product.sku ? ` (${product.sku})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Optional catalogue link for product reporting.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

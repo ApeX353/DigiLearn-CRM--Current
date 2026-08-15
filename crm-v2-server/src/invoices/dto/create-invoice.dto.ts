@@ -12,17 +12,23 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { INVOICE_STATUSES } from '../constants';
 import type { InvoiceStatus } from '../constants';
 
 export class CreateInvoiceItemDto {
   @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsOptional()
   @IsUUID()
   product_id?: string;
 
   @ApiProperty({ example: 'Digital Learning Platform - Annual License' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
   description: string;

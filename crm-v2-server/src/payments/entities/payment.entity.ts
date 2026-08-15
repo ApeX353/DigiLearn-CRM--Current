@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { Invoice } from '../../invoices/entities/invoice.entity';
 import { PaymentAllocation } from '../../payment-terms/entities/payment-allocation.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('payments')
 export class Payment {
@@ -35,6 +36,17 @@ export class Payment {
 
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  recorded_by_id: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'recorded_by_id' })
+  recorded_by: User | null;
+
+  @Column({ type: 'uuid', nullable: true, unique: true })
+  payment_entry_request_id: string | null;
 
   @CreateDateColumn()
   created_at: Date;

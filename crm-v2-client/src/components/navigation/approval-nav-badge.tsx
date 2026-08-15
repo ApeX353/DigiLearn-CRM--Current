@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAllLeadReversalRequests } from "~/api/lead-reversal-requests";
 import { useAssignmentProposals } from "~/api/assignment-proposals";
 import { useImportBatches } from "~/api/leads/import-batches";
+import { usePaymentEntryRequests } from "~/api/payment-entry-requests";
 
 /** Short chime when the approval count goes up (something new came in). */
 function chime() {
@@ -39,6 +40,7 @@ export function ApprovalNavBadge() {
   });
   const proposals = useAssignmentProposals("pending");
   const batches = useImportBatches();
+  const paymentEntries = usePaymentEntryRequests("pending");
 
   const importRows = (batches.data ?? []).reduce(
     (sum, b) => sum + (b.total_rows ?? 0),
@@ -47,6 +49,7 @@ export function ApprovalNavBadge() {
   const count =
     (reversals.data?.length ?? 0) +
     (proposals.data?.length ?? 0) +
+    (paymentEntries.data?.length ?? 0) +
     importRows;
 
   const prev = useRef<number | null>(null);

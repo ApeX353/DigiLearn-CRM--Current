@@ -176,6 +176,8 @@ export class DealsController {
   })
   async getPipelineSummary(
     @Query('pipeline_id', ParseUUIDPipe) pipelineId: string,
+    @Query('date_from') dateFrom: string | undefined,
+    @Query('date_to') dateTo: string | undefined,
     @CaslAbility() ability: AppAbility,
   ) {
     // The header must count the same deals as the board below it, so it
@@ -188,6 +190,8 @@ export class DealsController {
     const data = await this.dealsService.getPipelineSummary(
       pipelineId,
       dealOwnerScope(conditions),
+      dateFrom,
+      dateTo,
     );
     return { success: true, data };
   }
@@ -225,25 +229,43 @@ export class DealsController {
     const result = await this.dealsService.getDeals(query, scopeUserId);
     const deals = result.items;
 
-    const headers = ['Title', 'Value', 'Stage', 'Status', 'School', 'Assigned To', 'Health Score', 'Created At'];
+    const headers = [
+      'Title',
+      'Value',
+      'Stage',
+      'Status',
+      'School',
+      'Assigned To',
+      'Health Score',
+      'Created At',
+    ];
     const rows = deals.map((deal: any) => [
       deal.title || '',
       deal.value || 0,
       deal.current_stage?.name || deal.currentStatus || '',
       deal.closeStatus || '',
       deal.school?.name || '',
-      deal.assigned_user ? `${deal.assigned_user.first_name} ${deal.assigned_user.last_name}` : '',
+      deal.assigned_user
+        ? `${deal.assigned_user.first_name} ${deal.assigned_user.last_name}`
+        : '',
       deal.healthScore || 0,
-      deal.created_at ? new Date(deal.created_at).toISOString().split('T')[0] : '',
+      deal.created_at
+        ? new Date(deal.created_at).toISOString().split('T')[0]
+        : '',
     ]);
 
     const csvContent = [
       headers.join(','),
-      ...rows.map((row: any[]) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+      ...rows.map((row: any[]) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','),
+      ),
     ].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="deals-export-${Date.now()}.csv"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="deals-export-${Date.now()}.csv"`,
+    );
     res.send(csvContent);
   }
 
@@ -431,7 +453,12 @@ export class DealsController {
   ) {
     // DEAL-1: only the owning rep (or a manager/admin) closes a deal.
     const scopeUserId = role === 'sales_rep' ? userId : undefined;
-    const data = await this.dealsService.closeDeal(id, dto, userId, scopeUserId);
+    const data = await this.dealsService.closeDeal(
+      id,
+      dto,
+      userId,
+      scopeUserId,
+    );
     return {
       success: true,
       data,

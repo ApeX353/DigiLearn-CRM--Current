@@ -8,6 +8,8 @@ export interface InstallmentData {
   customer_id: string;
   customer_name: string;
   due_date: string;
+  grace_due_date?: string;
+  effective_due_date?: string;
   amount: number;
   balance: number;
   paid_amount: number;

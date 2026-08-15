@@ -887,7 +887,10 @@ export default function ViewDealDetailsPage() {
                             </div>
                             <div className="flex flex-col gap-2 sm:items-end">
                               <span className="font-semibold">
-                                {formatCurrency(Number(quote.total || 0))}
+                                {formatCurrency(
+                                  Number(quote.total || 0),
+                                  deal.currency,
+                                )}
                               </span>
                               <div className="flex flex-wrap gap-2">
                                 <Button
@@ -979,6 +982,20 @@ export default function ViewDealDetailsPage() {
                     <div className="space-y-3">
                       {invoices.map((invoice) => {
                         const outstanding = getInvoiceOutstanding(invoice);
+                        const amountPaid = Number(invoice.amount_paid || 0);
+                        const paymentState =
+                          amountPaid <= 0
+                            ? "Unpaid"
+                            : outstanding <= 0
+                              ? "Paid"
+                              : "Partial";
+                        const documentState = [
+                          "Draft",
+                          "Sent",
+                          "Cancelled",
+                        ].includes(invoice.status)
+                          ? invoice.status
+                          : null;
                         const canAddPayment =
                           outstanding > 0 && invoice.status !== "Cancelled";
 
@@ -992,7 +1009,10 @@ export default function ViewDealDetailsPage() {
                                 {invoice.invoice_number || "Invoice"}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                Status: {invoice.status}
+                                Payment: {paymentState}
+                                {documentState
+                                  ? ` | Document: ${documentState}`
+                                  : ""}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 Due:{" "}
@@ -1003,14 +1023,31 @@ export default function ViewDealDetailsPage() {
                               </p>
                             </div>
                             <div className="flex flex-col gap-2 sm:items-end">
-                              <span className="font-semibold">
-                                {formatCurrency(Number(invoice.total || 0))}
-                              </span>
-                              {invoice.payment_status && (
-                                <Badge variant="outline" className="text-xs">
-                                  {invoice.payment_status}
-                                </Badge>
-                              )}
+                              <div className="grid grid-cols-3 gap-4 text-right text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">Total</span>
+                                  <p className="font-semibold">
+                                    {formatCurrency(Number(invoice.total || 0))}
+                                  </p>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Paid</span>
+                                  <p className="font-semibold">
+                                    {formatCurrency(amountPaid)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">
+                                    Outstanding
+                                  </span>
+                                  <p className="font-semibold">
+                                    {formatCurrency(outstanding)}
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                Payment: {paymentState}
+                              </Badge>
                               <div className="flex flex-wrap gap-2">
                                 <Button
                                   variant="outline"
@@ -1109,7 +1146,11 @@ export default function ViewDealDetailsPage() {
                               {installment.installment_number}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              Due: {formatDate(installment.due_date)}
+                              Due: {formatDate(
+                                installment.effective_due_date ||
+                                  installment.grace_due_date ||
+                                  installment.due_date,
+                              )}
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Status: {installment.status} | Days overdue:{" "}

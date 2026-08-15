@@ -6,6 +6,74 @@ the data impact. Newest first.
 
 ---
 
+## 2026-08-13 - NEXT-CONTACT1: next-step channels ignored valid lead contacts and could not capture missing details
+
+**Severity:** High - **Area:** Activities / close-the-loop - **Status:** DEPLOYED TO STAGING (2026-08-14; manual role walkthrough pending)
+
+**Symptom.** In “What happens next”, changing the default Task to Call or
+WhatsApp could say that a number was missing even though the lead had one.
+There was no way to choose another person. Email also dead-ended when the
+chosen contact had no address.
+
+**Root cause.** The close-the-loop form had no person picker. Client and server
+both derived channels from a fixed source-activity/primary-contact fallback,
+so the scheduled person could not be changed. Separately, the shared person
+picker omitted a lead's primary contact whenever any stakeholder rows existed.
+
+**Fix.** Call, WhatsApp and Email next steps now show a single-person picker;
+one available person is selected automatically and multiple people remain
+selectable. Primary contact is merged with stakeholder contacts and de-duped.
+If the selected person lacks the required number or email, the form immediately
+opens an inline input, saves the detail through the audited Contact update
+endpoint, then schedules against that exact contact. WhatsApp uses its number
+first and falls back to the normal phone; Call does the reverse. The atomic
+`next_step` contract now carries `contact_id`, and the API verifies that the
+contact exists and belongs to the lead's school before using it.
+
+**Data impact.** No migration or bulk update. A number/email is changed only
+when the user enters it in this form and submits; that Contact change is audit
+logged. Existing activities and approval-queue records are untouched.
+
+**Verification.** Client and server production builds pass; all 27 server test
+suites / 108 tests pass. Focused lint on changed client files has zero errors
+(one pre-existing effect dependency warning remains in the close-loop dialog).
+Regression tests cover valid/invalid contact UUIDs and cross-school rejection.
+The sanitized API and client archives were deployed directly to `api-staging`
+and `staging` without Git. Both report `building=false, failed=false`; the
+protected API returns 401 without a token. Public client bundle
+`index-Cuxfe7_o.js` (2,820,179 bytes) contains the person picker, inline contact
+save copy and Contact endpoint. The network dropped during the first client
+upload attempts; those failed before promotion, then the same archive was
+accepted with CapRover status 101 after connectivity returned. No production
+or approval-queue action occurred. Authenticated per-role UI walkthrough is
+still required because no signed-in browser surface was available.
+
+---
+
+## 2026-08-12 - LEAD-TABS1: Active Leads replaced All Leads instead of being added beside it
+
+**Severity:** Medium - **Area:** Leads list - **Status:** VERIFIED ON STAGING (2026-08-12)
+
+**Symptom.** The staging scrum release showed `Active Leads | New | Contacted
+| ...` and removed the existing `All Leads` view.
+
+**Root cause.** The Active filter was inserted by replacing the synthetic
+`all` tab and changing the page's filter union/default, rather than adding a
+second synthetic tab.
+
+**Fix.** Restore the first two tabs as `All Leads | Active Leads`, followed by
+the individual statuses. All Leads sends neither `active` nor `status`; Active
+Leads sends `active=true`. The page defaults to All Leads again and its total
+uses the full unfiltered lead count.
+
+**Data impact.** None. This is a client query/tab correction only.
+
+**Verification.** Client production build passed. The client-only CapRover
+deployment completed with `failed=false`; live bundle `index-Cv7ETPf1.js`
+contains both `All Leads` and `Active Leads`. No Git commit or push was made.
+
+---
+
 ## 2026-08-12 - AUTO-EQUITY: catch-up was an optional manual Rebalance step instead of part of auto-assign
 
 **Severity:** High - **Area:** Auto-assign / distribution - **Status:** VERIFIED ON STAGING (2026-08-12) - **Requested by:** sales manager
@@ -107,41 +175,42 @@ NULL whose lead has an assignee).
 
 ---
 
-## 2026-08-05 — DEAL-GHOST1: a *failed* deal create still appears on the pipeline, with no reason shown
+## 2026-08-05 — DEAL-GHOST1: a _failed_ deal create still appears on the pipeline, with no reason shown
 
 **Severity:** High · **Area:** Deals / pipeline · **Status:** OPEN (discovered, fix pending) · **Reported by:** Mrs Mpofu (Manake's attempt)
 
 **Symptom.** Manake tried to create a deal on prod. The app showed
 "Failed to create deal" — yet the deal then appeared on her pipeline, as
 if it had been created. Two wrong things at once: (a) a create that was
-*rejected* still surfaced as a card, and (b) the error gave her no reason
+_rejected_ still surfaced as a card, and (b) the error gave her no reason
 and no way to fix it.
 
 **Root cause — three verified layers (read-only prod investigation):**
-  1. **The real reason is swallowed by the client.** The server rejects
-     with a precise, actionable message —
-     `"Cannot create deal yet — the following are required first: …"`
-     (`deals.service.ts` `assertCommercialIntentGate`). But
-     `add-deal-modal-container.tsx` does
-     `onError: () => toast.error("Failed to create deal")`, discarding
-     `err.message` entirely. The rep sees a dead-end.
-  2. **The caches are never reconciled on failure.** `useCreateDeal`
-     (`api/deals/use-deals.ts`) invalidates the deal/pipeline queries
-     **only `onSuccess`, never `onError`**. There is no `onMutate`
-     optimistic insert anywhere in the deals/pipeline components, and the
-     DB proves nothing was persisted (see below) — so the lingering card
-     is a **stale client-cache artifact** left un-refreshed after the
-     rejected attempt, visible until a hard reload. This is also the
-     duplicate-deal risk: a rep who retries after the phantom can create
-     two once the gate is satisfied.
-  3. **Why it failed at all:** the commercial-intent gate is **ON** in
-     prod (`compliance.policy.enforce_commercial_intent_for_deal = true`).
-     Manake's leads all have `commercial_intent = false` and no
-     decision-maker recorded, and sit in Nurture/Contacted — so the gate
-     *correctly* rejects. The defect is the UX around a legitimate
-     rejection, not the gate logic itself. (Whether the gate *should* be
-     on is a separate policy call — settings changes aren't audited, so
-     the code cannot say who enabled it.)
+
+1. **The real reason is swallowed by the client.** The server rejects
+   with a precise, actionable message —
+   `"Cannot create deal yet — the following are required first: …"`
+   (`deals.service.ts` `assertCommercialIntentGate`). But
+   `add-deal-modal-container.tsx` does
+   `onError: () => toast.error("Failed to create deal")`, discarding
+   `err.message` entirely. The rep sees a dead-end.
+2. **The caches are never reconciled on failure.** `useCreateDeal`
+   (`api/deals/use-deals.ts`) invalidates the deal/pipeline queries
+   **only `onSuccess`, never `onError`**. There is no `onMutate`
+   optimistic insert anywhere in the deals/pipeline components, and the
+   DB proves nothing was persisted (see below) — so the lingering card
+   is a **stale client-cache artifact** left un-refreshed after the
+   rejected attempt, visible until a hard reload. This is also the
+   duplicate-deal risk: a rep who retries after the phantom can create
+   two once the gate is satisfied.
+3. **Why it failed at all:** the commercial-intent gate is **ON** in
+   prod (`compliance.policy.enforce_commercial_intent_for_deal = true`).
+   Manake's leads all have `commercial_intent = false` and no
+   decision-maker recorded, and sit in Nurture/Contacted — so the gate
+   _correctly_ rejects. The defect is the UX around a legitimate
+   rejection, not the gate logic itself. (Whether the gate _should_ be
+   on is a separate policy call — settings changes aren't audited, so
+   the code cannot say who enabled it.)
 
 **Data impact — NONE on prod (verified).** `deals` created today, all
 states = **0**; the table has no soft-delete column, so no hidden/orphaned
@@ -149,13 +218,14 @@ deal exists. There is nothing to clean up — the phantom lives only in the
 browser cache until refresh.
 
 **Planned fix (staging-first).**
-  - Surface the server message: `onError` shows `err.message` (fall back
-    to the generic string only when absent), so the rep sees exactly what
-    to add (intent signal / value / title / decision-maker).
-  - `useCreateDeal` also invalidates `deals`/pipeline queries `onError`,
-    so a rejected attempt cannot leave a stale card.
-  - Product decision to confirm with Kim/Dube: keep the commercial-intent
-    gate ON, or relax it.
+
+- Surface the server message: `onError` shows `err.message` (fall back
+  to the generic string only when absent), so the rep sees exactly what
+  to add (intent signal / value / title / decision-maker).
+- `useCreateDeal` also invalidates `deals`/pipeline queries `onError`,
+  so a rejected attempt cannot leave a stale card.
+- Product decision to confirm with Kim/Dube: keep the commercial-intent
+  gate ON, or relax it.
 
 Files (to change): `crm-v2-client/src/components/deals/add-deal-modal-container.tsx`,
 `crm-v2-client/src/api/deals/use-deals.ts`. Server message source:
@@ -166,6 +236,7 @@ Files (to change): `crm-v2-client/src/components/deals/add-deal-modal-container.
 ## 2026-08-02 — Autonomous batch 2 (IDOR + settings wiring + school flow + audit)
 
 ### C-02 (activities): activity write paths were not owner-scoped
+
 **Symptom.** A sales_rep with any activity/lead/deal UUID could edit,
 complete, cancel or bulk-update another rep's activity, or file a new
 activity onto someone else's lead/deal.
@@ -183,12 +254,14 @@ attach to a lead/deal assigned to them); `update`/`updateStatus` pass
 bypass. Files: `activities.service.ts`, `activities.controller.ts`.
 
 ### H-05 (cash-req): per-deal / per-lead cost summaries were unscoped
+
 **Symptom.** Any rep could read total committed + paid spend on any deal or
 lead. **Fix.** `assertRecordVisibleForCost` — overseers see any record; a rep
 only a deal/lead assigned to them (foreign/unknown → 404). Files:
 `cash-requisitions.service.ts`, `cash-requisitions.controller.ts`.
 
 ### H-05 (email merge-context): buildScope loaded any lead/deal/contact by id
+
 **Symptom.** A rep could render or render+send a template against another
 rep's lead/deal and read that record's pipeline data back (via
 `GET :id/render` and `POST send/template`). **Fix.** `scopeUserId` on the
@@ -198,6 +271,7 @@ returned or rendered; elevated roles unaffected. Files:
 `email-templates.controller.ts`, `user-email-accounts.controller.ts`.
 
 ### QDL1: quote PDF downloads left no audit trail
+
 **Fix.** Widened the audit action union to include `download` (action is
 `varchar(20)` — no migration), imported `AuditModule` into `QuotesModule`,
 and record a best-effort audit row on `downloadPdf` (caller id; IP from the
@@ -206,6 +280,7 @@ download. Files: `audit-log.entity.ts`, `audit.service.ts`, `quotes.module.ts`,
 `quotes.controller.ts`.
 
 ### SET-MGR1: manager daily-contacts target had no admin form field
+
 **Symptom.** DISC2 added `compliance.targets.daily_contacts_per_manager`
 (default 10) and the dashboard uses it, but the Compliance & Controls admin
 form was never given a field — so the manager target was stuck at 10 with no
@@ -213,12 +288,13 @@ way to change it (the rep target had a field; the manager one didn't).
 **Fix.** Added the key to `COMPLIANCE_KEYS` + `DEFAULTS`, a state hook,
 load/reset/save handling, and an input beside the rep target. Client-only.
 File: `crm-v2-client/.../admin/compliance-controls-content.tsx`.
-**Note (open, needs owner input):** the *rep* target has a precedence quirk —
+**Note (open, needs owner input):** the _rep_ target has a precedence quirk —
 the dashboard reads the legacy `defaults.daily_leads_target` key first and
 only falls back to `compliance.targets.daily_contacts_per_rep`. Flagged, not
 changed.
 
 ### SCHLEAD1 + SCHLEAD2: no way to create a lead from a school
+
 **Symptom.** A school's Related Leads card had no create action (empty state
 was a dead end). **Fix.** SCHLEAD1: "New lead" header action + "Create the
 first lead" empty-state button, both → `/leads/new?school_id=<id>`. SCHLEAD2:
@@ -228,6 +304,7 @@ existing hydration effect); one-shot so the user can still change the school.
 Client-only. Files: `related-leads.tsx`, `create-new-lead.tsx`.
 
 ### Reclassified this session (NOT fixed — need owner input or invalid)
+
 - **N3-proposals** — the "proposals sent" counter deliberately ILIKEs
   activity subjects; its own comment says to switch to real quote data once
   quotes have reliable timestamps. Changing it redefines a displayed metric.
@@ -247,6 +324,7 @@ review and duplicates piled up unseen.
 create path — the client hook existed but was unused, and no server path
 invoked it. Only the peek/warning banner ran; nothing was ever persisted.
 **Fix.**
+
 - **Going forward:** `createWithSchoolAndContacts` now records a pending
   suspicion for the strongest near-duplicate after each lead is committed
   (post-commit, best-effort — a detection hiccup never fails a create).
@@ -255,26 +333,27 @@ invoked it. Only the peek/warning banner ran; nothing was ever persisted.
   near-duplicates, so the queue reflects the CURRENT book — not just new
   leads. Each pair recorded once; `recordSuspicion` de-dupes pending pairs so
   re-running is safe/idempotent.
-**Verified locally:** queue 0 → **480 pending suspicions** after the rebuild.
-**Data impact.** Additive — creates `duplicate_suspicions` rows (a review
-queue), moves no lead/contact data. Merges remain a separate manual decision
-(DUP2, Ms Mpofu). Files: `crm-v2-server/src/leads/leads.service.ts`,
-`crm-v2-server/src/leads/services/duplicate-detection.service.ts`,
-`crm-v2-server/src/leads/duplicates.controller.ts`.
+  **Verified locally:** queue 0 → **480 pending suspicions** after the rebuild.
+  **Data impact.** Additive — creates `duplicate_suspicions` rows (a review
+  queue), moves no lead/contact data. Merges remain a separate manual decision
+  (DUP2, Ms Mpofu). Files: `crm-v2-server/src/leads/leads.service.ts`,
+  `crm-v2-server/src/leads/services/duplicate-detection.service.ts`,
+  `crm-v2-server/src/leads/duplicates.controller.ts`.
 
 ---
 
 ## 2026-08-02 — Security batch + DISC3 (autonomous, no-input fixes)
 
 ### DISC3 (+AUD-H05): admin_support saw an empty discipline board; non-managers could read peers
+
 **Symptom.** The discipline board/metrics came back empty for the
-admin_support (prince) account — the "discipline regression" chased through
+admin*support (prince) account — the "discipline regression" chased through
 the whole cache saga. Admins/managers always saw the team fine.
 **Root cause.** `dashboard.controller` self-scopes non-managers to their own
 id, but the `isManager` role list omitted `admin_support` (and
 discipline-metrics also omitted `manager`), so admin_support was scoped to
 its own id and, holding no sales role, got an empty table. Separately (H-05)
-a supplied `salesRepId`/`user_id` was honoured for *anyone*, so a rep could
+a supplied `salesRepId`/`user_id` was honoured for \_anyone*, so a rep could
 read a peer.
 **Fix.** Include `admin_support`+`manager` as oversight roles that get the
 team view; and only oversight roles may target a specific rep — a
@@ -283,10 +362,12 @@ non-manager's supplied id is ignored and they're always self-scoped.
 rep, `?salesRepId=<peer>` is ignored. Files: `dashboard.controller.ts`.
 
 ### AUD-H03: 2FA email/SMS codes used Math.random()
+
 **Fix.** Generate with `crypto.randomInt(0, 1_000_000)` (uniform, secure),
 zero-padded to 6 digits, at both send sites. Files: `auth/two-factor.service.ts`.
 
 ### AUD-H06: admin_support elevation only applied at the RolesGuard layer
+
 **Root cause.** `jwt.strategy` derived a representative `role` mapping only
 admin/sales_manager, so admin_support fell through to `roles[0]` and the
 per-record ownership guards (CanAccessLead/Quote/Invoice) treated it as a
@@ -295,6 +376,7 @@ plain owner — blocked from records it didn't own.
 place, fixing all three guards at once. Files: `auth/strategies/jwt.strategy.ts`.
 
 ### AUD-H01: logout did not end the session
+
 **Root cause.** The refresh cookie is path-scoped to `/auth/refresh`, so the
 browser never sends it to `/auth/logout`; the handler read the (absent)
 cookie, 401'd, and never revoked — access + refresh stayed valid until
@@ -318,6 +400,7 @@ Shipped alongside DEAL-OPEN (Tanya's #1). Each fix below is minimal and
 sales-facing; root causes were confirmed in code before changing anything.
 
 ### DEALS1 (55c824b0): `/deals` silently hid won/lost deals
+
 **Symptom.** The deals list showed only ongoing deals; ~2/3 of closed
 business (won/lost) never appeared, with nothing on screen saying so.
 **Root cause.** `getDeals` (`deals.service.ts`) defaulted `close_status` to
@@ -330,6 +413,7 @@ unchanged.
 **Data impact.** None (read path). Files: `crm-v2-server/src/deals/deals.service.ts`.
 
 ### NEXT3 (81958979): scheduling a call/WhatsApp as the next step filed it as done
+
 **Symptom.** Picking Call or WhatsApp as an upcoming next step created it
 already **completed**, so it never showed as the next step and it bumped
 `last_contacted_at`.
@@ -341,6 +425,7 @@ completed (sent on save). Logging a past/now call is unchanged.
 **Data impact.** None. Files: `crm-v2-client/src/components/activities/create-activity-modal.tsx`.
 
 ### eea1c4ae: a completed task's recorded outcome/notes were invisible
+
 **Symptom.** A rep records an outcome + note when completing a next-up task,
 then the task drops into the completed feed and the outcome appears lost.
 **Root cause.** The data **is** saved (`completion_outcome` / `completion_note`
@@ -354,6 +439,7 @@ the data was intact all along.
 **Data impact.** None (rendering only). Files: `crm-v2-client/src/components/activities/{activity-kit.tsx,activity-details-sheet.tsx}`.
 
 ### NEXT4 (ae4f56b0): a lead could only show one next step at a time
+
 **Symptom.** Reps need two concurrent next steps on a record, but only one
 showed; a second scheduled step vanished into the Activity log.
 **Root cause.** No schema limit exists — the engagement workspace just took
@@ -365,6 +451,7 @@ Client-only; multiple open activities already coexist in the DB.
 **Data impact.** None. Files: `crm-v2-client/src/components/activities/engagement-workspace.tsx`.
 
 ### PH1 (0ac3f2f7): phone dedup compared raw digits, so formats never matched
+
 **Symptom.** The same number saved as "+263772123456" then "0772123456"
 created a second contact — the duplicate check never matched across formats.
 **Root cause.** The write path's `normalizePhone` only stripped non-digits,
@@ -380,6 +467,7 @@ separate cleanup. Files: `crm-v2-server/src/leads/utils/record-normalization.ts`
 `crm-v2-server/src/leads/leads.service.ts`.
 
 ### QUOTE1-b (618ec6f2, part b): Convert-to-Invoice threw on an uninvoiced Accepted quote
+
 **Symptom.** Clicking "Convert to Invoice" on a deal errored for a quote
 that was Accepted but had no invoice yet.
 **Root cause.** `convertFromQuote` rejected ANY quote with status Accepted,
@@ -394,6 +482,7 @@ double-conversion guard.
 QUOTE1-c "one accepted quote per deal" is deferred — needs a data check.)
 
 ### AUD-M01 (473d220c): bulk activity completion diverged from single
+
 **Symptom.** Completing activities in bulk behaved differently from
 completing them one at a time.
 **Root cause.** `bulkUpdateStatus` saved the status + audit row but — unlike
@@ -410,11 +499,12 @@ transaction, demo/commercial-intent derivation after it.
 gate — is left as a flagged product decision, not silently changed.)
 
 ### LNAME2 (95999841): capture & show what the client wants on a lead
+
 **Symptom.** Ms Mpofu wanted a lead field for the client's interest / what
 they want, captured and shown.
 **Root cause / state.** `Lead.notes` already exists and is persisted +
 carried into the deal on conversion, but the create form never collected it
-and the lead view never showed it (the "Notes" tab is *activity* notes).
+and the lead view never showed it (the "Notes" tab is _activity_ notes).
 **Fix.** Reuse the existing column (no migration): add `notes` to the client
 `leadInfoSchema`, a "What the client wants / Interest" textarea to the
 create-lead form, and an "Interest" row on the lead at-a-glance.
@@ -423,6 +513,7 @@ create-lead form, and an "Interest" row on the lead at-a-glance.
 `crm-v2-client/src/components/leads/lead-at-a-glance.tsx`.
 
 ### SCH1 (3e0666cb) + SCH2 (e494fedc): school records split by punctuation / city spelling
+
 **Symptom.** One school forked into several records — a punctuation/spacing
 variant of the name ("St. Mary's" vs "St Marys") or a different city
 spelling ("Harare" vs "Harare CBD") created a second school, splitting its
@@ -447,6 +538,7 @@ Files: `crm-v2-server/src/leads/leads.service.ts`,
 `crm-v2-server/src/leads/utils/record-normalization.ts`.
 
 ### AUD-M06 (9c14ee4b): Leads-by-Stage dashboard chart was broken
+
 **Symptom.** The "Leads by Stage" chart on the dashboard didn't render
 properly.
 **Root cause.** `getLeadsByStage` grouped by `l.status` and returned each
@@ -460,6 +552,7 @@ Disqualified=234, Nurture=91, Converted=29, Qualified=12 — all labelled.
 **Data impact.** None (read path). Files: `crm-v2-server/src/dashboard/dashboard.service.ts`.
 
 ### API1 (ba1793d4): owner filter silently dropped a rep's unassigned tasks
+
 **Symptom.** `GET /activities?created_by_id=<rep>` returned fewer records
 than the rep actually has — specifically it dropped `task` activities with
 `assigned_to_id = null` (the "next step after call" tasks), hiding their
@@ -477,6 +570,7 @@ unassigned tasks (previously dropped).
 **Data impact.** None (read path). Files: `crm-v2-server/src/activities/activities.service.ts`.
 
 ### API2 (3f94f609): list pagination silently dropped/duplicated rows
+
 **Symptom.** Paging any list at limit=100 during writes lost records —
 measured on `/leads`: 1753 rows returned but only 1577 distinct, 176 leads
 never appeared on any page (they exist; `?assigned_to=` returns them). The
@@ -495,6 +589,7 @@ all lists and documenting the limit cap remain optional enhancements.
 **Data impact.** None (read path). Files: `crm-v2-server/src/{leads/leads.service,activities/activities.service,deals/deals.service,schools/schools.service,contacts/contacts.service}.ts`.
 
 ### QUOTE3 (6c4277b5): quotes could be saved with no validity date
+
 **Symptom.** A quote could be created with `valid_until = null` (17 of 67
 were) — the expiry sweep skips null dates, so those quotes never lapse and
 nobody knows when they run out.
@@ -509,6 +604,7 @@ a separate backfill.
 out. **Data impact.** None retroactive. Files: `crm-v2-server/src/quotes/quotes.service.ts`.
 
 ### SCH3 (7271ca11): show the decision maker on the school
+
 **Symptom.** The school summary only showed the free-text `principal_name`;
 the real decision-maker contact (with phone/email) wasn't surfaced.
 **Root cause / state.** The head contact is already loaded via
@@ -518,6 +614,7 @@ derived Head → DecisionMaker → primary, with tap-to-call/email. No API/DB
 change. Files: `crm-v2-client/src/components/schools/tabs/overview-tab.tsx`.
 
 ### DUP5 (a27f99ba): duplicate checker showed a nonsensical "165% match"
+
 **Symptom.** The duplicate warning read like noise — a "% match" over 100%.
 **Root cause.** `score` is an uncapped weighted sum (phone 60 + email 55 +
 name 30 + …) rendered as `{score}% match`. The per-field reasons already
@@ -528,6 +625,7 @@ strength badge (Strong / Likely / Possible match). Files:
 (The merge-dialog annotation is a separate optional surface.)
 
 ### DISC2 (d51baddc): daily call target is now role-aware (40 rep / 10 manager)
+
 **Symptom.** The daily contacts target was a flat 40 for everyone; managers
 should carry a lower target (10). "Reset at midnight" was already handled by
 the date-window logic.
@@ -622,18 +720,19 @@ account but does nothing against one IP trying many accounts
 crude request flood.
 
 **Change.**
+
 - **Removed `helmet`** (`npm uninstall helmet`). Headers unchanged — still
   set by the existing middleware. Verified nothing in `src/` imported it.
 - **Wired up `@nestjs/throttler`** as a global guard. A generous baseline
   (`default`: 300 req / 60 s per client IP) sheds floods without touching
   normal dashboard traffic; the sensitive public auth routes tighten it:
 
-  | Route | Limit |
-  |---|---|
-  | `POST /auth/login` | 10 / 60 s |
-  | `POST /auth/register` | 5 / 60 s |
-  | `POST /auth/password/request-reset` | 5 / 60 s |
-  | `POST /auth/password/reset` | 10 / 60 s |
+  | Route                               | Limit     |
+  | ----------------------------------- | --------- |
+  | `POST /auth/login`                  | 10 / 60 s |
+  | `POST /auth/register`               | 5 / 60 s  |
+  | `POST /auth/password/request-reset` | 5 / 60 s  |
+  | `POST /auth/password/reset`         | 10 / 60 s |
 
   `GET /auth/refresh` stays on the baseline — it needs a valid refresh
   cookie and legitimately fires from multiple tabs, so a tight cap would
@@ -641,7 +740,7 @@ crude request flood.
   global guard, so floods are rejected before any DB/auth work.
 
 **Why a custom guard.** The API sits behind Cloudflare + CapRover's nginx,
-so `req.ip` is the *proxy's* address — identical for every visitor. Keying
+so `req.ip` is the _proxy's_ address — identical for every visitor. Keying
 the limiter on that would drop all users into one shared bucket, so a
 single busy client could 429 everyone at once. `ThrottlerBehindProxyGuard`
 (`src/common/guards/throttler-behind-proxy.guard.ts`) overrides
@@ -669,7 +768,7 @@ PREVIOUS CRM: it only ever had two statuses, `scheduled` (3,817) and
 `completed` (1,739) — **"cancelled" never existed there**, so every
 cancelled row in the CRM was made cancelled by us. Its `scheduled` was a
 catch-all: 3,663 of 3,817 carry no date at all and none has a completion
-timestamp, because reps logged work *after doing it* and the old system
+timestamp, because reps logged work _after doing it_ and the old system
 gave them no way to close it. Our close-off mistook records of completed
 work for stale open tasks.
 
@@ -924,8 +1023,7 @@ maps. Reverts by deleting the two lines.
 ### R2 — admin_support (prince) locked out app-wide
 
 **Symptom.** 403 across most of the app. Reproduced on staging before the
-fix: `/payments`, `/collections/aging-report` and `/reports/finance` all
-403. Still reproducible on **production** right now — it is why the read
+fix: `/payments`, `/collections/aging-report` and `/reports/finance` all 403. Still reproducible on **production** right now — it is why the read
 status of Mr Dube's notification cannot be checked from this account.
 
 **Root cause.** `admin_support` is seeded with `manage` over the same
@@ -982,6 +1080,7 @@ yet" for Last touch even when the record had many logged calls/WhatsApps.
 Deals showed "No activity yet" **always**.
 
 **Root cause (same family as the timeline bug).**
+
 - Lead: `pickPivotalActivities` in `lead-at-a-glance.tsx` derived Last touch
   from `completed[0]` — completed activities **only**. Logged calls/WhatsApps
   (status "scheduled", no due date) were excluded, so leads worked purely by
@@ -995,6 +1094,7 @@ Deals showed "No activity yet" **always**.
   client defect.
 
 **Fix.**
+
 - Extracted a shared `pickPivotalActivities()` + `activityTouchDate()` into
   `activity-kit.tsx`. Last touch = most recent activity that has actually
   happened: any completed activity, or any open activity that is undated or
@@ -1020,10 +1120,11 @@ hundreds of logged calls, WhatsApps and tasks.
 
 **Root cause.** The redesigned `EngagementWorkspace` (client) split activity
 into two sections:
+
 - **Planned** — surfaced only ONE open activity, and when none had a due
   date it fell back to "newest open", promoting a random logged interaction.
 - **Activity log (Done) feed** — queried only `status = "completed"` plus
-  open *notes*.
+  open _notes_.
 
 Logged calls and WhatsApps are saved with `status = "scheduled"` and **no
 due date** (`due_at`/`scheduled_at` null). Such activities are open,
@@ -1033,19 +1134,20 @@ rendered. Only completed activities and notes showed.
 **Data impact (staging DB snapshot, from the live dump).** Confirmed
 systemic across every rep, not a single account:
 
-| Rep | Total | Hidden | % hidden |
-|---|---|---|---|
-| tanyag | 2,240 | 1,575 | 70% |
-| manakedube | 1,189 | 904 | 76% |
-| mpofunk | 861 | 618 | 72% |
-| busid | 783 | 415 | 53% |
+| Rep        | Total | Hidden | % hidden |
+| ---------- | ----- | ------ | -------- |
+| tanyag     | 2,240 | 1,575  | 70%      |
+| manakedube | 1,189 | 904    | 76%      |
+| mpofunk    | 861   | 618    | 72%      |
+| busid      | 783   | 415    | 53%      |
 
 System-wide: **3,525 of 5,557 activities (63%) were invisible.** Dominant
 logging patterns: 1,852 calls and 1,465 WhatsApps stored as
 `scheduled` / undated. No data was ever lost — purely a display defect.
 
 **Fix.** `crm-v2-client/src/components/activities/engagement-workspace.tsx`:
-- **Planned** is now strictly the next *upcoming, dated* step; the
+
+- **Planned** is now strictly the next _upcoming, dated_ step; the
   "newest open regardless of date" fallback was removed. With no dated
   next step, Planned shows its empty state (prompt to schedule).
 - **Activity log** now lists every logged interaction — completed
@@ -1107,7 +1209,7 @@ gate makes completion impossible for reps)
 commitment booked — say a meeting two weeks out. The "Next step required"
 modal opens and cannot be dismissed: Esc, outside-click and the close
 button are all intercepted, and `beforeunload` blocks refresh. The only
-exit is scheduling a *second* future activity. Reported in the meeting:
+exit is scheduling a _second_ future activity. Reported in the meeting:
 a rep who phoned a client ahead of a booked meeting could not log that
 call, because the modal stood between them and the Log Activity button.
 
@@ -1121,31 +1223,34 @@ checked only "is it a note" and "is the record terminal", so it demanded a
 next step in cases the server considered already satisfied.
 
 Two aggravating facts:
-  - `compliance.policy.enforce_next_step_on_completion` is **false** in
-    production, so the server never rejected these completions. The
-    undismissable client modal was the *only* thing enforcing anything.
-  - The dialog only opens `onSuccess` of the completion — so whenever it
-    appeared, the server had already accepted the very completion the
-    modal was refusing to let go of.
+
+- `compliance.policy.enforce_next_step_on_completion` is **false** in
+  production, so the server never rejected these completions. The
+  undismissable client modal was the _only_ thing enforcing anything.
+- The dialog only opens `onSuccess` of the completion — so whenever it
+  appeared, the server had already accepted the very completion the
+  modal was refusing to let go of.
 
 **Fix.**
-  - `shouldRequireFollowUp(activity, context)` now takes a context bag and
-    mirrors the server: exempts every non-actionable type (was: notes
-    only), and returns `false` for `isManagerOrAdmin` or `hasOpenNextStep`.
-  - `FollowUpPromptDialog` resolves that context — it reads the caller's
-    roles and queries the parent lead/deal for other open actionable
-    activities — then downgrades the prompt from a trap to a nudge when
-    either hatch applies. While the lookup is in flight it stays
-    permissive rather than flashing a lock it may be about to lift.
-  - When a commitment already exists the dialog names it ("Meeting: Demo
-    walkthrough — due 6 Aug") and offers **Keep existing next step**
-    alongside **Add another step**.
+
+- `shouldRequireFollowUp(activity, context)` now takes a context bag and
+  mirrors the server: exempts every non-actionable type (was: notes
+  only), and returns `false` for `isManagerOrAdmin` or `hasOpenNextStep`.
+- `FollowUpPromptDialog` resolves that context — it reads the caller's
+  roles and queries the parent lead/deal for other open actionable
+  activities — then downgrades the prompt from a trap to a nudge when
+  either hatch applies. While the lookup is in flight it stays
+  permissive rather than flashing a lock it may be about to lift.
+- When a commitment already exists the dialog names it ("Meeting: Demo
+  walkthrough — due 6 Aug") and offers **Keep existing next step**
+  alongside **Add another step**.
 
 The hard lock still applies where the rule genuinely bites: a sales rep
-completing the *last* open actionable activity on an active lead/deal.
+completing the _last_ open actionable activity on an active lead/deal.
 
 Files: `crm-v2-client/src/lib/follow-up-policy.ts`,
 `crm-v2-client/src/components/activities/follow-up-prompt-dialog.tsx`.
+
 # LEAD-GOV1 — customer identity, disqualification evidence and Active Leads (2026-08-12)
 
 **Symptom.** Staff/internal identities could create false duplicate warnings;
@@ -1182,3 +1287,168 @@ approval, customer-email and disqualification labels. Authenticated read-only
 checks returned 1,457 from both `active=true` and `status-counts.Active`; the
 staging approval queue remained readable with one pending item. The smoke
 check performed zero mutations. Production was not deployed or changed.
+
+# METRICS-ACTIVE — Active lead counts excluded unassigned work and dashboard contract returned zeros
+
+**Found:** 2026-08-12
+**Status:** Verified on staging (2026-08-13).
+
+**Symptom:** “Active Leads” was lower than `All - Disqualified - Converted`, and the Lead Conversion widget displayed zero for active/disqualified/conversion fields despite real records.
+
+**Root cause:** The list and status-count queries added `assigned_to IS NOT NULL`, incorrectly treating assignment as lifecycle status. Separately, the dashboard API returned `convertedLeads` and `leadToSchoolRate` while its client expected `converted`, `disqualified`, `active`, `conversionRate`, and `avgDaysToConvert`.
+
+**Fix:** Active now means every visible, non-deleted lead whose status is neither Disqualified nor Converted, including unassigned leads. The conversion endpoint now returns the client contract and retains its old field names for compatibility.
+
+**Data impact:** None. Query/response correction only; no lead rows are updated.
+
+The same investigation confirmed the qualification tile still omitted leads with no qualification form and averaged duplicate form rows. Its query now starts from leads, left-joins one maximum score per lead, includes unscored leads as zero, and returns the stored 0-100 percentage scale shown by the UI.
+
+**Staging evidence:** API image `72`, client image `55`, bundle `index-jNFaG24Z.js`. The Active list and `status-counts.Active` both returned 1,824 (= 2,089 All - 235 Disqualified - 30 Converted), including 368 unassigned active leads. Both qualification endpoints returned 2,089 total, 51 qualified and average 4.8; the distribution buckets sum to 2,089. The pending auto-assignment queue remained stable by application fingerprint: 224 rows and checksum `e24fd0172340bb54536c13947ce594da` before and after. Production was untouched; no Git commit or push was made.
+
+# EMAIL-RUNTIME — notification templates failed under Bun
+
+**Found:** 2026-08-13 during staging verification.
+**Status:** Verified on staging.
+
+**Symptom:** The SLA scheduler logged repeated `Mustache.render is not a function` errors when rendering notification email templates.
+
+**Root cause:** The notification template engine used a namespace import for the CommonJS `mustache` package. Bun exposed the callable API on the default export. The separate user-email template service already used the compatible default import.
+
+**Fix/data impact:** Switched the notification template engine to the same default import. No database rows were changed. Server build passed, staging API version 72 started normally, and the fresh startup/error log contained no Mustache error.
+
+# FOLLOWUP-ASSIGNEE — follow-up ownership regression
+
+**Found:** 2026-08-13 after Scrum Staging verification.
+**Status:** Fixed locally; not yet deployed.
+
+**Symptom:** “What happens next → Schedule it” could create the follow-up for the source activity's assignee instead of the current deal/lead owner or the person entering the follow-up.
+
+**Expected behaviour:** This panel must not expose an `Assign To` picker. Ownership is inferred from the record: the deal owner first, then the lead owner, then the logged-in person entering the follow-up when the record is unowned.
+
+**Fix:** Restored automatic ownership without exposing an assignee picker. The atomic server path now ignores the old activity assignee and chooses deal owner, then lead owner, then the logged-in entrant. The already-completed direct-create path resolves the same owner in the client before creating the task.
+
+**Verification/data impact:** Client and server production builds pass. No database rows were changed. No environment was deployed and no Git commit or push was made for this correction.
+
+# PIPELINE-METRICS — totals, collections, health and overdue measured different things
+
+**Found:** 2026-08-13 during pre-staging review.
+**Status:** Fixed locally; not yet deployed.
+
+**Symptoms:** The `Won & Lost` panel displayed deal estimates rather than linked invoice totals. `Total deals` counted only open deals. `Overdue` reported overdue-invoice deals even though the pipeline/card language means deals past their current-stage SLA. `Avg health` included uninitialised zero scores, making the average misleading.
+
+**Read-only staging evidence:** Sales Pipeline has 6 open deals and 26 closed deals in the selected six-month archive; the existing summary reported `total_deals=6`. Three of the six open deals are past their configured current-stage SLA while the existing `Overdue` KPI reported 0. Three open deals have never had health calculated (`health_score=0` with no calculation timestamp), while the other three store 61, 62 and 71.
+
+**Fix:** The pipeline summary now exposes separate Total Deals, Open Deals, Pending Collections (issued unpaid invoice balance) and Pipeline Value (open-deal value). `Overdue` counts open deals past stage SLA using the same exact timestamp boundary as the SLA scheduler and Kanban headers/cards. Average Health excludes never-calculated placeholders and discloses its scored/open denominator; new deals receive an initial health calculation and normal stage moves recalculate it. With `Won & Lost` open, Won shows the total of non-cancelled linked invoices for won deals in the selected date range, while Lost remains estimated deal value because lost deals have no sale invoice total.
+
+**Data impact:** Query and UI changes only for existing records. No backfill or migration is included; existing unscored deals remain untouched and are explicitly excluded until naturally recalculated. No environment or Git remote has been changed.
+
+# ACT6 — completing a documented call asked for the same account twice
+
+**Found:** 2026-08-13 during the local Lead Follow-ups review.
+**Status:** Fixed locally; not yet deployed.
+
+**Symptom:** A rep scheduled/logged a call and already recorded who it was with,
+the call result, what was discussed and its follow-up date. Ticking that call
+Done then opened the completion flow and required another outcome plus another
+“What happened?” account before the rep could choose the next action.
+
+**Root cause:** Call result/summary and activity completion outcome/note are
+separate database fields even though they describe the same human event. The
+completion UI always started both activity-level fields empty and ignored the
+documented call subtype.
+
+**Fix:** The Log Activity call/WhatsApp path now treats the entered interaction
+as completed immediately; its future Follow Up Date belongs to the separate
+server-created task and no longer leaves the source interaction open. The
+recorded call result maps to the activity outcome and its summary becomes the
+completion note. For older scheduled calls, the Done dialog reuses the same
+result and discussion as read-only context. The next-action discipline remains,
+but the rep does not rewrite the conversation.
+
+**Follow-up correction:** In the inline lead/deal composer, selecting **Mark as
+done (already happened)** now saves only the completed call and immediately
+opens the future-facing **What happens next?** panel. The first form no longer
+creates a follow-up from its date and then waits for the rep to find the same
+call and tick Done again. The next-step panel is the single place where that
+future task is chosen, so the flow cannot create two follow-ups. It carries the
+known record owner into the panel even before the API response has hydrated the
+lead/deal relation.
+
+**Refresh lock:** An already-completed activity that is waiting in **What
+happens next?** is persisted for the current browser-tab session. Refreshing or
+allowing authentication to rehydrate restores the same blocking panel. The
+obligation is removed from storage only when its next-step/record decision
+succeeds. Ordinary outcome drafts and runtime callbacks are not persisted.
+
+**Tracker trail:** ACT6 and FU1–FU6 were added as Open in both production and
+staging on 2026-08-13 after a duplicate search. This tracker action did not
+change leads, activities, approval queues or application deployments.
+
+**Data impact:** None. This changes how a future completion request is composed;
+no existing activity is rewritten. No environment or Git remote was changed.
+
+**Past-time guard and automatic owner:** Planned activities and the mandatory
+next step now reject a date/time that has already passed, with immediate UI
+feedback and a server-side write guard. Completed historical activity may still
+carry its original timestamp. The activity composer no longer exposes an
+assignee picker to elevated roles: work stays with the lead/deal owner and
+falls back to the person entering it only when the record is unowned.
+
+**All actionable activity types:** Calls, tasks, meetings, emails and WhatsApps
+now enter the same mandatory next-step decision when completed, including the
+inline "already happened" path and bulk candidates. An unrelated existing open
+task no longer exempts the completion: each completed interaction records its
+own future or explicitly decides the record. The rule applies to elevated roles
+too when they perform sales work.
+
+**WhatsApp next steps:** A scheduled WhatsApp uses the selected activity
+contact's WhatsApp number, falling back to its ordinary phone number; for an
+activity without a direct contact it can use the lead/deal lead's primary
+contact. The panel blocks WhatsApp when no usable number exists. The server
+creates a real WhatsApp subtype row and saves it atomically with the completion,
+so a failed next step cannot leave the source falsely completed.
+
+**Pre-staging subtype audit:** The first implementation created subtype rows for
+Task, Meeting and WhatsApp only. That would have left scheduled Call and Email
+next steps as bare Activity rows, and using the normal Email create path would
+have dispatched a future commitment immediately. The verified implementation
+now creates all five matching subtype rows. Call/WhatsApp require a usable phone,
+Email requires a usable customer address, and a scheduled Email is stored but
+not sent. The source completion and subtype creation share one transaction.
+
+**Adjacent regression found by tests:** Generic lead status update re-fetched a
+lead already returned fully hydrated by `updateStatus`; that redundant read
+could turn a successful transition into a misleading 404. It now returns the
+transition result directly. Dashboard target tests were also updated to the
+existing canonical contract: Compliance `daily_contacts_per_rep` is
+authoritative and legacy defaults are consulted only if it cannot resolve.
+
+**Local verification (2026-08-13):** 10 focused server suites passed (63 tests),
+including activities, lead governance, customer identity, auto-equity,
+pipeline metrics and dashboard contracts. Server `nest build` and client
+`tsc -b` + Vite production build passed (4,064 modules; bundle
+`index-DzBQTmza.js`). No database or environment was changed.
+
+**Bulk queue correction:** The first record in a bulk completion initially
+shared its id with the open bulk dialog, so the store de-duplicated that first
+next-step candidate and the subsequent dequeue could let it escape. The bulk
+handoff now dequeues the batch shell first and explicitly restores the first
+candidate; every other active candidate remains queued as its own persisted,
+non-dismissible next-step obligation.
+
+**Staging release attempt (2026-08-13):** Client and server production builds
+passed and sanitized CapRover archives were prepared. No deployment began:
+the local deployment helper's `caprover-pw.txt` was absent and the CapRover CLI
+had no saved login. Both staging applications therefore remained untouched.
+
+**Staging release completion (later 2026-08-13):** The documented local
+`CREDENTIALS.local.md` CapRover machine credential was used without printing or
+copying it into the repository. Sanitized working-tree archives were uploaded
+directly (no Git push). `api-staging` and `staging` both completed with
+`building=false, failed=false`; the API is reachable and returns 401 on
+protected endpoints without a token. The promoted client bundle is
+`index-CilVPGYa.js` and contains the audited lead, pipeline, timing and
+next-step behavior markers while pointing at the staging API. Authenticated
+manager/rep browser walkthrough remains manual because the local files contain
+only Kim's restored password hash, not a plaintext staging login; no credential
+or staging data was changed to bypass that boundary.

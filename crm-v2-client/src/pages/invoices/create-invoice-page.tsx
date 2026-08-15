@@ -186,7 +186,7 @@ export default function CreateInvoicePage() {
         interest: values.interest ? parseFloat(values.interest) : undefined,
         items: values.items.map((item) => ({
           product_id: item.product_id || undefined,
-          description: item.description,
+          description: item.description.trim(),
           quantity: item.quantity,
           unit_price: item.unit_price,
           discount: item.discount,

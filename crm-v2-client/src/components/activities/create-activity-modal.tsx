@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { handleApiError } from "~/api/axios";
 import { useCreateActivity } from "~/api/activities";
 import {
+  type ActivityOutcome,
   type ActivityType,
   type CreateActivityDto,
 } from "~/api/activities/types";
@@ -88,8 +89,10 @@ const ACTIVITY_HELP_TEXT: Record<VisibleTab, string> = {
   task: "Tasks are actionable next steps and need a due date.",
   call: "Calls should record the person contacted, outcome, and next step.",
   email: "Emails should record the recipient, message, and any follow-up owed.",
-  meeting: "Meetings should capture attendees, timing, and the planned outcome.",
-  whatsapp: "WhatsApp activity should record the recipient and message context.",
+  meeting:
+    "Meetings should capture attendees, timing, and the planned outcome.",
+  whatsapp:
+    "WhatsApp activity should record the recipient and message context.",
   demo: "Demo activity feeds demo booking, completion, and follow-up discipline.",
 };
 
@@ -196,7 +199,8 @@ export function CreateActivityModal({
 
     if (!hasEntity && showEntityPicker) {
       toast.error("Select a lead or deal first", {
-        description: "Activities must belong to a CRM record so timelines, SLA, and reports stay in sync.",
+        description:
+          "Activities must belong to a CRM record so timelines, SLA, and reports stay in sync.",
       });
       return;
     }
@@ -211,9 +215,12 @@ export function CreateActivityModal({
 
     const isValid = await tabFormRef.current?.trigger();
     if (!isValid) {
-      toast.error(`Complete the required ${ACTIVITY_LABELS[activeType]} fields`, {
-        description: ACTIVITY_HELP_TEXT[activeType],
-      });
+      toast.error(
+        `Complete the required ${ACTIVITY_LABELS[activeType]} fields`,
+        {
+          description: ACTIVITY_HELP_TEXT[activeType],
+        },
+      );
       return;
     }
 
@@ -235,22 +242,47 @@ export function CreateActivityModal({
     // vanished, and (b) never advanced the lead's `last_contacted_at`.
     // Tasks, meetings and demo bookings remain scheduled future work.
     //
-    // NEXT3: but a call/WhatsApp with a FUTURE due date is an upcoming
-    // next step, not a log of something that already happened. Marking
-    // it completed filed it as done, so it never appeared as the next
-    // step. So only auto-complete call/WhatsApp when they aren't dated
-    // for the future. Email is sent on save, so it stays completed.
-    const scheduledForFuture =
-      !!tabPayload.due_at &&
-      new Date(tabPayload.due_at).getTime() > Date.now();
+    // The Call and WhatsApp forms describe work that just happened: they
+    // collect the result/message plus a *follow-up* date. That future date
+    // belongs to the server-created task; it must not turn the source call
+    // back into scheduled work or the rep will later be asked to record the
+    // same conversation again when ticking it Done.
     const isLoggedInteraction =
       resolvedType === "email" ||
-      ((resolvedType === "call" || resolvedType === "whatsapp") &&
-        !scheduledForFuture);
+      resolvedType === "call" ||
+      resolvedType === "whatsapp";
+    const completionOutcome: ActivityOutcome | undefined =
+      resolvedType === "call"
+        ? tabPayload.call?.outcome === "no_answer" ||
+          tabPayload.call?.outcome === "busy" ||
+          tabPayload.call?.outcome === "voicemail"
+          ? "no_response"
+          : tabPayload.call?.outcome === "wrong_number"
+            ? "unsuccessful"
+            : tabPayload.call?.outcome === "callback_requested"
+              ? "follow_up_needed"
+              : "successful"
+        : resolvedType === "whatsapp"
+          ? "follow_up_needed"
+          : resolvedType === "email"
+            ? "follow_up_needed"
+            : undefined;
+    const completionNote =
+      resolvedType === "call"
+        ? tabPayload.call?.summary
+        : resolvedType === "whatsapp"
+          ? tabPayload.whatsapp?.message
+          : resolvedType === "email"
+            ? tabPayload.email?.body
+            : undefined;
 
     const payload: CreateActivityDto = {
       type: resolvedType,
-      ...(isLoggedInteraction && { status: "completed" as const }),
+      ...(isLoggedInteraction && {
+        status: "completed" as const,
+        completion_outcome: completionOutcome,
+        completion_note: completionNote,
+      }),
       subject: tabPayload.subject,
       lead_id: effectiveLeadId,
       deal_id: effectiveDealId,

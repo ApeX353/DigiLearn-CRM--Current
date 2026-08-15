@@ -8,10 +8,11 @@ import { PaymentTermsModule } from '../payment-terms/payment-terms.module';
 import { ActivityLogsModule } from '../activity-logs/activity-logs.module';
 import { AuthModule } from '../auth/auth.module';
 import { SettingsModule } from '../settings/settings.module';
+import { PaymentEntryRequest } from './entities/payment-entry-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Payment]),
+    TypeOrmModule.forFeature([Payment, PaymentEntryRequest]),
     forwardRef(() => InvoicesModule),
     PaymentTermsModule,
     ActivityLogsModule,

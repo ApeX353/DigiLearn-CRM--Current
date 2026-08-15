@@ -11,8 +11,7 @@ import type {
   CreateInvoiceItemDto,
   UpdateInvoiceItemDto,
   AddPaymentDto,
-  InvoicePaymentRecord,
-  InvoicePaymentRecordResponse,
+  InvoicePaymentSubmissionResponse,
   InvoicePaymentSchedule,
 } from "./types";
 
@@ -76,7 +75,7 @@ const invoicesApi = {
 
   addPayment: (
     data: AddPaymentDto,
-  ): Promise<InvoicePaymentRecord | InvoicePaymentRecordResponse> =>
+  ): Promise<InvoicePaymentSubmissionResponse> =>
     apiClientAuth
       .post(`/payments`, data)
       .then((res) => res.data),

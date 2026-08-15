@@ -444,6 +444,7 @@ export class LeadsService {
         estimated_value: leadInfo.estimated_value,
         notes: leadInfo.notes,
         source_campaign_id: leadInfo.source_campaign_id ?? null,
+        product_id: leadInfo.product_id ?? null,
       });
 
       const savedLead = await manager.save(Lead, newLead);
@@ -628,6 +629,7 @@ export class LeadsService {
       .leftJoinAndSelect('lead.school', 'school')
       .leftJoinAndSelect('lead.primary_contact', 'primary_contact')
       .leftJoinAndSelect('lead.assignee', 'assignee')
+      .leftJoinAndSelect('lead.product', 'product')
       .leftJoinAndSelect('lead.stage', 'stage');
 
     if (!include_deleted) {
@@ -645,9 +647,8 @@ export class LeadsService {
 
     if (active) {
       queryBuilder
-        .andWhere('lead.assigned_to IS NOT NULL')
-        .andWhere('lead.status IN (:...activeStatuses)', {
-          activeStatuses: ['New', 'Contacted', 'Nurture', 'Qualified'],
+        .andWhere('lead.status NOT IN (:...terminalStatuses)', {
+          terminalStatuses: ['Disqualified', 'Converted'],
         });
     } else if (status) {
       queryBuilder.andWhere('lead.status = :status', { status });
@@ -768,9 +769,8 @@ export class LeadsService {
       .createQueryBuilder('lead')
       .select('COUNT(*)', 'count')
       .where('lead.deleted_at IS NULL')
-      .andWhere('lead.assigned_to IS NOT NULL')
-      .andWhere('lead.status IN (:...activeStatuses)', {
-        activeStatuses: ['New', 'Contacted', 'Nurture', 'Qualified'],
+      .andWhere('lead.status NOT IN (:...terminalStatuses)', {
+        terminalStatuses: ['Disqualified', 'Converted'],
       });
     if (ability) {
       this.abilityScopeService.applyScopeToQueryBuilder(activeQb, ability, {
@@ -791,7 +791,14 @@ export class LeadsService {
       // S4: `deals` rides only on the DETAIL endpoint — a Converted lead's
       // page links to the deal it became instead of offering to convert
       // again. The list endpoint stays lean.
-      relations: ['school', 'primary_contact', 'assignee', 'stage', 'deals'],
+      relations: [
+        'school',
+        'primary_contact',
+        'assignee',
+        'stage',
+        'deals',
+        'product',
+      ],
     });
 
     if (!lead) {
@@ -995,6 +1002,7 @@ export class LeadsService {
       disqualification_note,
       nurture_reason,
       other_value,
+      follow_up_date,
       ...rest
     } =
       updateLeadDto;
@@ -1086,6 +1094,41 @@ export class LeadsService {
     }
     // -------------------------------------------------------------
 
+    // A Nurture transition and its wake-up are one unit. Persisting the
+    // lead first and creating the task afterwards could leave a sleeping
+    // Nurture lead when the second write failed.
+    if (requestedStatus === 'Nurture' && follow_up_date) {
+      await this.dataSource.transaction(async (manager) => {
+        const lockedLead = await manager.findOne(Lead, {
+          where: { id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedLead) {
+          throw new NotFoundException(`Lead with ID ${id} not found`);
+        }
+        Object.assign(lockedLead, rest);
+        lockedLead.reason =
+          nurture_reason === 'Other'
+            ? other_value?.trim() || null
+            : nurture_reason || null;
+        await manager.save(Lead, lockedLead);
+        const transitioned = await this.transitionStatus(
+          manager,
+          id,
+          'Nurture',
+          userId,
+        );
+        await this.ensureNurtureWakeUpInManager(
+          manager,
+          transitioned,
+          follow_up_date,
+          userId,
+        );
+      });
+      await this.leadQualificationService.autoTickFromSignals(id);
+      return this.findOne(id);
+    }
+
     const oldValues = { ...lead };
     Object.assign(lead, rest);
 
@@ -1123,10 +1166,106 @@ export class LeadsService {
     }
 
     if (statusChanged) {
-      return this.updateStatus(id, requestedStatus as string, userId);
+      const targetStatus = requestedStatus as string;
+      const transitioned = await this.updateStatus(id, targetStatus, userId);
+      // updateStatus already returns the fully-hydrated lead. Re-fetching it
+      // here added a second database round-trip and could turn a successful
+      // transition into a misleading 404 if that redundant read failed.
+      return transitioned;
     }
 
+    await this.ensureNurtureWakeUp(
+      updatedLead.id,
+      updatedLead.status,
+      follow_up_date,
+      userId,
+    );
     return this.findOne(updatedLead.id);
+  }
+
+  /**
+   * The server-owned Nurture wake-up. Locking the lead serializes concurrent
+   * re-dates/creates, so two clients cannot stack duplicate open tasks.
+   */
+  private async ensureNurtureWakeUp(
+    leadId: string,
+    status: string,
+    followUpDate: string | undefined,
+    userId: string,
+  ): Promise<void> {
+    if (status !== 'Nurture' || !followUpDate) return;
+    const due = new Date(followUpDate);
+    if (Number.isNaN(due.getTime())) {
+      throw new BadRequestException('Nurture follow-up date is invalid');
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const lead = await manager.findOne(Lead, {
+        where: { id: leadId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lead) {
+        throw new NotFoundException(`Lead with ID ${leadId} not found`);
+      }
+
+      await this.ensureNurtureWakeUpInManager(
+        manager,
+        lead,
+        followUpDate,
+        userId,
+      );
+    });
+  }
+
+  private async ensureNurtureWakeUpInManager(
+    manager: EntityManager,
+    lead: Lead,
+    followUpDate: string,
+    userId: string,
+  ): Promise<void> {
+    const due = new Date(followUpDate);
+    if (Number.isNaN(due.getTime())) {
+      throw new BadRequestException('Nurture follow-up date is invalid');
+    }
+    const activityRepo = manager.getRepository(Activity);
+    const existing = await activityRepo
+      .createQueryBuilder('activity')
+        .where('activity.lead_id = :leadId', { leadId: lead.id })
+        .andWhere('activity.type = :type', { type: ActivityType.TASK })
+        .andWhere("activity.subject LIKE 'Re-engage:%'")
+        .andWhere('activity.status NOT IN (:...closed)', {
+          closed: [ActivityStatus.COMPLETED, ActivityStatus.CANCELLED],
+        })
+        .orderBy('activity.created_at', 'ASC')
+        .getOne();
+
+      if (existing) {
+        if (existing.due_at?.getTime() !== due.getTime()) {
+          existing.due_at = due;
+          await activityRepo.save(existing);
+        }
+        return;
+      }
+
+      const wakeUp = await activityRepo.save(
+        activityRepo.create({
+          type: ActivityType.TASK,
+          subject: `Re-engage: ${lead.lead_name}`,
+          description: 'Auto-created when the lead was parked in Nurture.',
+          status: ActivityStatus.SCHEDULED,
+          due_at: due,
+          lead_id: lead.id,
+          assigned_to_id: lead.assigned_to ?? userId,
+          created_by_id: userId,
+        }),
+      );
+      await manager.getRepository(Task).save(
+        manager.getRepository(Task).create({
+          priority: TaskPriority.MEDIUM,
+          status: TaskStatus.TODO,
+          activity_id: wakeUp.id,
+        }),
+      );
   }
 
   private async applyDirectManagerDisqualification(

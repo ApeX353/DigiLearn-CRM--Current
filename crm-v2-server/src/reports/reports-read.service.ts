@@ -272,29 +272,110 @@ export class ReportsReadService {
     const rowsQb = this.installmentRepo
       .createQueryBuilder('inst')
       .leftJoin(Invoice, 'invoice', 'invoice.id = inst.invoice_id')
+      .leftJoin(
+        Invoice,
+        'parentInvoice',
+        'parentInvoice.id = inst.parent_invoice_id',
+      )
       .leftJoin('invoice.school', 'school')
       .addSelect('invoice.invoice_number', 'invoice_number')
       .addSelect('invoice.id', 'invoice_id')
+      .addSelect('invoice.amount_paid', 'invoice_amount_paid')
+      .addSelect('parentInvoice.amount_paid', 'parent_amount_paid')
       .addSelect('school.id', 'school_id')
       .addSelect('school.name', 'school_name')
-      .where('inst.status != :paid', { paid: 'paid' });
+      .where('invoice.id IS NOT NULL');
     if (scopeUserId) {
       rowsQb.andWhere('invoice.owner_id = :scopeUserId', { scopeUserId });
     }
     const rows = await rowsQb.getRawAndEntities();
 
-    const installments = rows.entities.map((inst: any, i) => {
+    const sourceRows = rows.entities.map((inst: any, i) => {
       const raw = rows.raw[i] as {
         invoice_number?: string;
         invoice_id?: string;
+        invoice_amount_paid?: string;
+        parent_amount_paid?: string;
         school_id?: string;
         school_name?: string;
       };
       const dueDate = inst.due_date ? new Date(inst.due_date) : null;
+      const graceDueDate = inst.grace_due_date
+        ? new Date(inst.grace_due_date)
+        : null;
+      const effectiveDueDate = graceDueDate ?? dueDate;
+      return {
+        inst,
+        raw,
+        dueDate,
+        graceDueDate,
+        effectiveDueDate,
+        groupId: inst.parent_invoice_id ?? raw?.invoice_id ?? inst.id,
+        authoritativePaid: Number(
+          raw?.parent_amount_paid ?? raw?.invoice_amount_paid ?? 0,
+        ),
+      };
+    });
+
+    // Installment rows are a projection, not the cash ledger. Rebuild the
+    // projection in memory from invoice.amount_paid using the product's FIFO
+    // rule. This keeps historical rows with missing allocation records from
+    // showing paid cash as still outstanding (Investigation 3).
+    const remainingPaidByGroup = new Map<string, number>();
+    for (const row of sourceRows) {
+      if (!remainingPaidByGroup.has(row.groupId)) {
+        remainingPaidByGroup.set(row.groupId, row.authoritativePaid);
+      }
+    }
+    const derivedById = new Map<
+      string,
+      { paidAmount: number; balance: number; status: string }
+    >();
+    for (const row of [...sourceRows].sort((left, right) => {
+      if (left.groupId !== right.groupId) {
+        return left.groupId.localeCompare(right.groupId);
+      }
+      const dateDifference =
+        (left.effectiveDueDate?.getTime() ?? 0) -
+        (right.effectiveDueDate?.getTime() ?? 0);
+      return dateDifference ||
+        Number(left.inst.installment_number ?? 0) -
+          Number(right.inst.installment_number ?? 0);
+    })) {
+      const amount = Number(row.inst.amount || 0);
+      const remainingPaid = remainingPaidByGroup.get(row.groupId) ?? 0;
+      const paidAmount = Math.max(0, Math.min(amount, remainingPaid));
+      const balance = Math.max(0, amount - paidAmount);
+      remainingPaidByGroup.set(
+        row.groupId,
+        Math.max(0, remainingPaid - paidAmount),
+      );
+      derivedById.set(row.inst.id, {
+        paidAmount,
+        balance,
+        status:
+          balance <= 0
+            ? 'paid'
+            : paidAmount > 0
+              ? 'partially_paid'
+              : row.effectiveDueDate && row.effectiveDueDate < asOf
+                ? 'overdue'
+                : 'pending',
+      });
+    }
+
+    const installments = sourceRows.flatMap((row) => {
+      const { inst, raw, dueDate, graceDueDate, effectiveDueDate } = row;
+      const derived = derivedById.get(inst.id) ?? {
+        paidAmount: 0,
+        balance: Number(inst.amount || 0),
+        status: 'pending',
+      };
       const daysOverdue =
-        dueDate && dueDate < asOf
+        derived.balance > 0 && effectiveDueDate && effectiveDueDate < asOf
           ? Math.floor(
-              (asOf.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+              (asOf.getTime() - effectiveDueDate.getTime()) /
+                (1000 * 60 * 60 * 24),
             )
           : 0;
       const bucket: 'current' | '1-30' | '31-60' | '61-90' | '90+' =
@@ -307,9 +388,8 @@ export class ReportsReadService {
               : daysOverdue <= 90
                 ? '61-90'
                 : '90+';
-      const amount = Number(inst.amount || 0);
-      const paidAmount = Number(inst.paid_amount || 0);
-      return {
+      if (derived.balance <= 0) return [];
+      return [{
         installment_id: inst.id,
         installment_number: inst.installment_number ?? 1,
         invoice_id: raw?.invoice_id ?? '',
@@ -318,14 +398,18 @@ export class ReportsReadService {
         customer_name: raw?.school_name ?? '—',
         due_date:
           dueDate?.toISOString() ?? String(inst.due_date),
-        amount,
-        balance: Math.max(0, amount - paidAmount),
-        paid_amount: paidAmount,
-        status: inst.status ?? 'pending',
+        grace_due_date:
+          graceDueDate?.toISOString() ?? String(inst.grace_due_date),
+        effective_due_date:
+          effectiveDueDate?.toISOString() ?? String(inst.due_date),
+        amount: Number(inst.amount || 0),
+        balance: derived.balance,
+        paid_amount: derived.paidAmount,
+        status: derived.status,
         days_overdue: daysOverdue,
         aging_bucket: bucket,
         late_fee: Number(inst.late_fee || 0),
-      };
+      }];
     });
 
     // Bucket summaries.

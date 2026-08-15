@@ -20,9 +20,12 @@ import {
   FormMessage,
 } from "~/components/ui/form";
 import { TASK_STATUSES, TASK_PRIORITIES } from "~/api/activities/types";
-import { useStaff } from "~/api/users";
 import { taskTabSchema, type TaskTabValues } from "./activity-schemas";
-import type { ActivityTabFormProps, TabFormHandle, TabFormPayload } from "./types";
+import type {
+  ActivityTabFormProps,
+  TabFormHandle,
+  TabFormPayload,
+} from "./types";
 
 export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
   function TaskTabForm(_props, ref) {
@@ -33,17 +36,9 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
         status: "todo",
         priority: "medium",
         due_at: undefined,
-        assigned_to_id: "",
       },
       mode: "onTouched",
     });
-
-    const { data: staffData } = useStaff({
-      page: 1,
-      limit: 100,
-      status: "active",
-    });
-    const staffList = staffData?.data || [];
 
     useImperativeHandle(ref, () => ({
       trigger: () => form.trigger(),
@@ -54,7 +49,6 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
             v.description.substring(0, 50) +
             (v.description.length > 50 ? "..." : ""),
           description: v.description,
-          assigned_to_id: v.assigned_to_id || undefined,
           due_at: v.due_at?.toISOString(),
           task: { status: v.status, priority: v.priority },
         };
@@ -80,8 +74,8 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
                   />
                 </FormControl>
                 <FormDescription className="text-xs">
-                  Make this a concrete next action. Notes belong in the Note
-                  tab and do not count as follow-up commitments.
+                  Make this a concrete next action. Notes belong in the Note tab
+                  and do not count as follow-up commitments.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -95,17 +89,16 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                  >
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {TASK_STATUSES.map((s) => (
+                      {TASK_STATUSES.filter(
+                        (s) => s === "todo" || s === "in_progress",
+                      ).map((s) => (
                         <SelectItem key={s} value={s}>
                           {s.replace("_", " ")}
                         </SelectItem>
@@ -123,10 +116,7 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Priority</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                  >
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue />
@@ -145,42 +135,6 @@ export const TaskTabForm = forwardRef<TabFormHandle, ActivityTabFormProps>(
               )}
             />
           </div>
-
-          <FormField
-            control={form.control}
-            name="assigned_to_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Assign To</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select team member" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {staffList.map((staff) => (
-                      <SelectItem key={staff.id} value={staff.id}>
-                        {staff.first_name} {staff.last_name}
-                      </SelectItem>
-                    ))}
-                    {staffList.length === 0 && (
-                      <SelectItem value="none" disabled>
-                        No active staff available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                <FormDescription className="text-xs">
-                  Leave blank only when the record owner will handle it.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
 
           <FormField
             control={form.control}

@@ -14,6 +14,7 @@ import { LEAD_SOURCES, LEAD_STATUSES } from '../constants';
 import type { LeadSource, LeadStatus } from '../constants';
 import { User } from '../../users/entities/user.entity';
 import { School } from '../../schools/entities/schools.entity';
+import { Product } from '../../products/entities/product.entity';
 import { Contact } from '../../contacts/entities/contact.entity';
 import { Stage } from '../../pipelines/entities/stage.entity';
 import { LeadStakeholder } from './lead-stakeholders.entity';
@@ -58,6 +59,14 @@ export class Lead {
 
   @Column({ name: 'school_id', type: 'uuid', nullable: true })
   school_id: string | null;
+
+  /** Optional catalogue product this pursuit is about. */
+  @ManyToOne(() => Product, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'product_id' })
+  product: Product | null;
+
+  @Column({ name: 'product_id', type: 'uuid', nullable: true })
+  product_id: string | null;
 
   /** Campaign/event this lead originated from (e.g. NASH congress).
    *  Copied to the deal on conversion so campaign ROI can follow the

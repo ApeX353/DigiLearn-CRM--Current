@@ -5,6 +5,7 @@ import type { Quote } from "../quotes";
 import type { Invoice } from "../invoices";
 import { quoteItemSchema } from "../quotes";
 import type { Paginated } from "../common-api-type";
+import type { Lead } from "../leads";
 
 export type DealStatus = "ongoing" | "won" | "lost";
 export type DealCloseStatus = "won" | "lost";
@@ -41,7 +42,7 @@ export interface Deal {
   school_id?: string;
   school?: { id: string; name: string } & Record<string, unknown>;
   lead_id?: string;
-  lead?: Record<string, unknown>;
+  lead?: Lead;
   owner_id?: string;
   owner?: User;
   assigned_to?: string;
@@ -118,9 +119,22 @@ export type ArchivedDealsResponse = Paginated<Deal[]> & {
 
 export interface DealsSummary {
   total_deals: number;
+  open_deals: number;
   pipeline_value: number;
+  pending_collections: number;
+  overdue_deals: number;
   deals_with_overdue_invoices: number;
   avg_deal_health: number;
+  health_scored_deals: number;
+  won_deals: number;
+  won_invoice_total: number;
+  lost_deals: number;
+  lost_deal_value: number;
+}
+
+export interface DealsSummaryParams {
+  date_from?: string;
+  date_to?: string;
 }
 
 export const addDealSchema = z.object({

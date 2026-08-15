@@ -19,7 +19,7 @@ import {
   Target,
   DollarSign,
   Clock,
-  Users,
+  HeartPulse,
   Flame,
   Plus,
   LayoutGrid,
@@ -95,7 +95,19 @@ export default function PipelineStagesPage() {
   const [stageMoveError, setStageMoveError] =
     useState<BlockedActionMessage | null>(null);
 
-  const { data: summary } = useDealsSummary(selectedPipelineId);
+  const summaryDateParams = useMemo(
+    () => ({
+      date_from: dateRange.from
+        ? startOfDay(dateRange.from).toISOString()
+        : undefined,
+      date_to: dateRange.to ? endOfDay(dateRange.to).toISOString() : undefined,
+    }),
+    [dateRange.from, dateRange.to],
+  );
+  const { data: summary } = useDealsSummary(
+    selectedPipelineId,
+    summaryDateParams,
+  );
   const { data: stagesData, isLoading: stagesLoading } = usePipelineStages(
     selectedPipelineId || "",
   );
@@ -103,7 +115,12 @@ export default function PipelineStagesPage() {
     selectedPipelineId ?? "",
   );
   const archivedDealsParams = useMemo(() => {
-    if (!showWonLost || !selectedPipelineId || !dateRange.from || !dateRange.to) {
+    if (
+      !showWonLost ||
+      !selectedPipelineId ||
+      !dateRange.from ||
+      !dateRange.to
+    ) {
       return null;
     }
 
@@ -115,11 +132,10 @@ export default function PipelineStagesPage() {
       date_to: endOfDay(dateRange.to).toISOString(),
     };
   }, [dateRange.from, dateRange.to, selectedPipelineId, showWonLost]);
-  const { data: archivedDealsData } =
-    useArchivedDeals(archivedDealsParams, {
-      enabled: Boolean(archivedDealsParams),
-      fetchAllPages: true,
-    });
+  const { data: archivedDealsData } = useArchivedDeals(archivedDealsParams, {
+    enabled: Boolean(archivedDealsParams),
+    fetchAllPages: true,
+  });
   const { data: dealBreaches } = useDealSlaBreaches();
   const { data: pendingRollbackRequests = [] } = useDealRollbackRequests(
     {
@@ -140,9 +156,17 @@ export default function PipelineStagesPage() {
 
   const pipelineSummary = summary?.data || {
     total_deals: 0,
+    open_deals: 0,
     pipeline_value: 0,
+    pending_collections: 0,
+    overdue_deals: 0,
     deals_with_overdue_invoices: 0,
     avg_deal_health: 0,
+    health_scored_deals: 0,
+    won_deals: 0,
+    won_invoice_total: 0,
+    lost_deals: 0,
+    lost_deal_value: 0,
   };
 
   // Build pipelineStages with deals grouped by stage
@@ -253,9 +277,12 @@ export default function PipelineStagesPage() {
     [navigate],
   );
 
-  const handleRequestRollback = useCallback((context: RollbackRequestContext) => {
-    setRollbackRequestContext(context);
-  }, []);
+  const handleRequestRollback = useCallback(
+    (context: RollbackRequestContext) => {
+      setRollbackRequestContext(context);
+    },
+    [],
+  );
 
   const handleDeleteDeal = useCallback(
     (dealId: string) => {
@@ -269,8 +296,7 @@ export default function PipelineStagesPage() {
     [deleteDeal],
   );
 
-  const isLoading =
-    stagesLoading || dealsLoading
+  const isLoading = stagesLoading || dealsLoading;
 
   if (isLoading) {
     return (
@@ -300,7 +326,7 @@ export default function PipelineStagesPage() {
         {/* KPI strip — compact pill-style tiles so the pipeline sits
             higher on the screen and reps see Kanban columns without
             scrolling. Was an oversized 4-up card grid. */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
           <KpiPill
             label="Total deals"
             value={String(pipelineSummary.total_deals)}
@@ -308,42 +334,53 @@ export default function PipelineStagesPage() {
             accent="bg-primary/10"
           />
           <KpiPill
+            label="Open deals"
+            value={String(pipelineSummary.open_deals)}
+            icon={<Target className="h-3.5 w-3.5 text-muted-foreground" />}
+            accent="bg-muted"
+          />
+          <KpiPill
+            label="Pending collections"
+            value={formatCurrency(pipelineSummary.pending_collections)}
+            icon={
+              <DollarSign className="h-3.5 w-3.5 text-[oklch(0.5_0.16_150)] dark:text-[oklch(0.72_0.17_150)]" />
+            }
+            accent="bg-[oklch(0.64_0.17_150_/_0.12)]"
+            sub="Issued unpaid balance"
+          />
+          <KpiPill
             label="Pipeline value"
             value={formatCurrency(pipelineSummary.pipeline_value)}
-            icon={<DollarSign className="h-3.5 w-3.5 text-[oklch(0.5_0.16_150)] dark:text-[oklch(0.72_0.17_150)]" />}
-            accent="bg-[oklch(0.64_0.17_150_/_0.12)]"
+            icon={<DollarSign className="h-3.5 w-3.5 text-primary" />}
+            accent="bg-primary/10"
           />
           {showWonLost && (
             <>
               <KpiPill
-                label="Won"
-                value={formatCurrency(
-                  (archivedDealsData?.data || [])
-                    .filter((deal) => deal.closeStatus === "won")
-                    .reduce((acc, cur) => acc + (cur.value || 0), 0),
-                )}
+                label="Won invoice total"
+                value={formatCurrency(pipelineSummary.won_invoice_total)}
+                sub={`${pipelineSummary.won_deals} won deal${pipelineSummary.won_deals === 1 ? "" : "s"}`}
               />
               <KpiPill
-                label="Lost"
-                value={formatCurrency(
-                  (archivedDealsData?.data || [])
-                    .filter((deal) => deal.closeStatus === "lost")
-                    .reduce((acc, cur) => acc + (cur.value || 0), 0),
-                )}
+                label="Lost deal value"
+                value={formatCurrency(pipelineSummary.lost_deal_value)}
+                sub={`${pipelineSummary.lost_deals} lost deal${pipelineSummary.lost_deals === 1 ? "" : "s"}`}
               />
             </>
           )}
           <KpiPill
             label="Overdue"
-            value={String(pipelineSummary.deals_with_overdue_invoices)}
+            value={String(pipelineSummary.overdue_deals)}
             icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />}
             accent="bg-muted"
+            sub="Past stage SLA"
           />
           <KpiPill
             label="Avg health"
             value={`${pipelineSummary.avg_deal_health}%`}
-            icon={<Users className="h-3.5 w-3.5 text-muted-foreground" />}
+            icon={<HeartPulse className="h-3.5 w-3.5 text-muted-foreground" />}
             accent="bg-muted"
+            sub={`${pipelineSummary.health_scored_deals}/${pipelineSummary.open_deals} scored`}
           />
         </div>
 

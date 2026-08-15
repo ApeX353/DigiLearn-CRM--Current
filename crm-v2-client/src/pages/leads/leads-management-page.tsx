@@ -259,7 +259,9 @@ function LeadsCountBar({
 }
 
 export default function LeadsManagementPage() {
-  const [leadFilter, setLeadFilter] = useState<LeadStatus | "active">("active");
+  const [leadFilter, setLeadFilter] = useState<
+    LeadStatus | "all" | "active"
+  >("all");
   const [sourceFilter, setSourceFilter] = useState<LeadSource | "all">("all");
   const [provinceFilter, setProvinceFilter] = useState<Province | "all">("all");
   const [assignedToFilter, setAssignedToFilter] = useState<string | "all">(
@@ -329,7 +331,10 @@ export default function LeadsManagementPage() {
     page: pagination.pageIndex + 1,
     limit: pagination.pageSize,
     active: leadFilter === "active" ? true : undefined,
-    status: leadFilter === "active" ? undefined : leadFilter,
+    status:
+      leadFilter === "active" || leadFilter === "all"
+        ? undefined
+        : leadFilter,
     province: provinceFilter === "all" ? undefined : provinceFilter,
     source: sourceFilter === "all" ? undefined : sourceFilter,
     assignment_state:
@@ -343,7 +348,7 @@ export default function LeadsManagementPage() {
   // 1 with `limit: 1`. Only the `meta.totalItems` is consumed; the
   // rows are discarded. Kept independent of the filter bundle so the
   // Total count stays stable as the rep narrows the Showing view.
-  const { data: totalsData } = useLeads({ page: 1, limit: 1, active: true });
+  const { data: totalsData } = useLeads({ page: 1, limit: 1 });
   const unfilteredTotalCount = totalsData?.meta?.totalItems ?? 0;
   // The assignee filter lists people you can filter leads by — only
   // active staff belong here. "all" pulled in deactivated and test
@@ -526,10 +531,16 @@ export default function LeadsManagementPage() {
         <Tabs
           value={leadFilter}
           defaultValue={leadFilter}
-          onValueChange={(value) => setLeadFilter(value as LeadStatus | "active")}
+          onValueChange={(value) =>
+            setLeadFilter(value as LeadStatus | "all" | "active")
+          }
         >
           <TabsList>
-            {[{ color: "#676767", name: "active" }, ...leadStatuses].map(
+            {[
+              { color: "#676767", name: "all" },
+              { color: "#676767", name: "active" },
+              ...leadStatuses,
+            ].map(
               (status) => (
                 <TabsTrigger
                   key={status.name}
@@ -540,7 +551,11 @@ export default function LeadsManagementPage() {
                       : ""
                   }
                 >
-                  {status.name === "active" ? "Active Leads" : status.name}
+                  {status.name === "all"
+                    ? "All Leads"
+                    : status.name === "active"
+                      ? "Active Leads"
+                      : status.name}
                 </TabsTrigger>
               ),
             )}

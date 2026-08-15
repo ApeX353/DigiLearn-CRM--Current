@@ -58,7 +58,9 @@ describe('PaymentsService', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       settingsService as any,
+      {} as any,
     );
   });
 
@@ -145,5 +147,42 @@ describe('PaymentsService', () => {
     expect(settingsService.getSetting).not.toHaveBeenCalled();
     expect(startDate).toEqual(new Date(2026, 1, 1));
     expect(endDate).toEqual(new Date(2026, 1, 28, 23, 59, 59, 999));
+  });
+
+  it('routes sales-rep payment entries to approval instead of posting cash', async () => {
+    const request = { id: 'request-1', status: 'pending' };
+    jest
+      .spyOn(service as any, 'createPaymentEntryRequest')
+      .mockResolvedValue(request);
+    const create = jest.spyOn(service, 'create');
+
+    await expect(
+      service.submit(
+        {
+          invoice_id: 'b4c1f461-108d-4460-b59b-711ed7c8ec4b',
+          amount: 100,
+          payment_date: '2026-03-09T00:00:00.000Z',
+        },
+        'rep-1',
+        'sales_rep',
+      ),
+    ).resolves.toEqual({ kind: 'approval_request', request });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('posts admin and sales-manager payments directly with the actor', async () => {
+    const payment = { id: 'payment-1' };
+    const create = jest.spyOn(service, 'create').mockResolvedValue(payment as any);
+    const dto = {
+      invoice_id: 'b4c1f461-108d-4460-b59b-711ed7c8ec4b',
+      amount: 100,
+      payment_date: '2026-03-09T00:00:00.000Z',
+    };
+
+    await expect(service.submit(dto, 'manager-1', 'sales_manager')).resolves.toEqual({
+      kind: 'payment',
+      payment,
+    });
+    expect(create).toHaveBeenCalledWith(dto, 'manager-1');
   });
 });
