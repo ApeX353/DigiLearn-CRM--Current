@@ -364,17 +364,37 @@ const ViewLead = ({ id }: { id: string }) => {
   }
 
   if (error || !lead) {
+    // A mistyped or stale URL — /leads/create, a deleted lead, a pasted
+    // link with a truncated id — is not a system fault, and echoing the
+    // raw axios "Request failed with status code 400" tells the rep
+    // nothing they can act on. The server rejects a non-uuid id with a
+    // 400 and a missing one with a 404; both mean the same thing here.
+    const status = (error as { response?: { status?: number } } | null)
+      ?.response?.status;
+    const isMissing = status === 400 || status === 404;
+
     return (
       <div>
-        <PageHeader hasBackButton title="Error" />
+        <PageHeader hasBackButton title={isMissing ? "Lead not found" : "Error"} />
         <Container className="p-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error Loading Lead</AlertTitle>
-            <AlertDescription>
-              {error instanceof Error
-                ? error.message
-                : "Failed to load lead details."}
+            <AlertTitle>
+              {isMissing ? "Lead not found" : "Error Loading Lead"}
+            </AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                {isMissing
+                  ? "This lead does not exist — the link may be mistyped, or the lead may have been deleted."
+                  : error instanceof Error
+                    ? error.message
+                    : "Failed to load lead details."}
+              </p>
+              {isMissing && (
+                <Link to="/leads" className="underline underline-offset-2">
+                  Back to all leads
+                </Link>
+              )}
             </AlertDescription>
           </Alert>
         </Container>
