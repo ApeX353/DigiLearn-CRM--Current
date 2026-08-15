@@ -225,10 +225,9 @@ export function AddPaymentModal({
     }
 
     try {
-      // Trim (his change) but still omit when blank, so the optional field
-      // is absent rather than an empty string — and so a missing value
-      // cannot throw on .trim().
-      const reference = values.reference_number?.trim() || undefined;
+      // Recording rule 4 makes the bank reference mandatory (schema
+      // .min(1)), so this is guaranteed non-empty — no blank-omit fallback.
+      const reference = values.reference_number.trim();
       const paymentResponse = (await addPayment.mutateAsync({
         data: {
           invoice_id: targetInvoice.id,
