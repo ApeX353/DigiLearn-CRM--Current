@@ -30,6 +30,51 @@ we build the server side ourselves.**
       a login; migration 1780 (product sku/description) applies on first boot
       with `DB_RUN_MIGRATIONS=true`
 - [ ] Review with Mr Dube / Kim, then staging per DEPLOYMENT-RULES.md
+- [x] **Second port, 15 Aug 2026** — three further client commits brought
+      across onto branch `port-2026-08-15` (see below). `tsc` clean,
+      production build passes (4,068 modules).
+
+## Second port — 15 Aug 2026 (branch `port-2026-08-15`)
+
+Three client commits, cherry-picked in date order with
+`-X subtree=crm-v2-client` off `github.com/DigiLearnzw/crm-v2-client` `main`:
+
+| Upstream | Local | What it does |
+|---|---|---|
+| `7b9a177` 13 Aug | `376bcd9` | Closed deals stop pretending to be live; columns stack deterministically |
+| `d7cbe13` 14 Aug | `f28a244` | The CRM records the sale; the rep records the work |
+| `e2b066c` 15 Aug | `2c0a861` | A mistyped lead URL is a 400 and a clear message, not a 500 |
+
+Plus `34513c3`, a conflict-resolution fixup.
+
+**Four conflicts, resolved by hand** (same rule as the first port — our
+bug-fixes win, his features re-expressed around them):
+
+- `compact-deal-card.tsx` — **both.** His `isClosed` gate is required by the
+  already-merged `atRisk` lines below it; our millisecond-precise
+  `stageBreachAt` is the more accurate breach test than his integer
+  `daysInStage > sla_days`. Kept ours, gated by his.
+- `pipeline-stages-page.tsx` — **ours.** His Won/Lost tiles reduce over
+  `archivedDealsData`, which undercounts as soon as that list paginates. Ours
+  reads the server aggregates (`won_invoice_total`, `lost_deal_value`) and
+  keeps the deal-count sub-line.
+- `add-deal-modal-container.tsx` — **his, carrying our intent.** His
+  duplicate-conflict branch is the point of the commit, and his
+  `response.data.message` extraction actually achieves what our DEAL-GHOST1
+  comment wanted: an axios error's own `.message` is only "Request failed with
+  status code 400", so ours was never surfacing the server's reason. Kept his
+  extraction, added our `err.message` as the last fallback.
+- `add-payment-modal.tsx` — **his.** Ours omitted a blank reference
+  (`|| undefined`); his commit makes the bank reference mandatory (schema
+  `.min(1)`, "Recording rule 4") and types the payload field as a required
+  string. Our fallback both broke the type and contradicted the new rule.
+
+**Not ported:** the server side. Only the three client SHAs were requested.
+The two matching server commits on `crm-v2-server` `master` — `4b75f2a`
+(mistyped lead URL → 400) and `262ef61` (fractional probability/position
+rejected at the DTO) — are **not** in local. Note `4b75f2a` rewrites
+`leads.controller.ts` `assignLead` and would remove the undeclared-`status`
+ship-blocker that local still carries at `leads.controller.ts:577`.
 
 **Build notes:** the duplicates scan endpoint is synchronous by design (the
 button shows a spinner) — on a big book it can run long; if HTTP timeouts bite,
