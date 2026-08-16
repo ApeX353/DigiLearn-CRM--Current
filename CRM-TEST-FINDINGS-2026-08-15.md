@@ -1667,6 +1667,38 @@ dropped, mirroring the fix the **server** repo's `captain-definition` already ca
 **Nothing was pushed to GitHub.** The proper upstream fix is `bun install` + commit the regenerated
 `bun.lock`, which restores the frozen check's protection.
 
+### 12.0bb [LIVE] 🚨 REGRESSION — the deploy removed two features from staging
+
+Verified immediately after promotion. Endpoints that returned data **before** the deploy now 404:
+
+| Endpoint | Before deploy | After deploy |
+|---|---|---|
+| `GET /bug-reports` | **200**, 89 KB of tickets | **404 Cannot GET** |
+| `GET /automation/assignment-proposals` | **200**, 447 KB, 224 pending proposals | **404 Cannot GET** |
+| `GET /settings` | 200 | **403** |
+
+**The bug tracker and the auto-assign approval queue are gone from staging.** The "Report a Bug"
+nav item and the manager Auto-assign workspace both point at routes that no longer exist.
+
+**Cause — the two-lineage problem (§12.0) biting.** GitHub server `master` has **no `bug-reports`
+module at all**, and although it has an `automation` module, that module predates the
+assignment-proposal endpoints. Both features were built on the **local** monorepo line. So the
+previous staging build was *not* pure GitHub `master` either — it carried work the GitHub lineage
+has never had.
+
+**⚠️ Do not promote this build to production.** Memory records that the auto-assign suite was
+approved by Kim and shipped to prod (api `0.0.24`→`0.0.26`), and the bug tracker is what the owner
+and managers use for triage. Promoting GitHub `master` to prod would **remove both from
+production**. This is precisely the failure the staging-first rule exists to catch, and it caught it.
+
+**Options, in preference order:**
+1. Roll staging back to the previous server build so Kim and the owner keep a working tracker and
+   approval queue while this is sorted.
+2. Port the `bug-reports` module and the assignment-proposal endpoints from the local monorepo into
+   the GitHub server line, then redeploy — the durable fix, since the two lines must converge
+   eventually.
+3. Leave staging as-is only if nobody needs those two features on it right now.
+
 ### 12.0c [LIVE] What this deploy did NOT fix — verified against the new server
 
 Probed after promotion, and it corrects §12.1 below:
