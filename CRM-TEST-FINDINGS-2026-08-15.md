@@ -1642,9 +1642,47 @@ That blocker is confined to the local branch, which is not deployed.
 **Neither of the two most recent commits is live anywhere.** Prod and staging are on different
 client builds, so they are not in step with each other either.
 
-Recorded so that after the staging deploy you can verify the promoted build carries `e2b066c` /
-`4b75f2a` before any production sign-off. The cheapest post-deploy check is the one those commits
-were written for: `GET /leads/not-a-uuid` must answer **400**, not 500.
+### 12.0b [LIVE] Staging deploy completed and verified — 16 Aug 2026
+
+**Staging is now at client `e2b066c` / server `4b75f2a`.** This is the baseline to verify against
+before any production promotion.
+
+| Check | Before | After |
+|---|---|---|
+| Client bundle | `index-Cuxfe7_o.js` | **`index-CfLXgmaO.js`** ✓ |
+| `GET /leads/not-a-uuid` | 500 Internal server error | **400 "Validation failed (uuid is expected)"** ✓ |
+| `duplicate_override` on `POST /deals` | unknown | **accepted** (no "should not exist") ✓ |
+| Client markers in bundle | — | `d7cbe13` ×2, `e2b066c` ✓ |
+
+Server was deployed first, deliberately: client `d7cbe13` sends `duplicate_override`, which only
+server `07ab979` whitelists. Client-ahead-of-server would have produced
+`400 property duplicate_override should not exist` on deal creation.
+
+**Build fix required to deploy at all.** The client Dockerfile's
+`bun install --frozen-lockfile` fails: `bun.lock` was last regenerated in `6cf3eaa` (7 Apr) while
+`package.json` changed in `676bf85` (11 Jun) — `engines` and `scripts` only, **no dependency
+changes** — and Bun's text lockfile embeds that metadata. Client `main` has therefore been
+unbuildable from a clean checkout since June. Deployed via tarball with `--frozen-lockfile`
+dropped, mirroring the fix the **server** repo's `captain-definition` already carries.
+**Nothing was pushed to GitHub.** The proper upstream fix is `bun install` + commit the regenerated
+`bun.lock`, which restores the frozen check's protection.
+
+### 12.0c [LIVE] What this deploy did NOT fix — verified against the new server
+
+Probed after promotion, and it corrects §12.1 below:
+
+- **The Pipeline `undefined` / `$NaN` tiles persist.** `GET /deals/summary` on the new server still
+  returns only `pipeline_id, total_deals, pipeline_value, deals_with_overdue_invoices,
+  avg_deal_health` — no `open_deals`, `pending_collections` or `health_scored_deals`, which the
+  client reads. I had attributed this to deployment skew and said a redeploy would clear it. **That
+  was wrong:** the GitHub lineage's server has never returned those fields, so it is a genuine
+  defect in the deployed codebase.
+- **The Active Leads tab is still broken.** `?active=true` still returns
+  `400 property active should not exist`. That filter exists only in the local monorepo, which is
+  not deployed.
+- **The qualification inflation is unchanged, just consistent now.** The KPI tile reports
+  `totalLeads: 5366`, average score 1.9 — where it previously said 4,630 / 1.0. Both qualification
+  widgets now agree with each other, but 5,366 is still wrong: only **2,089** leads exist (§12.4).
 
 ### 12.1 [LIVE] The staging API is running an older build than the staging client
 **Proof:** `GET /leads?active=true` returns `400 {"message":["property active should not exist"]}`,
