@@ -1,5 +1,25 @@
 # DigiLearn CRM — full test findings
 
+> ## ⚑ RE-VERIFIED 2026-08-18 — read this first
+>
+> Every finding below was re-checked against the **deployed prod branch**
+> `tickets-1114-on-baseline` (api v42 / crm v34). Verdict: **most still hold** —
+> the owner's hunch that "most is incorrect" is itself wrong; only **23 findings
+> are dead**. Treat the following as **DISCARDED (fixed / incorrect / stale)** and
+> ignore them: the two headline ship-blockers **2.1** (server `assignLead` is
+> clean, ParseUUIDPipe) and **3.1** (allocation now credits instalment rows);
+> **C2, 3.6, 3.17, 3.18**; the four "user-trapping" rep bugs **4.1, 4.2, 4.3, 4.4**
+> (guard checks date-presence not pastness; nurture supplies a next step); **4.7,
+> 4.9** (FU3/FU4 shipped); the 4.14 rep-dashboard / PersonPicker-autocommit /
+> rich-text-cap / cross-school-contact items; **5.3**; **6.2**; **8.4, 8.6**; the
+> §12.5 at-risk-bucket and 12.6 sub-items.
+>
+> Everything else in this document is **still true** as of 2026-08-18 (several
+> items narrowed — see the reconciliation note kept with this file). Of PART I's
+> five ship-blockers, **2.1 and 3.1 are gone**; **2.2, 2.3 and 7.1 survive**.
+> Also shipped since this doc and therefore no longer open: FU1–FU4, ACT6, FU6
+> emitter, CONTACT-ADV1; the bug tracker's redundant Priority field was removed.
+
 **Date:** 15 Aug 2026 · **Tester:** Claude (Prince Banda's staging session)
 **Environment:** staging.digilearncrm.work · api-staging.digilearncrm.work/api/v2
 **Repo:** branch `port-dube-github`, working tree dirty (40+ modified files, uncommitted)

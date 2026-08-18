@@ -15,6 +15,43 @@ old E2E findings now live under `docs/archive/`.
 
 ---
 
+## Corrections — 2026-08-18 (deltas since the 2026-07-29 pass)
+
+The body below still reads as of 2026-07-29. Verified deltas, apply when reading:
+
+- **Counts:** entities **66 → 68** (adds `LeadImportBatch`, `PaymentEntryRequest`);
+  `@Cron` scheduled jobs **14 → 15** (adds the daily 01:00 quote-expiry sweep,
+  `quotes.service.ts` `expireOverdueQuotes`); `@Roles` declarations **244 → 271**
+  (same 39 controllers). Modules 35 and controllers 41 unchanged.
+- **New workflows not yet in §5.3/§7.3/§9.1:** XLSX lead importer
+  (`leads/services/leads-xlsx-import.service.ts` + `lead-import-batch` entity +
+  `POST /leads/import`, `import/batches/:id/approve|reject`); payment-entry
+  approval (`PaymentEntryRequest` + `GET /payments/requests`,
+  `PATCH /payments/requests/:id/review`).
+- **Signal-driven lead lifecycle** (not in §4/§6/§10): demo activity types
+  `DEMO_BOOKING/DELIVERY/FOLLOWUP` + demo sub-row; `lead.commercial_intent` +
+  intent-driven conversion; the 28-value outcome enum now includes a 12-value
+  demo-lifecycle bucket.
+- **Follow-up suite (on the deployed prod branch `tickets-1114-on-baseline`,
+  api v42 / crm v34 — NOT on the local `port-2026-08-15` working tree):** FU6
+  emitter `automation/services/followup-reminder.service.ts` (hourly cron,
+  owner-scoped, dedupe) + `POST /automation/followup-reminders/run`; FU1
+  `getNurtureFollowUps` rewrite (`dashboard.service.ts`); FU3/FU4 activity owner
+  fallback + email follow-up task (`activities.service.ts`); ACT6 completion
+  reuse; CONTACT-ADV1 (logged call/WhatsApp marks lead Contacted,
+  `create-activity-modal.tsx`). The bug tracker's redundant Priority column/field
+  was removed (severity is the single signal).
+- **Automation routes to add to §9.1:** `assignment-proposals/projection`,
+  `ingest/whatsapp`, `handoff/social-lead`, `quote-draft/:dealId`,
+  `attribution/sources`.
+- **Path/label fixes:** §8 seed path is `crm-v2-server/src/database/seeds/
+  seed-roles-permissions.ts` (skeleton drops the `src/`); §1 checked-out branch
+  is `port-2026-08-15`, not `dube-upgrades`.
+- **Still correct:** lead statuses 6, provinces 10, contact roles 9, outcome
+  count 28, `ROLE_ALIASES admin_support→admin`, and the key constant/guard paths.
+
+---
+
 ## 0. Where the information lives
 
 Read in this order from cold. Everything below is in this repository
