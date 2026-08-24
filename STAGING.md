@@ -16,10 +16,22 @@ replaces.*
 
 Verified 24 Aug by grepping the running containers, not by trusting the deploy log:
 
-| App | Image | Container started | Evidence |
+| App | Image | Deployed | Verified by |
 |---|---|---|---|
-| `api-staging` | `img-captain-api-staging:96` | 21 Aug 14:38 UTC | guard string present in `/usr/src/app/dist/invoices/invoices.service.js` |
-| `staging` | `img-captain-staging:77` | 21 Aug 14:46 UTC | no `ZAR` anywhere in `/usr/share/nginx/html/assets` |
+| `api-staging` | `img-captain-api-staging:98` | 24 Aug 20:13 | invoice guard + `notifyAboutRequest` in `dist`; migrations 1781–1784 present |
+| `staging` | `img-captain-staging:79` | 24 Aug 20:18 | `ZAR` absent from the bundle; "Already planned" and "Also covered in this conversation" present |
+
+Branch `dube-aug2324`, bundle `index-D9vp57fu.js`. Upload 19:32 → both live
+20:18, about **46 minutes** for the pair. (A CapRover build here takes roughly
+40 minutes. Beware comparing the deploy log's timestamps, which are **UTC**,
+against `docker images` ages, which are **local** — that mistake turned a
+41-minute build into an imagined 2h40m.)
+
+**The NaN fix cannot be grep-verified.** `Number(cur.value)` minifies to
+unrecognisable local names, so no string survives to search for. It is confirmed
+on screen instead: Won and Lost should read **22 deals / 315,265.00** and
+**5 deals / 20,501.00**, which are the actual sums in the staging database. The
+prefix will still say `ZAR` until the settings row is changed.
 
 **How to probe a build properly.** Grep only for strings that survive a
 production build — a thrown message on the server, a string literal on the
