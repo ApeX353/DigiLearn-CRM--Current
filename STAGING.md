@@ -62,23 +62,117 @@ correct them, but see the warning in section 4.
 
 ---
 
-## 3. What staging has that production does NOT
+## 3. Staging vs production — the current diff (24 Aug, measured)
 
-This is the gap that matters. None of the following is on `prod-fixes-aug20`;
-ancestry checked, not assumed.
+Staging runs branch **`dube-aug2324`**; production runs **`prod-fixes-aug20`**.
+Code compared with `git cherry` (patch content, so cherry-picks are matched
+correctly — ancestry is useless here because every cherry-pick changes the
+hash). Data compared by querying both databases.
 
-| Work | On staging | On prod |
+### 3a. Code on staging that production does NOT have
+
+**The Aug 17–18 Dube port (11 commits)**
+- Unblock qualification: leads had no stakeholder, and nobody had payment plans
+- Clicking an activity opens the record it belongs to
+- Show an activity's lead and deal on the row; owner is for managers
+- Finance sees the activity owner too
+- Invoice stats counted split invoices twice; drafts counted as sales
+- A school's outstanding balance stops counting instalment children, or paid money
+- Disqualification answers its own question, and the approval rule holds everywhere
+- Finish the sweep: a malformed id is a 400 everywhere, not a 500
+- Port fix-ups + the port doc
+
+**The Aug 23–24 Dube port (4 commits)**
+- History is history, the record owes one next step, and a dead lead is archived
+- The gate cannot be fed its own casualties, and a logged email is never sent
+
+**Ours**
+- Commercial intent becomes satisfiable without weakening it
+- SLA escalation stops skipping leads whose history moved on (`8b1f72b`)
+- Correcting a wrong Paid badge is a person's call, and must not email anyone (`85965b4`)
+- Won and Lost stop reporting NaN (`5032cfc`) — **prod still shows `$NaN`**
+- New deals take the configured currency, not a hardcoded ZAR
+- An invoice status has to match the money on it
+- Disqualification approval tells people, and the lead says it is waiting
+- Migrations get unique timestamps
+
+### 3b. Code on production that staging's branch does NOT have
+
+Five commits, all from the production line's own malformed-id and
+converted-lead work:
+
+- A mistyped id is a 400 on leads too, and Ruvheneko becomes one school
+- Import ParseUUIDPipe where the baseline lacked it
+- Finish the malformed-id sweep on the production line
+- Delete the Ingwalo repair script — its premise was wrong
+- A converted lead can still be worked
+
+Several are the **same fix expressed on a different lineage** (both lines fixed
+the malformed-id 500 and the converted-lead block independently), so they show
+as missing only because the patches differ. **Check each before the next prod
+deploy** — a naive merge could revert a live production fix, which is exactly
+the mistake made on staging on 24 Aug (see §3d).
+
+### 3c. Data differences — both databases have moved, in opposite directions
+
+| | Production | Staging |
 |---|---|---|
-| Disqualification approval workflow (`9220b97`) | yes | **no** |
-| Currency fix (`e0b1f8d`) | yes | **no** — the prod form still writes `ZAR` |
-| Invoice status guard (`15d1c5b`) | yes | **no** |
+| `app_settings.currency` | **no row** → falls back to `USD` | **`"ZAR"`** |
+| Deals labelled ZAR | **29** | 0 (relabelled 24 Aug) |
+| Leads, live | 2,125 | 2,089 |
+| Leads disqualified | 241 | 236 |
+| `lead_stakeholders` rows | 2,598 | **5,163** (backfilled) |
+| Notes still `scheduled` | **271** | 0 (flipped by 1781) |
+| Notifications | 220,168 | **314,615** |
+| `user_notifications` rows | 254,306 | **375,515** |
+| Invoices `Cancelled` | **0** | 6 (by 1784) |
+| False-Paid invoices | **3** | 2 |
+| His migrations 1781–1784 run | **0** | yes |
 
-Consequences on production right now: a rep disqualifies and the manager still
-has to go looking; every new deal is still stamped `ZAR` (BICC 14 Aug, Ingwalo
-17 Aug, Ruvheneko 20 Aug); and an invoice can still be marked `Paid` by hand
-with no money against it.
+Two things worth reading twice:
 
----
+- **The notification cleanup ran on PRODUCTION, not staging.** Prod carries
+  254,306 fan-out rows; staging still has 375,515 including the whole idle-alert
+  backlog. This is the one place production is *cleaner* than staging.
+- **The currency setting is the whole "ZAR" story.** Production has no
+  `currency` row at all, so `use-currency.ts` falls back to `DEFAULT_CURRENCY =
+  "USD"`. Staging's row literally says `ZAR`, which is why the identical build
+  renders ZAR there and USD on prod. One row, not a code difference.
+
+### 3d. What the 24 Aug staging deploy got wrong
+
+`dube-aug2324` was cut from `notif-aug20`, but staging was running
+`disqualify-only`, which carried three fixes cherry-picked onto it on 21 August
+that `notif-aug20` never had. The first deploy therefore **rolled back** the
+disqualification approval workflow, the invoice status guard and the currency
+fix. Confirmed by the running build: `notifyAboutRequest` and
+`Record the payment and the` both absent, and `ZAR` back in the client bundle.
+
+All three were cherry-picked back on and redeployed the same evening.
+
+**The lesson:** before deploying, ask what the branch being *replaced* has that
+the new one does not. Checking only that the new branch carries its own intended
+work, and that it type-checks, will not catch a rollback.
+
+### 3e. The migration renumbering re-ran two migrations on staging
+
+`b293ac9` renumbered his four migrations to unique timestamps, on the stated
+grounds that "his have run nowhere." **That was not verified and was wrong.**
+Staging's `migrations` table already held `BackfillLeadStakeholders1768000000000`
+and `CancelDuplicateMarchInvoices1770000000000` (ids 25 and 26), so renaming
+them made TypeORM treat them as new work and **run both a second time** (ids 29
+and 30).
+
+No damage: both are written to be idempotent — the stakeholder backfill only
+inserts where no row exists, and the invoice cancellation skips anything already
+`Cancelled`. A non-idempotent migration would have done real harm.
+
+**Production has never run any of the four** (checked: zero matching rows), so
+they will run exactly once there.
+
+**The lesson:** "has this migration run?" is answered by the deployed
+`migrations` table, never by the source tree.
+
 
 ## 4. Committed, deployed nowhere
 
@@ -135,6 +229,51 @@ happened" is enough — we can find the rest.
    for a quote, an invoice and a school, gives a clear message, never a 500.
 
 ---
+
+## 5b. The Aug 23–24 port (branch `dube-aug2324`) — deployed to staging 24 Aug
+
+Four commits, two per repo, ported onto `notif-aug20`:
+
+| Upstream | Ported | What |
+|---|---|---|
+| `72de3d2` / `dad7365` | `b9bbbc5` / `cab549e` | History is history; the record owes one next step; a dead lead is archived |
+| `56fda99` / `d26fb9a` | `44591fa` / `9316062` | The adversarial follow-up: the gate cannot be fed its own casualties, and a logged email is never sent |
+
+Plus `b293ac9` (migration renumbering) and `5032cfc` (the Won/Lost NaN fix).
+
+**Rule applied, on the product owner's instruction: his work wins.** Where our
+code and his collided, his behaviour was taken. Three exceptions, all recorded
+in the commits:
+
+1. **The lead CSV export** went to *neither* side. A rep does not export leads
+   at all, so the endpoint is `admin` + `sales_manager` only, with his
+   `include_archived: true` for the managers who can reach it.
+2. **ACT4 is superseded.** Ours kept a logged interaction's own past date as the
+   completion moment; his stamps the moment of logging, consistent with his
+   migration 1781. His wins.
+3. **C-02 scope checks kept.** A rep still cannot file an activity onto someone
+   else's record, or transition one outside their scope. His rewrite happened to
+   sit on top of those checks; they are orthogonal to his behaviour, so they were
+   re-expressed inside his structure rather than dropped silently.
+
+**Left out deliberately:** his "stage automation (recording rule 3)" blocks in
+both `create()` and `updateStatus()`. They need `demoStageTarget()` and
+`this.dealStageAutomation` from an *earlier* commit of his that our line has
+never taken, and neither symbol exists here. Not part of the 23/24 August work.
+Porting recording rule 3 is its own job.
+
+**What it does to our data** (measured against live prod, not his figures — his
+numbers describe a different, older dataset):
+
+| His commit says | Our production |
+|---|---|
+| 3,436 of 3,802 scheduled activities are undated logs | **713 scheduled**, of which **271 undated — all notes** |
+| ~3,400 contacts missing from the contact clock | **0 leads** move `last_contacted_at` |
+| Leads 1,712 → 1,478 | **2,125 → 1,884** (241 disqualified become Archive) |
+
+Zero rows already match migration 1781's `down()` fingerprint, so a rollback is
+clean. Every scheduled call, WhatsApp, task and meeting on our prod already
+carries a `due_at`; only the 271 notes match.
 
 ## 6. The two data migrations in that port — reviewed 24 Aug against live prod
 
@@ -311,10 +450,33 @@ client repo and commit the regenerated lockfile.
 - `compliance.policy.enforce_next_step_on_completion` is **true on prod**.
 - Mr Dube: the 11 August batch above, and the data-model cleanup migration.
 
+**Tagged for a future change — lineage scoping divergence**
+
+Mr Dube's repos have never carried our rep-scoping work: `scopeUserId` appears
+**0 times** in his `activities.service.ts`, `leads.service.ts` and
+`leads.controller.ts`, against **46 / 12 / 8** in ours. It is not something he
+removed — his fork predates it. Every port therefore has to re-apply the same
+access control by hand, and the gap grows with each one.
+
+Settled for now on the lead CSV export: **a rep does not export leads at all**
+(confirmed 24 Aug as the intended rule), so the endpoint is `admin` and
+`sales_manager` only and the export is a full data dump including archived
+leads. The wider divergence stays open.
+
+The durable fix is to converge the lineages — either his repos take our scoping
+work as a one-off merge, or our line becomes the upstream he builds on.
+Otherwise one of these hand re-applications will eventually miss a reference.
+
 **Still to do**
 
-- Back up the live DB to this machine as a zip. Asked for on 19 Aug; there is
-  still no local dump, and prod data has changed several times since.
+- ~~Back up the live DB to this machine as a zip.~~ **Done 24 Aug** — a complete
+  production dump from 20 Aug now lives at
+  `C:\Users\8Y14\Desktop\crm-db-backups\digilearn_crm-prod-20260820.zip`
+  (148 MB raw, 30.5 MB zipped, outside the repo so it cannot be committed). It
+  had been sitting in a session scratchpad that gets cleaned automatically.
+  **It predates the 21 Aug notification cleanup**, so it is a valid restore
+  point for the 20th but not a current backup — take a fresh one before the
+  next production data change. Instructions are in that folder's README.
 - Sweep the whole `invoices` table for `amount_paid` with no payment rows —
   $34,100 found in a twelve-row sample.
 - Rewrite `CancelDuplicateMarchInvoices` as a db-ops script and cut it from the
