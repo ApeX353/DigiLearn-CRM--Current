@@ -12,6 +12,75 @@ replaces.*
 
 ---
 
+## 0. 25 August — what changed, and what is still held
+
+### Shipped to PRODUCTION (client only, no server deploy, no migrations)
+
+Branch `fix-wonlost-nan` off `prod-fixes-aug20`, two files:
+
+- **Won/Lost NaN fix** — `deal.value` arrives as a string, so `acc + cur.value`
+  concatenated. Confirmed working on staging before it went.
+- **Converted leads are fully read-only** — reverts `750c5e1`, which had been
+  live on production since 21 Aug. Post-conversion work belongs to the deal;
+  the deal page mounts the same composer with `scope="deal"`. **Reps need
+  telling that**, or the Ingwalo complaint returns.
+
+Nothing else went. The port, the migrations and the archive rule are still
+staging-only.
+
+### The production push was simulated first, and it found a ship-blocker
+
+Every migration's own predicate was run against live production as read-only
+counts. Results: 1781 flips **272 notes** and moves **0** lead clocks; 1782
+matches **0 rows**; 1783 inserts **2**; the archive rule moves **247** leads out
+of every default list; **16** leads begin escalating that never have.
+
+Then the blocker. His completed-create outcome gate refuses a create without
+`completion_outcome` and `completion_note` when
+`compliance.policy.enforce_outcome_on_completion` is on — and it is **true on
+production**. `create-activity-modal.tsx` posts `status: "completed"` for call,
+email and WhatsApp and sent neither field, and it is still mounted in four
+places. Every rep logging a call would have got a 400 on the most common daily
+action in the CRM.
+
+Fixed in `79d933b` by mapping what the rep already supplies: the call tab
+requires an outcome and a summary, email requires a body, WhatsApp requires a
+message. `call.outcome` maps onto the activity outcomes; the required free text
+becomes the note. Email and WhatsApp record `successful` — deliberately a
+PIPELINE outcome, because every RELATIONSHIP outcome is treated as
+relationship-terminal by the next-step gate, so defaulting there would have
+silently exempted every logged email from the rule this deploy tightens.
+
+**It would not have shown on staging**: the new composer sends both fields and
+works fine. Only the old modal breaks.
+
+### 1784 is no longer a migration
+
+`3b9fe4f` cuts `CancelDuplicateMarchInvoices` from the deploy and replaces it
+with `db-ops/cancel-duplicate-march-invoices.sql`. Dry run against production:
+**6 pairs match** ($101,400 of invoice value, $49,700 of recorded payments),
+**2 skipped** — `INV-2026-0033` is "Mr Saiti S" and `INV-2026-0047` is
+"Mrs Chigumundu", not the schools the pair list names. The script prints both
+stragglers and totals the $35,100 left behind; the migration said nothing and
+did exactly this on staging on 24 Aug.
+
+### Two bug reports from Mr Dube, both held
+
+- **"Deploy pipeline builds from the wrong ref"** (23 Aug, High). His evidence
+  is sound, his diagnosis is not. `9a04225` was **deliberately deferred** on
+  21 Aug, not lost. What he actually found is that the deployed line and his
+  main share no history and his commits are ported selectively — a policy he was
+  never told about. His separate finding is real though: the client repo's
+  `staging` (19 May) and `current-deployable` (22 Jul) branches share no
+  ancestry with main and should go.
+- **"Deploy current main to production"** (25 Aug, Medium). Held. His 1772,
+  1773 and 1774 all collide with ours that have already run; a tip build strips
+  our 66 `scopeUserId` references; his expected figures (3,802 → 364 open rows,
+  ~230 archived) describe a different dataset than ours (713 scheduled, 272
+  flipped, 247 archived); and the outcome-gate blocker above. Also unresolved:
+  it ships "won/lost deals accepting activity logging" while the founder ruled
+  converted leads fully read-only.
+
 ## 1. What staging is actually running
 
 Verified 24 Aug by grepping the running containers, not by trusting the deploy log:
