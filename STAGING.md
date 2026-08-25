@@ -316,25 +316,29 @@ the wrong instrument.
    number + client + total, so both are left alone — **$35,100 of duplicate
    value stays on the books** and nothing reports it. Failing safe is right;
    failing *silently* is not.
-2. **Its premise about the money is false for two pairs.** The comment argues
-   payments landed on both copies as distinct transactions. Actual receipts:
+2. ~~Its premise about the money is false for two pairs.~~ **WRONG — retracted
+   25 Aug.** This claimed $34,100 of `amount_paid` sat on INV-2026-0030 and
+   INV-2026-0058 "with no payment rows behind it", on the strength of a query
+   that found zero payments against those invoice ids.
 
-   | Pair | Keep | Cancel |
-   |---|---|---|
-   | Herentials | 13,000 paid, 2 receipts | 18,500 paid, **0 receipts** |
-   | Corpus Christ | 15,600 paid, 1 receipt | 15,600 paid, **0 receipts** |
-   | Adelaide | 3,400 paid, 1 receipt | 3,900 paid, **2 receipts** |
-   | Ruware / TN Capital | mirrored, 1 each | mirrored, 1 each |
-   | Chiredzi | 0, none | 0, none |
+   Both are **parent invoices**. INV-2026-0030 has 2 instalment children and
+   INV-2026-0058 has 3, and each parent's `amount_paid` equals its children's
+   payments **to the cent** (15,600 and 18,500). `recalculateInvoicePaymentState`
+   derives a parent's figure from its children, so payments correctly sit on the
+   children, not the parent. The money is real and it reconciles.
 
-   **$34,100 of `amount_paid` sits on two production invoices with no payment
-   rows behind it** — the same class of fault as the false-Paid invoices, on
-   different rows. Adelaide's duplicate holds *more* receipts than the original,
-   so cancelling it leaves the survivor showing 3,400 of 3,900 owed by a school
-   with 7,300 in receipts across the two. That is a human reconciliation.
-3. **`down` is not a faithful inverse** — it restores status from `amount_paid`,
-   which for Herentials and Corpus Christ means restoring `Partially-Paid` from
-   a figure with nothing behind it.
+   A full sweep of both databases confirms it: **zero invoices anywhere carry
+   `amount_paid` with no payments behind them**, once parents are excluded.
+
+   The migration's premise was right and this criticism was not. The lesson is
+   the same one that keeps recurring here: a query returning zero is not a
+   finding until you have checked that the query asks the right question. This
+   one ignored the parent/child structure that the invoicing model is built on.
+
+   What DOES stand is the asymmetry: Adelaide's duplicate holds more receipts
+   than the original (3,900 across 2 against 3,400 across 1), so cancelling it
+   leaves the survivor showing 3,400 of 3,900 owed by a school with 7,300 in
+   receipts between the two. That is a human reconciliation.
 4. **A boot migration is the wrong vehicle for a money reconciliation.** It
    cannot be dry-run or rehearsed, it reports nothing, and if it throws the API
    crash-loops on boot — which has already happened here once, on the v25
@@ -489,10 +493,15 @@ Otherwise one of these hand re-applications will eventually miss a reference.
   **It predates the 21 Aug notification cleanup**, so it is a valid restore
   point for the 20th but not a current backup — take a fresh one before the
   next production data change. Instructions are in that folder's README.
-- Sweep the whole `invoices` table for `amount_paid` with no payment rows —
-  $34,100 found in a twelve-row sample.
-- Rewrite `CancelDuplicateMarchInvoices` as a db-ops script and cut it from the
-  port branch.
+- ~~Sweep the whole `invoices` table for `amount_paid` with no payment rows.~~
+  **Done 25 Aug — nothing found.** Both databases: zero invoices carry
+  `amount_paid` without payments behind them, once parent invoices (which
+  derive their figure from their instalment children) are excluded. The
+  $34,100 that prompted this was a bad query, not a fault — see §6.
+- ~~Rewrite `CancelDuplicateMarchInvoices` as a db-ops script and cut it from
+  the port branch.~~ **Done 25 Aug** — `3b9fe4f`. The migration is out of the
+  deploy; `db-ops/cancel-duplicate-march-invoices.sql` replaces it, reporting
+  every pair as MATCH or SKIPPED instead of half-completing in silence.
 - FU5 — the Nurture re-engage task stays open after the lead leaves Nurture.
 - Disqualification reasons shown nowhere: a reviewed implementation reportedly
   sits uncommitted in a working tree (`GET /leads/disqualification-summary` plus
