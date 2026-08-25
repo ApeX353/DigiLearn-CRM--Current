@@ -28,6 +28,36 @@ Branch `fix-wonlost-nan` off `prod-fixes-aug20`, two files:
 Nothing else went. The port, the migrations and the archive rule are still
 staging-only.
 
+### Committed on PRODUCTION, 25 Aug
+
+- **`ruvheneko-school-merge.sql`** — four school records became one. Production
+  had **4**, not staging's 3, and **two of them carried commercial history**
+  (5f78832e: 1 deal / 2 quotes / 4 invoices; 626db65e: 1 deal / 1 quote / 1
+  invoice), so this merged two deal histories rather than folding empty records
+  in. Survivor `5f78832e` now holds 4 leads, 5 contacts, 2 deals, 3 quotes, 5
+  invoices; three records soft-deleted. Every count reconciles, and
+  `primary_contacts_on_survivor = 1` — the one outcome the script's header
+  calls out as undefined behaviour if it goes wrong. Backup:
+  `ruvheneko_merge_backup`.
+- **`sla-history-tidy.sql`** — 57 open history rows closed (39 Disqualified +
+  18 Converted), 39 leads cleared of stale flags and clocks. The guard held:
+  `stale_rows_left_for_active_leads` came out **76, unchanged** — those rows
+  are what the escalation fallback reads. (76, not the 75 quoted earlier: that
+  figure came from the 20 Aug copy and live data has drifted by one row. The
+  counter covers New/Contacted/Qualified only, so Nurture's 34 rows are
+  deliberately excluded.) Backup: `sla_history_tidy_backup_20260821`.
+  **Expect dashboards to move** — SLA compliance % rises and breach counts drop
+  by up to 26, because those queries never filtered by lead status.
+
+**NOT run, by instruction:** `cancel-duplicate-march-invoices.sql`. The founder
+does not want the invoice work touched, so the $101,400 across 6 pairs stays as
+it is, and the two name-drifted pairs need no decision yet.
+
+**Both changes were committed without taking a fresh backup first** — the
+archived dump is still 20 Aug. Each script wrote its own backup table and
+carries an undo block, so the exposure is contained, but the sequencing was
+wrong and a current dump is still owed.
+
 ### The production push was simulated first, and it found a ship-blocker
 
 Every migration's own predicate was run against live production as read-only
