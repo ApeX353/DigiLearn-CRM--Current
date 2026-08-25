@@ -49,9 +49,31 @@ staging-only.
   **Expect dashboards to move** — SLA compliance % rises and breach counts drop
   by up to 26, because those queries never filtered by lead status.
 
-**NOT run, by instruction:** `cancel-duplicate-march-invoices.sql`. The founder
-does not want the invoice work touched, so the $101,400 across 6 pairs stays as
-it is, and the two name-drifted pairs need no decision yet.
+- **`cancel-duplicate-march-invoices.sql`** — **6 of 8 pairs cancelled**:
+  INV-2026-0021, 0028, 0030, 0036, 0041, 0058. **$101,400** of invoice value
+  removed from the double-count, carrying **$49,700** of recorded payments.
+  Rehearsal and commit produced identical numbers, and `cancelled_by_this_run`
+  came out at exactly 6. Nothing deleted — the invoices are `Cancelled`, the
+  payment rows stay attached where they landed, and `getInvoiceStats` excludes
+  Cancelled from the headline figures. Backup:
+  `invoice_dedupe_backup_20260825`.
+
+  **Reported sales value drops by $101,400.** That is the point — these were
+  counted twice since March — but it is a visible step change for anyone
+  watching the invoice figures.
+
+  **Still open:** the two skipped pairs keep **$35,100** of duplicate value on
+  the books. INV-2026-0033 is "Mr Saiti S" and INV-2026-0047 is
+  "Mrs Chigumundu", not the Chiredzi and Nyamhuka schools the pair list names.
+  Whether those are the same records under a person's name is a question for
+  the founder; the guard was deliberately not loosened to catch them.
+
+  Provenance worth remembering: the decision, the eight pairs and the
+  cancel-not-delete reasoning are **Mr Dube's**, from his migration
+  `1784000000000-CancelDuplicateMarchInvoices.ts`, and his commit records the
+  duplicates as "confirmed by the founder". What was added here is the db-ops
+  wrapper — dry run, backup, undo, and the MATCH/SKIPPED report that surfaced
+  the two pairs his version skipped in silence.
 
 **Both changes were committed without taking a fresh backup first** — the
 archived dump is still 20 Aug. Each script wrote its own backup table and
