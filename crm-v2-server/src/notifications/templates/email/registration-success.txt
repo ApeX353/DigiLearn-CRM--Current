@@ -1,0 +1,35 @@
+Welcome to {{appName}}!
+
+Hello {{name}},
+
+Thank you for registering with {{appName}}. Your account has been successfully created!
+
+Account Details:
+- Email: {{email}}
+- Username: {{username}}
+{{#role}}- Role: {{role}}{{/role}}
+- Registration Date: {{registrationDate}}
+
+{{#needsVerification}}
+IMPORTANT: Please verify your email address to activate your account.
+Verification Link: {{verificationLink}}
+{{/needsVerification}}
+
+{{^needsVerification}}
+You can now log in and start using {{appName}}!
+Login: {{loginLink}}
+{{/needsVerification}}
+
+Getting Started:
+- Complete your profile to personalize your experience
+- Explore our features and tools
+{{#hasOnboarding}}- Check out our getting started guide: {{onboardingLink}}{{/hasOnboarding}}
+- Contact support if you have any questions
+
+{{#supportEmail}}
+If you have any questions, feel free to reach out to our support team at {{supportEmail}}.
+{{/supportEmail}}
+
+---
+This is an automated message, please do not reply to this email.
+© {{year}} {{appName}}. All rights reserved.
