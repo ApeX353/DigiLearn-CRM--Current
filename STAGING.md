@@ -487,6 +487,7 @@ changed row backed up, undo block at the foot.
 | `cancel-duplicate-march-invoices.sql` | not run | **committed 25 Aug** — 6 invoices cancelled |
 | `bug-tracker-truth-2026-08-27.sql` | not run | **committed 27 Aug** — 4 tickets to `verification`, R9 raised to high, 9 descriptions corrected |
 | `password-expiry-reset-2026-08-27.sql` | not run | **committed 27 Aug** — 7 accounts moved off a lapsed 90-day clock (22/24 Aug → 25 Nov) |
+| `remove-zzverify-test-accounts-2026-08-27.sql` | not run | **committed 27 Aug** — 4 leftover test accounts removed; guard verified nothing owned |
 
 **Run long prod transactions server-side**, with output to a file on the box, so
 an SSH drop costs you the *report* and not the *work*. The interactive version
