@@ -484,6 +484,8 @@ changed row backed up, undo block at the foot.
 | `ruvheneko-school-merge.sql` | **committed 20 Aug** | not run (4 records there, not 3) |
 | `currency-relabel-zar-to-usd.sql` | **committed 24 Aug** | not run — 29 deals, $400,165 |
 | `sla-history-tidy.sql` | not run | rehearsed on a prod copy only |
+| `cancel-duplicate-march-invoices.sql` | not run | **committed 25 Aug** — 6 invoices cancelled |
+| `bug-tracker-truth-2026-08-27.sql` | not run | **committed 27 Aug** — 4 tickets to `verification`, R9 raised to high, 9 descriptions corrected |
 
 **Run long prod transactions server-side**, with output to a file on the box, so
 an SSH drop costs you the *report* and not the *work*. The interactive version
