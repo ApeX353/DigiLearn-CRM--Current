@@ -489,6 +489,48 @@ changed row backed up, undo block at the foot.
 | `password-expiry-reset-2026-08-27.sql` | not run | **committed 27 Aug** — 7 accounts moved off a lapsed 90-day clock (22/24 Aug → 25 Nov) |
 | `remove-zzverify-test-accounts-2026-08-27.sql` | not run | **committed 27 Aug** — 4 leftover test accounts removed; guard verified nothing owned |
 
+### 28 August — nine code fixes to production
+
+Shipped from `dube-aug2324` tip `87f1f96`. **No migrations** — nothing runs at
+boot, no schema change, no data mutation on deploy.
+
+| Commit | What it fixes |
+|---|---|
+| `dfc4b54` | payment minimum back to a cent (a port had reverted our hardening) |
+| `8e46ce8` | admin_support elevated in the disqualification guard |
+| `1aaa9a1` | deals advance again when a pipeline has retired stages |
+| `f773d6c` | a wrong 2FA code counts towards the lockout |
+| `0beb296` | a forced password change is enforced server-side |
+| `28678f1` | an expiring password warns instead of locking people out |
+| `9e84e24` | oversight staff removed from the sales scoreboards |
+| `1165ae0` | dashboard day starts at midnight Harare; target scales to the filter |
+| `87f1f96` | activities attributed to whoever owns the lead |
+
+**Pre-flight measured against production data, not assumed.** All four lockout
+risks came out at zero: no account flagged `requires_password_change`, none with
+2FA, none with an expired password, no payment at or below zero. The global
+PasswordChangeGuard therefore ships dormant, and starts working the first time
+the flag is genuinely used.
+
+**What visibly changes, and what to tell people:**
+
+- Rep Discipline drops Prince and shows 4 reps. He holds zero overdue, so the
+  board loses no work by removing him.
+- Overdue rises: manake 61 → 67, tanya 130 → 139. kim and busi unchanged.
+  **They have not got worse.** The work was always on their leads; the board
+  could not see it because those activities carry no assignee. Say this before
+  anyone reads the change as a performance drop.
+- The board now reconciles exactly: 139 + 87 + 67 + 30 + 3 = 326, matching the
+  headline. The 3 belong to a deactivated account. Zero truly unowned.
+- "Today" now means midnight-to-midnight Harare rather than 02:00-to-02:00.
+  Only 7 activities all-time (0.11%) sit in the band that moves.
+- Cash Collected on a one-day filter is judged against a day's share of the
+  monthly target instead of the whole month.
+
+**Not proven:** nobody has watched a *flagged* user actually be blocked by the
+password guard — that needs a real login. The logic is four lines and was read,
+not observed. Worth one manual check.
+
 **Run long prod transactions server-side**, with output to a file on the box, so
 an SSH drop costs you the *report* and not the *work*. The interactive version
 lost both, twice:
