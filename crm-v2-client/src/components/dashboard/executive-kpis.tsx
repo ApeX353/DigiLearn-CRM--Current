@@ -58,9 +58,14 @@ export function ExecutiveKPIs({ data, isLoading }: ExecutiveKPIsProps) {
     );
   }
 
+  // Compare cash against the target for the SELECTED window, not the whole
+  // month. On the Today filter the old form put one day's cash over a monthly
+  // target, so the card read "0% of target" every morning regardless of how
+  // the day went. Falls back to the monthly figure if the server is older.
+  const effectiveTarget = data.windowTarget ?? data.monthlyTarget;
   const targetProgress =
-    data.monthlyTarget > 0
-      ? Math.min((data.cashCollected / data.monthlyTarget) * 100, 100)
+    effectiveTarget > 0
+      ? Math.min((data.cashCollected / effectiveTarget) * 100, 100)
       : 0;
 
   const qualificationRate =
@@ -74,7 +79,7 @@ export function ExecutiveKPIs({ data, isLoading }: ExecutiveKPIsProps) {
     {
       title: "Cash Collected",
       value: nf(data.cashCollected),
-      subtitle: `Target ${nf(data.monthlyTarget)}`,
+      subtitle: `Target ${nf(effectiveTarget)}`,
       trend: {
         value: targetProgress,
         label: `${targetProgress.toFixed(0)}% of target`,

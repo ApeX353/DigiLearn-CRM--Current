@@ -287,6 +287,9 @@ export default function PipelineKanban({
         <div className="flex min-w-max gap-3 min-h-[36rem] pb-4 pr-4">
           {sortedStages.map((stage) => {
             const isSpecialColumn = specialStageNames.has(stage.name);
+            // A retired stage still holding deals is a read-only
+            // parking bay: you may drag work OUT of it, never back in.
+            const isRetiredColumn = stage.is_active === false;
             return (
               <div
                 key={stage.id}
@@ -301,11 +304,12 @@ export default function PipelineKanban({
                       color: stage.color,
                       sla_days: stage.sla_days,
                       probability: stage.probability,
+                      is_active: stage.is_active,
                     }}
                   />
                   <Droppable
                     droppableId={stage.name}
-                    isDropDisabled={isSpecialColumn}
+                    isDropDisabled={isSpecialColumn || isRetiredColumn}
                   >
                     {(provided, snapshot) => (
                       <div

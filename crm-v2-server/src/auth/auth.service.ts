@@ -42,7 +42,23 @@ export interface AuthResponse {
     last_name: string;
     roles: string[];
   };
+  /**
+   * Set ONLY when an admin or the seeder has forced a change. The client
+   * routes to /change-password and keeps the user there until it is done.
+   */
   requires_password_change?: boolean;
+  /**
+   * Advisory, never blocking. The 90-day timer is a reminder, not a gate:
+   * expiry used to be folded into requires_password_change, which pinned
+   * every user whose timer had quietly rolled over onto /change-password and
+   * left them unable to use the CRM. Negative days mean it lapsed that many
+   * days ago. The client shows a notice; login and every route stay open.
+   */
+  password_expiry?: {
+    expires_at: string;
+    days_remaining: number;
+    expired: boolean;
+  };
 }
 
 @Injectable()
@@ -232,6 +248,13 @@ export class AuthService {
         );
 
         if (!is2FAValid) {
+          // AUD-H03. A wrong PASSWORD has always counted towards the lockout;
+          // a wrong 2FA CODE did not, so the counter never moved and the
+          // account never locked. An attacker holding the password could sit
+          // on this branch and brute-force a six-digit TOTP indefinitely --
+          // and `window: 1` widens each guess to a 90-second window. Counting
+          // the failure here is what makes the second factor a factor.
+          await this.handleFailedLogin(accountSecurity, ipAddress);
           throw new UnauthorizedException(
             'Invalid two-factor authentication code',
           );
@@ -248,10 +271,15 @@ export class AuthService {
       await this.accountSecurityRepository.save(accountSecurity);
     }
 
-    // Check if password change is required (forced or expired)
-    const passwordExpired = this.checkPasswordExpired(accountSecurity);
-    const requiresPasswordChange =
-      accountSecurity.requires_password_change || passwordExpired;
+    // Forced change and password expiry are DIFFERENT things and no longer
+    // share a field. A forced change is somebody's decision and blocks; the
+    // 90-day timer is a reminder and must not. Folding them together meant
+    // that when the timer rolled over -- which it did for every account on
+    // 22 Aug, unnoticed -- the whole company was routed to /change-password
+    // and could not use the CRM until they changed a password nobody had
+    // asked them to change.
+    const requiresPasswordChange = accountSecurity.requires_password_change;
+    const passwordExpiry = this.describePasswordExpiry(accountSecurity);
 
     // Generate tokens and create session
     const authResponse = await this.createAuthResponse(
@@ -263,6 +291,10 @@ export class AuthService {
     // Add password change flag if required
     if (requiresPasswordChange) {
       authResponse.requires_password_change = true;
+    }
+    // Advisory only — the client shows a notice, nothing is blocked.
+    if (passwordExpiry) {
+      authResponse.password_expiry = passwordExpiry;
     }
 
     return authResponse;
@@ -719,6 +751,34 @@ export class AuthService {
       return false;
     }
     return accountSecurity.password_expires_at < new Date();
+  }
+
+  /**
+   * How the 90-day password timer stands, for the login response.
+   *
+   * Reported, never enforced. Returns null when the account has no expiry set
+   * at all, so an account without the policy says nothing rather than
+   * pretending to be in danger. `days_remaining` goes negative once the date
+   * has passed, which is how the client tells "expires in 5 days" from
+   * "expired 5 days ago" without a second field.
+   */
+  private describePasswordExpiry(
+    accountSecurity: AccountSecurity,
+  ): AuthResponse['password_expiry'] | null {
+    if (!accountSecurity.password_expires_at) {
+      return null;
+    }
+    const expiresAt = new Date(accountSecurity.password_expires_at);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    // Ceil so "expires later today" reads as 1 day left, not 0.
+    const daysRemaining = Math.ceil(
+      (expiresAt.getTime() - Date.now()) / msPerDay,
+    );
+    return {
+      expires_at: expiresAt.toISOString(),
+      days_remaining: daysRemaining,
+      expired: daysRemaining <= 0,
+    };
   }
 
   /**

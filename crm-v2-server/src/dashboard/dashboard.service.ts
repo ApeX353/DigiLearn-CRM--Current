@@ -9,6 +9,16 @@ import { Activity, ActivityType } from '../activities/entities/activity.entity';
 import { Stage } from '../pipelines/entities/stage.entity';
 import { LeadQualificationCriteria } from '../leads/entities/lead-qualification-criteria.entity';
 import { User } from '../users/entities/user.entity';
+import {
+  startOfBusinessDay,
+  endOfBusinessDay,
+  startOfBusinessMonth,
+  startOfBusinessQuarter,
+  startOfBusinessYear,
+  daysInBusinessMonth,
+  businessDaysSpanned,
+} from '../common/utils/business-day';
+import { excludeOversightRoles } from './sales-scoreboard-roster';
 import { DocumentItem } from '../document-items/entities/document-item.entity';
 import {
   DashboardFiltersDto,
@@ -75,58 +85,56 @@ export class DashboardService {
     const now = new Date();
     const range = (filters.dateRange || 'mtd') as DateRangeType;
 
+    // Every boundary is a HARARE calendar boundary expressed in UTC. These
+    // used to be `new Date(y, m, d)` — server local time — and the servers
+    // run UTC, so "Today" started at 02:00 Harare and the day's figures reset
+    // two hours late. See common/utils/business-day.ts.
     switch (range) {
       case 'today':
         return {
-          start: this.startOfDay(now),
-          end: this.endOfDay(now),
+          start: startOfBusinessDay(now),
+          end: endOfBusinessDay(now),
         };
       case 'mtd':
         return {
-          start: new Date(now.getFullYear(), now.getMonth(), 1),
-          end: this.endOfDay(now),
+          start: startOfBusinessMonth(now),
+          end: endOfBusinessDay(now),
         };
-      case 'qtd': {
-        const qMonth = Math.floor(now.getMonth() / 3) * 3;
+      case 'qtd':
         return {
-          start: new Date(now.getFullYear(), qMonth, 1),
-          end: this.endOfDay(now),
+          start: startOfBusinessQuarter(now),
+          end: endOfBusinessDay(now),
         };
-      }
       case 'ytd':
         return {
-          start: new Date(now.getFullYear(), 0, 1),
-          end: this.endOfDay(now),
+          start: startOfBusinessYear(now),
+          end: endOfBusinessDay(now),
         };
       case 'custom':
         return {
+          // A supplied date is a calendar date the user picked, so it is
+          // read as a Harare day, not a UTC one.
           start: filters.startDate
-            ? new Date(filters.startDate)
-            : new Date(now.getFullYear(), now.getMonth(), 1),
-          end: filters.endDate ? new Date(filters.endDate) : this.endOfDay(now),
+            ? startOfBusinessDay(new Date(filters.startDate))
+            : startOfBusinessMonth(now),
+          end: filters.endDate
+            ? endOfBusinessDay(new Date(filters.endDate))
+            : endOfBusinessDay(now),
         };
       default:
         return {
-          start: new Date(now.getFullYear(), now.getMonth(), 1),
-          end: this.endOfDay(now),
+          start: startOfBusinessMonth(now),
+          end: endOfBusinessDay(now),
         };
     }
   }
 
   private startOfDay(d: Date): Date {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return startOfBusinessDay(d);
   }
 
   private endOfDay(d: Date): Date {
-    return new Date(
-      d.getFullYear(),
-      d.getMonth(),
-      d.getDate(),
-      23,
-      59,
-      59,
-      999,
-    );
+    return endOfBusinessDay(d);
   }
 
   private formatDate(d: Date): string {
@@ -362,6 +370,21 @@ export class DashboardService {
     const expectedWinRate = await this.complianceSettings.getNumber(
       'expected_win_rate',
     );
+
+    // The setting is a MONTHLY figure, but the card is shown against whatever
+    // window the filter selects. Comparing one day's cash to a month's target
+    // reads as "0% of target" every morning, which is noise rather than
+    // information. Pro-rate it to the days the window actually covers, so
+    // Today is judged against a day's share and QTD/YTD against several
+    // months. MTD lands back on the full monthly figure, which is what people
+    // expect to see.
+    const windowTarget =
+      (monthlyTarget / daysInBusinessMonth(now)) *
+      businessDaysSpanned(start, end);
+
+    // Pipeline coverage answers "is there enough pipeline to hit target?",
+    // which is a forward-looking question about the MONTH regardless of the
+    // window being viewed — so it deliberately keeps the monthly figure.
     const requiredPipeline =
       expectedWinRate > 0 ? monthlyTarget / expectedWinRate : 0;
     const pipelineCoverageRatio =
@@ -423,7 +446,12 @@ export class DashboardService {
       pipelineCoverageRatio: Math.round(pipelineCoverageRatio * 10) / 10,
       overdueAmount,
       pipelineValue,
+      // Kept as-is: pipeline coverage and funnel health are monthly questions.
       monthlyTarget,
+      // The monthly target pro-rated to the selected window. The Cash
+      // Collected card compares against THIS, so "% of target" means
+      // something on a one-day view.
+      windowTarget: Math.round(windowTarget),
       qualification: {
         totalLeads: Number(qualStats?.total || 0),
         qualifiedLeads: Number(qualStats?.qualified || 0),
@@ -475,13 +503,15 @@ export class DashboardService {
 
     let repUsers: User[] = [];
     if (cohortRepIds.length > 0) {
-      repUsers = await this.userRepo
-        .createQueryBuilder('u')
-        // DISC2: hydrate roles so each rep's target is role-aware. Safe
-        // here — no take(), so not the eager-roles pagination trap.
-        .leftJoinAndSelect('u.roles', 'r')
-        .where('u.is_active = :active', { active: true })
-        .andWhere('u.id IN (:...repIds)', { repIds: cohortRepIds })
+      repUsers = await excludeOversightRoles(
+        this.userRepo
+          .createQueryBuilder('u')
+          // DISC2: hydrate roles so each rep's target is role-aware. Safe
+          // here — no take(), so not the eager-roles pagination trap.
+          .leftJoinAndSelect('u.roles', 'r')
+          .where('u.is_active = :active', { active: true })
+          .andWhere('u.id IN (:...repIds)', { repIds: cohortRepIds }),
+      )
         .orderBy('u.first_name', 'ASC')
         .addOrderBy('u.last_name', 'ASC')
         .addOrderBy('u.email', 'ASC')

@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, In } from 'typeorm';
 import { Stage } from './entities/stage.entity';
+import { Deal, DealCloseStatus } from '../deals/entities/deal.entity';
 import { Pipeline } from './entities/pipeline.entity';
 import { CreateStageDto } from './dto/create-stage.dto';
 import { UpdateStageDto } from './dto/update-stage.dto';
@@ -21,8 +22,47 @@ export class StagesService {
     private stageRepository: Repository<Stage>,
     @InjectRepository(Pipeline)
     private pipelineRepository: Repository<Pipeline>,
+    @InjectRepository(Deal)
+    private dealRepository: Repository<Deal>,
     private activityLogsService: ActivityLogsService,
   ) {}
+
+  /**
+   * A stage cannot be retired while deals are standing in it.
+   *
+   * Retiring a stage only flips `is_active`, and every board query asks
+   * for active stages only — so the column disappears while its deals
+   * stay put, invisible on the kanban but still counted in the pipeline
+   * header. Production hit exactly this: "Solution Proposal" was retired
+   * on 11 Aug 2026 holding 12 ongoing deals worth $148,200, which is why
+   * the header read $248,700 while the visible columns summed $100,500.
+   *
+   * Refuse instead, and say what has to move first. Closed deals (won or
+   * lost) don't block: they are history and the board doesn't show them
+   * in the live columns anyway.
+   */
+  private async assertStageIsEmptyOfLiveDeals(stage: Stage): Promise<void> {
+    const rows = await this.dealRepository
+      .createQueryBuilder('deal')
+      .select('COUNT(deal.id)', 'count')
+      .addSelect('COALESCE(SUM(deal.value), 0)', 'value')
+      .where('deal.current_stage_id = :stageId', { stageId: stage.id })
+      .andWhere('deal.close_status = :ongoing', {
+        ongoing: DealCloseStatus.ONGOING,
+      })
+      .getRawOne<{ count: string; value: string }>();
+
+    const count = Number(rows?.count ?? 0);
+    if (count === 0) return;
+
+    const value = Number(rows?.value ?? 0);
+    throw new ConflictException(
+      `"${stage.name}" still holds ${count} open deal${count === 1 ? '' : 's'}` +
+        ` worth ${value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}.` +
+        ' Move them to another stage first — retiring the stage now would hide them from the board' +
+        ' while they keep counting toward the pipeline value.',
+    );
+  }
 
   async findByPipeline(pipelineId: string): Promise<Stage[]> {
     // Verify pipeline exists
@@ -185,6 +225,10 @@ export class StagesService {
       order: stage.order,
       pipeline_id: pipelineId,
     };
+
+    // Deals standing in the stage must move first — see
+    // assertStageIsEmptyOfLiveDeals.
+    await this.assertStageIsEmptyOfLiveDeals(stage);
 
     // Soft delete
     stage.is_active = false;

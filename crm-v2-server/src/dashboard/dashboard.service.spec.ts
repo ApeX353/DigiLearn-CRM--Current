@@ -6,6 +6,7 @@ type QueryBuilderMock = {
   addSelect: jest.Mock;
   where: jest.Mock;
   andWhere: jest.Mock;
+  setParameter: jest.Mock;
   innerJoin: jest.Mock;
   leftJoin: jest.Mock;
   leftJoinAndSelect: jest.Mock;
@@ -27,6 +28,9 @@ function createQueryBuilderMock(options?: {
     addSelect: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
+    // Real QueryBuilder has it; the sales-roster filter chains onto
+    // andWhere(...).setParameter(...) the way TypeORM expects.
+    setParameter: jest.fn().mockReturnThis(),
     innerJoin: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
     leftJoinAndSelect: jest.fn().mockReturnThis(),

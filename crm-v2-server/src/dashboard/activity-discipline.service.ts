@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
 import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 import { Activity, ActivityType } from '../activities/entities/activity.entity';
 import { Lead } from '../leads/entities/lead.entity';
 import { Deal, DealCloseStatus } from '../deals/entities/deal.entity';
 import { DealStageHistory } from '../deals/entities/deal-stage-history.entity';
 import { User } from '../users/entities/user.entity';
+import {
+  startOfBusinessDay,
+  endOfBusinessDay,
+  startOfBusinessMonth,
+  startOfBusinessQuarter,
+  startOfBusinessYear,
+  BUSINESS_UTC_OFFSET_MS,
+} from '../common/utils/business-day';
+import { applySalesRosterFilter, OVERSIGHT_ROLES } from './sales-scoreboard-roster';
 import {
   DashboardFiltersDto,
   type DateRangeType,
@@ -59,7 +68,10 @@ const CONTACT_TYPES = [
 // carry a sales book belong here — sales reps and the sales managers who sell
 // (Kim, Manake, Tanya, Busi). Admins, admin_support and non-sales managers
 // (SG Sithole, Nkululeko, Prince) must NOT appear.
-const SALES_ROLES = ['sales_rep', 'sales_manager'];
+//
+// That rule now lives in sales-scoreboard-roster.ts and is enforced, rather
+// than only described here: a sales role alone was never enough, because it
+// is also how oversight staff are given sight of the sales product.
 
 // Threshold constants previously defined here (DEFAULT_DAILY_CONTACTS_TARGET,
 // STALE_LEAD_DAYS, STALE_DEAL_DAYS) have moved to ComplianceSettingsService
@@ -228,15 +240,10 @@ export class ActivityDisciplineService {
     // spans the Harare calendar day and match with BETWEEN rather than
     // the old `::date = CURRENT_DATE`, which used the UTC date and rolled
     // over two hours early for the team.
-    const HARARE_OFFSET_MS = 2 * 60 * 60 * 1000;
-    const harareNow = new Date(Date.now() + HARARE_OFFSET_MS);
-    const localDayStart = new Date(
-      Date.UTC(
-        harareNow.getUTCFullYear(),
-        harareNow.getUTCMonth(),
-        harareNow.getUTCDate(),
-      ) - HARARE_OFFSET_MS,
-    );
+    // This arithmetic used to be inline here and was the ONLY place that got
+    // the business day right; every filter around it was still on UTC days.
+    // It now comes from the shared helper so the whole dashboard agrees.
+    const localDayStart = startOfBusinessDay();
     const localDayEnd = new Date(
       localDayStart.getTime() + 24 * 60 * 60 * 1000,
     );
@@ -804,18 +811,80 @@ export class ActivityDisciplineService {
   }
 
   /** DISC2: count active users holding a given role. */
+  /**
+   * How many people on the SALES roster hold `roleName`.
+   *
+   * Feeds the team daily target, so it has to count the same cohort the team
+   * table lists. Counting everyone with the role instead let oversight staff
+   * who hold a sales role for access — prince@me.com — add a manager's daily
+   * quota to the bar that the actual reps are then measured against.
+   */
   private async countActiveWithRole(roleName: string): Promise<number> {
     return this.userRepo
       .createQueryBuilder('u')
-      .innerJoin('u.roles', 'r')
       .where('u.is_active = TRUE')
-      .andWhere('r.name = :roleName', { roleName })
+      .andWhere((sub) => {
+        const q = sub
+          .subQuery()
+          .select('ru.id')
+          .from(User, 'ru')
+          .innerJoin('ru.roles', 'rr')
+          .where('rr.name = :roleName')
+          .getQuery();
+        return `u.id IN ${q}`;
+      })
+      .andWhere((sub) => {
+        const q = sub
+          .subQuery()
+          .select('ou.id')
+          .from(User, 'ou')
+          .innerJoin('ou.roles', 'orl')
+          .where('orl.name IN (:...oversightRoles)')
+          .getQuery();
+        return `u.id NOT IN ${q}`;
+      })
+      .setParameter('roleName', roleName)
+      .setParameter('oversightRoles', [...OVERSIGHT_ROLES])
       .getCount();
   }
 
   // =========================================================
   // Per-rep table
   // =========================================================
+
+  /**
+   * Scope an activity query to the rep RESPONSIBLE for it.
+   *
+   * The responsible rep is the activity's assignee if it has one, otherwise
+   * whoever owns the record the activity sits on — the lead, or the deal.
+   * That is the business rule: a sales rep only ever sees their own leads, so
+   * work on a lead belongs to that lead's owner. Managers can see everybody's
+   * leads, which is exactly why "who touched it" is the wrong question and
+   * "whose book is it" is the right one.
+   *
+   * What this replaces, and why it mattered:
+   *   - credit (contacts, completions) used `assignee OR creator`. Measured
+   *     against real data that changes nothing at all, because reps only work
+   *     their own leads — creator and owner are the same person.
+   *   - overdue used the ASSIGNEE ALONE, and 93% of activities carry no
+   *     assignee. So overdue silently ignored most of the overdue work: the
+   *     board's headline said 163 while the rep rows summed to 124.
+   *
+   * The rows now reconcile with the headline, and the only items belonging to
+   * nobody are the ones that genuinely have no owner anywhere.
+   */
+  private ownedByRep<T extends SelectQueryBuilder<Activity>>(
+    qb: T,
+    uid: string,
+  ): T {
+    return qb
+      .leftJoin('leads', 'own_l', 'own_l.id = a.lead_id')
+      .leftJoin('deals', 'own_d', 'own_d.id = a.deal_id')
+      .andWhere(
+        'COALESCE(a.assigned_to_id, own_l.assigned_to, own_d.assigned_to) = :ownerUid',
+        { ownerUid: uid },
+      ) as T;
+  }
 
   private async computeRepRows(
     start: Date,
@@ -831,20 +900,9 @@ export class ActivityDisciplineService {
     // array for some rows, so the JS filter silently dropped EVERYONE on the
     // team view (the single-rep view happened to survive). The subquery has
     // no such dependency and is deterministic regardless of take().
-    const usersQb = this.userRepo
-      .createQueryBuilder('u')
-      .where('u.is_active = TRUE')
-      .andWhere((qb) => {
-        const sub = qb
-          .subQuery()
-          .select('su.id')
-          .from(User, 'su')
-          .innerJoin('su.roles', 'sr')
-          .where('sr.name IN (:...salesRoles)')
-          .getQuery();
-        return `u.id IN ${sub}`;
-      })
-      .setParameter('salesRoles', SALES_ROLES);
+    const usersQb = applySalesRosterFilter(
+      this.userRepo.createQueryBuilder('u').where('u.is_active = TRUE'),
+    );
     if (uid) usersQb.andWhere('u.id = :uid', { uid });
     // Limit the table width — team views are naturally capped at ~30
     // reps in this product, take 50 for safety.
@@ -876,25 +934,26 @@ export class ActivityDisciplineService {
   ): Promise<RepDisciplineRow> {
     const uid = user.id;
 
-    const completedBase = this.activityRepo
-      .createQueryBuilder('a')
-      .where('a.completed_at BETWEEN :s AND :e', { s: start, e: end })
-      .andWhere('a.type IN (:...types)', { types: ACTIONABLE_TYPES })
-      .andWhere("a.status = 'completed'")
-      .andWhere('(a.assigned_to_id = :u OR a.created_by_id = :u)', { u: uid });
+    const completedBase = this.ownedByRep(
+      this.activityRepo
+        .createQueryBuilder('a')
+        .where('a.completed_at BETWEEN :s AND :e', { s: start, e: end })
+        .andWhere('a.type IN (:...types)', { types: ACTIONABLE_TYPES })
+        .andWhere("a.status = 'completed'"),
+      uid,
+    );
 
     const [contacts, completed, withOutcome, nextStepCompliant, overdue] =
       await Promise.all([
-        this.activityRepo
-          .createQueryBuilder('a')
-          .where('a.completed_at BETWEEN :s AND :e', { s: start, e: end })
-          .andWhere('a.type IN (:...types)', { types: CONTACT_TYPES })
-          .andWhere("a.status = 'completed'")
-          .andWhere('a.completed_at IS NOT NULL')
-          .andWhere('(a.assigned_to_id = :u OR a.created_by_id = :u)', {
-            u: uid,
-          })
-          .getCount(),
+        this.ownedByRep(
+          this.activityRepo
+            .createQueryBuilder('a')
+            .where('a.completed_at BETWEEN :s AND :e', { s: start, e: end })
+            .andWhere('a.type IN (:...types)', { types: CONTACT_TYPES })
+            .andWhere("a.status = 'completed'")
+            .andWhere('a.completed_at IS NOT NULL'),
+          uid,
+        ).getCount(),
         completedBase.clone().getCount(),
         completedBase
           .clone()
@@ -919,14 +978,15 @@ export class ActivityDisciplineService {
             { nsTypes: ACTIONABLE_TYPES },
           )
           .getCount(),
-        this.activityRepo
-          .createQueryBuilder('a')
-          .where('a.type IN (:...types)', { types: ACTIONABLE_TYPES })
-          .andWhere("a.status NOT IN ('completed','cancelled')")
-          .andWhere('a.completed_at IS NULL')
-          .andWhere('a.due_at < NOW()')
-          .andWhere('a.assigned_to_id = :u', { u: uid })
-          .getCount(),
+        this.ownedByRep(
+          this.activityRepo
+            .createQueryBuilder('a')
+            .where('a.type IN (:...types)', { types: ACTIONABLE_TYPES })
+            .andWhere("a.status NOT IN ('completed','cancelled')")
+            .andWhere('a.completed_at IS NULL')
+            .andWhere('a.due_at < NOW()'),
+          uid,
+        ).getCount(),
       ]);
 
     // No-next-step records owned by this rep (leads + deals combined).
@@ -1043,41 +1103,43 @@ export class ActivityDisciplineService {
       case 'today':
         return { start: this.startOfDay(now), end };
       case 'wtd': {
-        // Week-to-date, week starts Monday (Zimbabwe convention).
-        const day = now.getDay(); // 0=Sun..6=Sat
-        const backToMonday = (day + 6) % 7;
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - backToMonday);
-        return { start: this.startOfDay(monday), end };
+        // Week-to-date, week starts Monday (Zimbabwe convention). The day of
+        // week has to be read in Harare too, or the week rolls over on the
+        // wrong day for anyone working late Sunday / early Monday.
+        const harare = new Date(now.getTime() + BUSINESS_UTC_OFFSET_MS);
+        const backToMonday = (harare.getUTCDay() + 6) % 7;
+        const monday = new Date(
+          now.getTime() - backToMonday * 24 * 60 * 60 * 1000,
+        );
+        return { start: startOfBusinessDay(monday), end };
       }
       case 'mtd':
-        return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
-      case 'qtd': {
-        const qm = Math.floor(now.getMonth() / 3) * 3;
-        return { start: new Date(now.getFullYear(), qm, 1), end };
-      }
+        return { start: startOfBusinessMonth(now), end };
+      case 'qtd':
+        return { start: startOfBusinessQuarter(now), end };
       case 'ytd':
-        return { start: new Date(now.getFullYear(), 0, 1), end };
+        return { start: startOfBusinessYear(now), end };
       case 'custom':
         return {
           start: f.startDate
-            ? new Date(f.startDate)
-            : new Date(now.getFullYear(), now.getMonth(), 1),
-          end: f.endDate ? new Date(f.endDate) : end,
+            ? startOfBusinessDay(new Date(f.startDate))
+            : startOfBusinessMonth(now),
+          end: f.endDate ? endOfBusinessDay(new Date(f.endDate)) : end,
         };
       default:
-        return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
+        return { start: startOfBusinessMonth(now), end };
     }
   }
 
+  // Harare calendar boundaries expressed in UTC — see
+  // common/utils/business-day.ts. These were `setHours(0,0,0,0)`, i.e. SERVER
+  // local time, and the servers run UTC, so every window here began at 02:00
+  // Harare. The "contacts today" KPI above already did this correctly on its
+  // own; now the whole service agrees with it.
   private startOfDay(d: Date): Date {
-    const n = new Date(d);
-    n.setHours(0, 0, 0, 0);
-    return n;
+    return startOfBusinessDay(d);
   }
   private endOfDay(d: Date): Date {
-    const n = new Date(d);
-    n.setHours(23, 59, 59, 999);
-    return n;
+    return endOfBusinessDay(d);
   }
 }

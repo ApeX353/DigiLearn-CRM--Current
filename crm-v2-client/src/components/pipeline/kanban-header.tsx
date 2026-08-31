@@ -12,6 +12,8 @@ interface KanbanHeaderProps {
     color: string;
     sla_days: number;
     probability: number;
+    /** false for a retired stage that still holds deals — see the board. */
+    is_active?: boolean;
   };
 }
 
@@ -72,9 +74,20 @@ export function KanbanHeader({ deals, stage }: KanbanHeaderProps) {
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <h3
           className="text-sm font-semibold tracking-tight truncate"
-          title={stage.name}
+          title={
+            stage.is_active === false
+              ? `${stage.name} — this stage was retired while these deals were still in it`
+              : stage.name
+          }
         >
           {stage.name}
+          {/* A retired stage still holding deals: the column exists only
+              so the work inside it is visible and can be moved out. */}
+          {stage.is_active === false && (
+            <span className="ml-1.5 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+              Retired — move these
+            </span>
+          )}
         </h3>
         <span className="text-xs font-medium text-muted-foreground tabular shrink-0">
           {count} {count === 1 ? "deal" : "deals"}

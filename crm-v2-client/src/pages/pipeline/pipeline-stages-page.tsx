@@ -154,12 +154,47 @@ export default function PipelineStagesPage() {
       stageMap.set(stage.name, []);
     }
 
-    // Group deals into stages
+    // Group deals into stages. A deal whose stage is NOT in the active
+    // list is not dropped — it is collected so a retired column can be
+    // rendered for it below. Silently skipping them is what let a
+    // retired stage hide 12 open deals worth $148,200 while the pipeline
+    // header kept counting them: the board summed $100,500 and the header
+    // read $248,700, and nobody could see the difference.
+    const strandedByStage = new Map<string, { stage: Stage; deals: Deal[] }>();
     for (const deal of deals) {
       const stage = stages.find((s) => s.id === deal.current_stage_id);
       if (stage) {
         stageMap.get(stage.name)?.push(deal);
+        continue;
       }
+      const stageId = deal.current_stage_id;
+      if (!stageId) continue;
+      const existing = strandedByStage.get(stageId);
+      if (existing) {
+        existing.deals.push(deal);
+        continue;
+      }
+      // The deals API embeds the stage row, so a retired column can be
+      // drawn with its real name, colour and order even though the
+      // active-stages endpoint no longer returns it.
+      const embedded = (deal as Deal & { current_stage?: Stage })
+        .current_stage;
+      strandedByStage.set(stageId, {
+        stage: {
+          ...(embedded ?? ({} as Stage)),
+          id: stageId,
+          pipeline_id: selectedPipelineId || "",
+          name: embedded?.name || deal.currentStatus || "Retired stage",
+          order: embedded?.order ?? 0,
+          sla_days: 0,
+          probability: embedded?.probability ?? 0,
+          color: embedded?.color || "#94a3b8",
+          is_active: false,
+          created_at: embedded?.created_at || "",
+          updated_at: embedded?.updated_at || "",
+        } as Stage,
+        deals: [deal],
+      });
     }
 
     const regularStages = stages.map((stage) => ({
@@ -167,8 +202,14 @@ export default function PipelineStagesPage() {
       deals: stageMap.get(stage.name) || [],
     }));
 
+    // Retired-but-occupied columns sit at the end of the live board, in
+    // stage order, so the work in them is visible and can be dragged out.
+    const retiredStages = [...strandedByStage.values()]
+      .sort((a, b) => a.stage.order - b.stage.order)
+      .map(({ stage, deals: stageDeals }) => ({ ...stage, deals: stageDeals }));
+
     if (!showWonLost) {
-      return regularStages;
+      return [...regularStages, ...retiredStages];
     }
 
     const wonDeals: Deal[] = [];
@@ -194,6 +235,7 @@ export default function PipelineStagesPage() {
 
     return [
       ...regularStages,
+      ...retiredStages,
       {
         id: "__won",
         pipeline_id: selectedPipelineId || "",

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 import { apiClient, apiClientAuth, handleApiError } from '~/api/axios'
 import { useAuthStore, type User } from '~/stores/use-auth-store'
 import type {
@@ -61,6 +62,39 @@ const authApi = {
     apiClientAuth.post('/auth/2fa/regenerate-backup-codes').then((res) => res.data),
 }
 
+/** Warn this many days ahead of the 90-day password expiry. */
+const PASSWORD_EXPIRY_WARNING_DAYS = 14
+
+/**
+ * Tell the user their password is ageing, without ever getting in their way.
+ *
+ * Stays quiet until the last two weeks, so it does not become noise people
+ * learn to dismiss without reading. Once the date has passed it keeps saying
+ * so on every login — nagging is the whole point at that stage — but it still
+ * never blocks anything.
+ */
+function notifyPasswordExpiry(
+  expiry: AuthResponse['password_expiry'],
+  onChangeNow: () => void,
+) {
+  if (!expiry) return
+
+  const { days_remaining: days, expired } = expiry
+  if (!expired && days > PASSWORD_EXPIRY_WARNING_DAYS) return
+
+  const message = expired
+    ? days === 0
+      ? 'Your password expires today'
+      : `Your password expired ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago`
+    : `Your password expires in ${days} day${days === 1 ? '' : 's'}`
+
+  toast.warning(message, {
+    description: 'You can keep working. Change it when it suits you.',
+    duration: expired ? 10000 : 6000,
+    action: { label: 'Change now', onClick: onChangeNow },
+  })
+}
+
 // Hooks
 export function useLogin() {
   const navigate = useNavigate()
@@ -81,11 +115,22 @@ export function useLogin() {
         data.requires_password_change
       )
 
+      // A FORCED change is the only thing that takes over the session.
       if (data.requires_password_change) {
         navigate('/change-password')
-      } else {
-        navigate('/')
+        return
       }
+
+      navigate('/')
+
+      // Password expiry is a reminder, not a gate. It used to share the flag
+      // above, so once the 90-day timer rolled over — which it did for every
+      // account at once — people were dumped on /change-password and could
+      // not use the CRM. Tell them, let them get on with their work, and give
+      // them a one-click route to fix it when they choose.
+      notifyPasswordExpiry(data.password_expiry, () =>
+        navigate('/change-password'),
+      )
     },
   })
 }

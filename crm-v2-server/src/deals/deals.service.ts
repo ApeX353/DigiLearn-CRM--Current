@@ -1908,15 +1908,34 @@ export class DealsService {
     const stageName = this.normalizeStageName(targetStage.name);
     const terminalKind = this.getTerminalStageKind(targetStage.name);
     const currentOrder = Number(deal.current_stage?.order ?? 0);
-    const targetOrder = Number(targetStage.order ?? 0);
-    if (
-      currentOrder > 0 &&
-      targetOrder > currentOrder + 1 &&
-      terminalKind !== DealCloseStatus.LOST
-    ) {
-      throw new BadRequestException(
-        `Deal stage cannot skip from "${deal.current_stage?.name}" to "${targetStage.name}". Move through the required intermediate stage first.`,
-      );
+    if (currentOrder > 0 && terminalKind !== DealCloseStatus.LOST) {
+      // "One stage at a time" has to be measured against the stages a rep can
+      // actually move THROUGH, i.e. the active ones. Comparing raw `order`
+      // numbers counted retired stages as though they were still steps on the
+      // board, and that silently stranded deals: production's Sales Pipeline
+      // has stages 2-4 deactivated, so from "Demo Booked" (order 1) the next
+      // reachable stage is "Procurement Process" (order 5). 5 > 1+1 tripped
+      // this guard, and the intermediate stages it told the rep to use no
+      // longer exist. The deal could not be advanced at all, by anyone.
+      const activeStages = await manager.find(Stage, {
+        where: { pipeline_id: deal.pipeline_id, is_active: true },
+        order: { order: 'ASC' },
+      });
+
+      const targetIndex = activeStages.findIndex((s) => s.id === targetStage.id);
+      // A deal parked on a since-retired stage rejoins at the next active
+      // stage after it, so anchor on the last active stage at or before it.
+      const currentIndex = deal.current_stage?.is_active
+        ? activeStages.findIndex((s) => s.id === deal.current_stage.id)
+        : activeStages.filter((s) => Number(s.order) < currentOrder).length - 1;
+
+      if (targetIndex > -1 && targetIndex > currentIndex + 1) {
+        const nextStage = activeStages[currentIndex + 1];
+        throw new BadRequestException(
+          `Deal stage cannot skip from "${deal.current_stage?.name}" to "${targetStage.name}".` +
+            (nextStage ? ` Move it to "${nextStage.name}" first.` : ''),
+        );
+      }
     }
 
     if (terminalKind === DealCloseStatus.LOST && !notes?.trim()) {

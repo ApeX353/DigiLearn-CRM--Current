@@ -15,8 +15,17 @@ function createGateQueryBuilder(options?: { count?: number; rawOne?: unknown }) 
   };
 }
 
-function createGateManager(builders: Array<ReturnType<typeof createGateQueryBuilder>>) {
+/**
+ * `stages` is the pipeline's ACTIVE stage list, ascending by order. The skip
+ * guard measures adjacency against this rather than against raw order numbers,
+ * so every gate test has to say what the board actually looks like.
+ */
+function createGateManager(
+  builders: Array<ReturnType<typeof createGateQueryBuilder>>,
+  stages: Array<{ id: string; name: string; order: number }> = [],
+) {
   return {
+    find: jest.fn().mockResolvedValue(stages),
     createQueryBuilder: jest.fn(() => {
       const builder = builders.shift();
       if (!builder) {
@@ -48,21 +57,94 @@ describe('DealsService', () => {
     const deal = {
       id: 'deal-skip',
       current_stage_id: 'stage-current',
-      current_stage: { id: 'stage-current', name: 'Demo Booked', order: 1 },
+      current_stage: {
+        id: 'stage-current',
+        name: 'Demo Booked',
+        order: 1,
+        is_active: true,
+      },
     };
-    const targetStage = {
-      id: 'stage-target',
-      name: 'PO Issued',
-      order: 3,
-    };
+    const targetStage = { id: 'stage-target', name: 'PO Issued', order: 3 };
 
     await expect(
       (service as any).assertStageGateEvidence(
-        createGateManager([]),
+        createGateManager([], [
+          { id: 'stage-current', name: 'Demo Booked', order: 1 },
+          { id: 'stage-middle', name: 'Quote Submitted', order: 2 },
+          { id: 'stage-target', name: 'PO Issued', order: 3 },
+        ]),
         deal,
         targetStage,
       ),
     ).rejects.toThrow('Deal stage cannot skip');
+  });
+
+  // The regression this guard actually caused in production: deactivating the
+  // middle of a pipeline left gaps in `order`, and the old raw-number check
+  // read a one-step move as a skip. Production's board jumps 1 -> 5, and the
+  // single deal on "Demo Booked" could not be advanced by anyone.
+  it('allows a one-step move even when the order numbers are not consecutive', async () => {
+    const deal = {
+      id: 'deal-gap',
+      lead_id: 'lead-gap',
+      current_stage_id: 'stage-demo-booked',
+      current_stage: {
+        id: 'stage-demo-booked',
+        name: 'Demo Booked',
+        order: 1,
+        is_active: true,
+      },
+    };
+    const targetStage = {
+      id: 'stage-procurement',
+      name: 'Procurement Process',
+      order: 5,
+    };
+
+    await expect(
+      (service as any).assertStageGateEvidence(
+        createGateManager([], [
+          { id: 'stage-demo-booked', name: 'Demo Booked', order: 1 },
+          { id: 'stage-procurement', name: 'Procurement Process', order: 5 },
+          { id: 'stage-contract', name: 'Contract Finalization', order: 6 },
+        ]),
+        deal,
+        targetStage,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  // Five production deals sit on "Solution Proposal", which has since been
+  // retired. They must be able to rejoin the board at the next active stage.
+  it('lets a deal parked on a retired stage rejoin at the next active stage', async () => {
+    const deal = {
+      id: 'deal-retired',
+      lead_id: 'lead-retired',
+      current_stage_id: 'stage-retired',
+      current_stage: {
+        id: 'stage-retired',
+        name: 'Solution Proposal',
+        order: 4,
+        is_active: false,
+      },
+    };
+    const targetStage = {
+      id: 'stage-procurement',
+      name: 'Procurement Process',
+      order: 5,
+    };
+
+    await expect(
+      (service as any).assertStageGateEvidence(
+        createGateManager([], [
+          { id: 'stage-demo-booked', name: 'Demo Booked', order: 1 },
+          { id: 'stage-procurement', name: 'Procurement Process', order: 5 },
+          { id: 'stage-contract', name: 'Contract Finalization', order: 6 },
+        ]),
+        deal,
+        targetStage,
+      ),
+    ).resolves.toBeUndefined();
   });
 
   it('blocks Demo Booked without scheduled demo evidence', async () => {

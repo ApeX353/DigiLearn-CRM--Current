@@ -597,7 +597,6 @@ export class LeadsController {
     @Body('status') status: string,
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
-    @CurrentUser() currentUser: { roles?: Array<{ name: string }> },
   ) {
     // Disqualification is not a plain status flip (Mr Dube, 5142631). The
     // founder's rule is that reps need a manager's approval to kill a lead, and
@@ -606,9 +605,13 @@ export class LeadsController {
     // rep with no reason and no approval — a straight bypass of the control.
     // Every other transition a rep makes here (Contacted, Nurture, Converted)
     // is untouched.
-    const roles = (currentUser?.roles || []).map((r) => r.name);
-    const isManagerOrAdmin =
-      roles.includes('admin') || roles.includes('sales_manager');
+    // Use the DERIVED role, not the raw role names. jwt.strategy already
+    // resolves admin_support to an effective 'admin' (AUD-H06: the shortcut
+    // has to work at every layer, not just one), and RolesGuard does the same
+    // through ROLE_ALIASES. Re-deriving from currentUser.roles here re-created
+    // exactly the bug AUD-H06 fixed: admin_support is elevated everywhere else
+    // in the system but was refused this endpoint.
+    const isManagerOrAdmin = role === 'admin' || role === 'sales_manager';
     if (status === 'Disqualified' && !isManagerOrAdmin) {
       throw new ForbiddenException(
         'Disqualifying a lead requires the Disqualify action, which records a reason — tactical reasons need manager approval.',

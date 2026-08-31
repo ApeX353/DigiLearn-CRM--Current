@@ -6,6 +6,15 @@ import { Lead } from '../leads/entities/lead.entity';
 import { Deal, DealCloseStatus } from '../deals/entities/deal.entity';
 import { LeadReversalRequest } from '../leads/entities/lead-reversal-request.entity';
 import { User } from '../users/entities/user.entity';
+import {
+  startOfBusinessDay,
+  endOfBusinessDay,
+  startOfBusinessMonth,
+  startOfBusinessQuarter,
+  startOfBusinessYear,
+  BUSINESS_UTC_OFFSET_MS,
+} from '../common/utils/business-day';
+import { applySalesRosterFilter } from './sales-scoreboard-roster';
 import { ComplianceSettingsService } from '../settings/compliance-settings.service';
 import {
   DashboardFiltersDto,
@@ -33,8 +42,8 @@ const ACTIONABLE_TYPES: ActivityType[] = [
 
 // Compliance scoring is a SALES report (TEST-BACKLOG #15/#11): score only the
 // people who carry a sales book. Admins/admin_support/non-sales managers must
-// not appear or skew the org totals.
-const SALES_ROLES = ['sales_rep', 'sales_manager'];
+// not appear or skew the org totals. Enforced by the shared roster filter —
+// see sales-scoreboard-roster.ts for why a sales role alone is not the test.
 
 export interface ComplianceReportRepRow {
   user_id: string;
@@ -115,20 +124,9 @@ export class ComplianceReportService {
     // .take() pagination trap where a to-many join makes TypeORM hydrate
     // `roles` as an empty array for some rows, silently dropping reps
     // (see activity-discipline.service for the full write-up).
-    const users = await this.userRepo
-      .createQueryBuilder('u')
-      .where('u.is_active = TRUE')
-      .andWhere((qb) => {
-        const sub = qb
-          .subQuery()
-          .select('su.id')
-          .from(User, 'su')
-          .innerJoin('su.roles', 'sr')
-          .where('sr.name IN (:...salesRoles)')
-          .getQuery();
-        return `u.id IN ${sub}`;
-      })
-      .setParameter('salesRoles', SALES_ROLES)
+    const users = await applySalesRosterFilter(
+      this.userRepo.createQueryBuilder('u').where('u.is_active = TRUE'),
+    )
       .take(200)
       .getMany();
 
@@ -342,39 +340,39 @@ export class ComplianceReportService {
       case 'today':
         return { start: this.startOfDay(now), end };
       case 'wtd': {
-        const day = now.getDay();
-        const backToMonday = (day + 6) % 7;
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - backToMonday);
-        return { start: this.startOfDay(monday), end };
+        // Day of week read in Harare, or the week rolls over on the wrong day.
+        const harare = new Date(now.getTime() + BUSINESS_UTC_OFFSET_MS);
+        const backToMonday = (harare.getUTCDay() + 6) % 7;
+        const monday = new Date(
+          now.getTime() - backToMonday * 24 * 60 * 60 * 1000,
+        );
+        return { start: startOfBusinessDay(monday), end };
       }
       case 'mtd':
-        return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
-      case 'qtd': {
-        const qm = Math.floor(now.getMonth() / 3) * 3;
-        return { start: new Date(now.getFullYear(), qm, 1), end };
-      }
+        return { start: startOfBusinessMonth(now), end };
+      case 'qtd':
+        return { start: startOfBusinessQuarter(now), end };
       case 'ytd':
-        return { start: new Date(now.getFullYear(), 0, 1), end };
+        return { start: startOfBusinessYear(now), end };
       case 'custom':
         return {
           start: f.startDate
-            ? new Date(f.startDate)
-            : new Date(now.getFullYear(), now.getMonth(), 1),
-          end: f.endDate ? new Date(f.endDate) : end,
+            ? startOfBusinessDay(new Date(f.startDate))
+            : startOfBusinessMonth(now),
+          end: f.endDate ? endOfBusinessDay(new Date(f.endDate)) : end,
         };
       default:
-        return { start: new Date(now.getFullYear(), now.getMonth(), 1), end };
+        return { start: startOfBusinessMonth(now), end };
     }
   }
+
+  // Harare calendar boundaries in UTC — see common/utils/business-day.ts.
+  // The compliance report must agree with the dashboard it mirrors, or the
+  // same rep is scored over two different windows depending on the screen.
   private startOfDay(d: Date): Date {
-    const n = new Date(d);
-    n.setHours(0, 0, 0, 0);
-    return n;
+    return startOfBusinessDay(d);
   }
   private endOfDay(d: Date): Date {
-    const n = new Date(d);
-    n.setHours(23, 59, 59, 999);
-    return n;
+    return endOfBusinessDay(d);
   }
 }

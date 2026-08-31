@@ -52,6 +52,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           'roles',
           'roles.rolePermissions',
           'roles.rolePermissions.permission',
+          // AUD-H02: joined onto the query that already runs rather than
+          // fetched separately, so enforcing the password-change rule costs
+          // no extra round trip per request.
+          'account_security',
         ],
       });
 
@@ -88,6 +92,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             ? 'sales_manager'
             : (roleNames[0] ?? null);
 
+      // AUD-H02: a user who owes a password change keeps a fully valid
+      // session, so the condition has to be re-read per request and enforced
+      // server-side (PasswordChangeGuard). It is NOT a JWT claim on purpose:
+      // an admin can set the flag on an account that is already signed in,
+      // and a claim would stay stale until the token was refreshed.
+      //
+      // ENFORCES THE EXPLICIT FLAG ONLY, not password expiry, and that is a
+      // deliberate limit. Login treats `requires_password_change || expired`
+      // as one condition, but they are not the same risk: the flag is set on
+      // purpose by an admin or the seeder, whereas expiry is a 90-day timer
+      // that rolls over on its own. On production every active account is
+      // ALREADY past its expiry (set at registration in late May, elapsed
+      // 22 Aug) -- enforcing that here would have locked the whole company
+      // out of the entire API in one deploy, with no warning.
+      //
+      // Expiry stays what it is today: a flag on the login response that the
+      // client acts on by routing to /change-password. Making it a hard block
+      // is a policy decision that needs its own rollout, not a side effect of
+      // closing AUD-H02.
+      const accountSecurity = user.account_security;
+      const requiresPasswordChange =
+        !!accountSecurity?.requires_password_change;
+
       // Return user object that will be attached to request
       return {
         id: user.id,
@@ -97,6 +124,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role,
         roles: user.roles,
         sessionId: payload.sessionId,
+        requiresPasswordChange,
       };
     } catch (err) {
       // Genuine auth failures stay 401. A transient DB/connection error must

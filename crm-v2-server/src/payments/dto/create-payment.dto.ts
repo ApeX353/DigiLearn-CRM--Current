@@ -16,9 +16,16 @@ export class CreatePaymentDto {
   @IsNotEmpty()
   invoice_id: string;
 
-  @ApiProperty({ example: 500.0, minimum: 0 })
+  /**
+   * A receipt records money that actually moved, so the smallest payment
+   * that can be recorded is one cent. Zero is not a payment — it is either
+   * a mistake or an adjustment, and an adjustment belongs on the invoice,
+   * not in the payment ledger where it would show as a receipt against the
+   * bank statement with no matching line.
+   */
+  @ApiProperty({ example: 500.0, minimum: 0.01 })
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @Min(0.01)
   amount: number;
 
   @ApiProperty({ example: '2026-01-30T00:00:00.000Z' })

@@ -26,7 +26,15 @@ export interface ExecutiveKPIs {
   pipelineCoverageRatio: number;
   overdueAmount: number;
   pipelineValue: number;
+  /** The configured MONTHLY target. Use for pipeline coverage / funnel health. */
   monthlyTarget: number;
+  /**
+   * The monthly target pro-rated to the selected date filter. Use this for
+   * "cash collected vs target" — comparing one day's cash against a whole
+   * month's target reads as 0% every morning and tells nobody anything.
+   * Optional so an older server that does not send it still renders.
+   */
+  windowTarget?: number;
   qualification: {
     totalLeads: number;
     qualifiedLeads: number;

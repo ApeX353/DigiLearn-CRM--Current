@@ -22,6 +22,7 @@ import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { SkipRolesCheck } from './decorators/skip-roles-check.decorator';
+import { AllowPendingPasswordChange } from './decorators/allow-pending-password-change.decorator';
 import { LoginDto } from './dto/login.dto';
 import {
   RequestPasswordResetDto,
@@ -187,6 +188,7 @@ export class AuthController {
 
   @Public()
   @SkipRolesCheck()
+  @AllowPendingPasswordChange()
   @Get('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -229,6 +231,7 @@ export class AuthController {
   }
 
   @SkipRolesCheck()
+  @AllowPendingPasswordChange()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('JWT-auth')
@@ -261,6 +264,7 @@ export class AuthController {
   }
 
   @SkipRolesCheck()
+  @AllowPendingPasswordChange()
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('JWT-auth')
@@ -346,6 +350,7 @@ export class AuthController {
   }
 
   @SkipRolesCheck()
+  @AllowPendingPasswordChange()
   @Post('password/change')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')
@@ -384,6 +389,7 @@ export class AuthController {
   }
 
   @SkipRolesCheck()
+  @AllowPendingPasswordChange()
   @Get('profile')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({

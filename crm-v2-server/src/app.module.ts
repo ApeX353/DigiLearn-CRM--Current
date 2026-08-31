@@ -18,6 +18,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { ApiKeyGuard } from './auth/guards/api-key.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { PasswordChangeGuard } from './auth/guards/password-change.guard';
 import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 import { PipelinesModule } from './pipelines/pipelines.module';
 import { ActivityLogsModule } from './activity-logs/activity-logs.module';
@@ -133,6 +134,13 @@ import { NotificationsGatewayModule } from './notifications/notifications-gatewa
     {
       provide: APP_GUARD,
       useClass: RolesGuard,
+    },
+    // AUD-H02: last, so it only ever speaks about a request that has already
+    // authenticated. A user who owes a password change is refused everything
+    // except the few routes that let them fix it.
+    {
+      provide: APP_GUARD,
+      useClass: PasswordChangeGuard,
     },
   ],
 })

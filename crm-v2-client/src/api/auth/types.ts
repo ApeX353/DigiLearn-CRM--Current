@@ -23,7 +23,16 @@ export interface AuthResponse {
     roles: string[];
     avatar_url: string;
   };
+  /** Forced by an admin or the seeder. Blocks: the user is held on
+   *  /change-password until it is done. */
   requires_password_change?: boolean;
+  /** The 90-day timer. ADVISORY ONLY — show a notice, never redirect.
+   *  days_remaining goes negative once the date has passed. */
+  password_expiry?: {
+    expires_at: string;
+    days_remaining: number;
+    expired: boolean;
+  };
 }
 
 export interface RefreshTokenRequest {
