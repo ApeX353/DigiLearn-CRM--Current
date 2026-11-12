@@ -1,0 +1,20 @@
+export const CHURCH_DENOMINATIONS = [
+  "Roman Catholic",
+  "Anglican",
+  "Seventh-Day Adventist (SDA)",
+  "Methodist",
+  "Evangelical Lutheran (ELCZ)",
+  "Brethren in Christ (BICC)",
+  "Salvation Army",
+  "Reformed Church in Zimbabwe (RCZ)",
+  "Dutch Reformed Church (DRC / NG Kerk)",
+  "United Methodist Church",
+  "Apostolic Faith Mission (AFM)",
+  "ZAOGA / FIF",
+  "Church of Christ",
+  "Johane Marange Apostolic",
+  "Johane Masowe Apostolic",
+  "Other Christian Mission",
+  "Other",
+] as const;
+export type ChurchDenomination = (typeof CHURCH_DENOMINATIONS)[number];

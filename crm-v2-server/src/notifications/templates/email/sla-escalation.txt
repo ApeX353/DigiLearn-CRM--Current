@@ -1,0 +1,18 @@
+SLA BREACH ESCALATION
+
+Hi {{name}},
+
+A lead has been in SLA breach and requires immediate attention:
+
+Lead: {{leadName}}
+Current Status: {{status}}
+Breach Duration: {{breachDuration}}
+Assigned To: {{assigneeName}}
+
+Please take action immediately to resolve this breach.
+
+View Lead: {{actionUrl}}
+
+---
+This is an automated escalation from {{appName}}.
+(c) {{year}} {{appName}}. All rights reserved.
