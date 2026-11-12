@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quotation from {{companyName}}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .details {
+            background-color: #ffffff;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .details table {
+            width: 100%;
+        }
+        .details td {
+            padding: 5px 0;
+        }
+        .details td:first-child {
+            color: #666;
+        }
+        .details td:last-child {
+            text-align: right;
+            font-weight: bold;
+        }
+        .total {
+            font-size: 18px;
+            color: #1a73e8;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Quotation from {{companyName}}</h1>
+        </div>
+
+        <p>Dear {{clientName}},</p>
+
+        <p>Please find attached quotation <strong>{{documentNumber}}</strong> for your review.</p>
+
+        <div class="details">
+            <table>
+                <tr>
+                    <td>Quote Number:</td>
+                    <td>{{documentNumber}}</td>
+                </tr>
+                <tr>
+                    <td>Total:</td>
+                    <td class="total">{{total}}</td>
+                </tr>
+                {{#validUntil}}
+                <tr>
+                    <td>Valid Until:</td>
+                    <td>{{validUntil}}</td>
+                </tr>
+                {{/validUntil}}
+            </table>
+        </div>
+
+        <p>If you have any questions or would like to proceed, please don't hesitate to contact us.</p>
+
+        <p>We look forward to hearing from you.</p>
+
+        <p>Kind regards,<br>{{companyName}}</p>
+
+        <div class="footer">
+            <p>This is an automated message. The quotation document is attached to this email.</p>
+            <p>&copy; {{year}} {{companyName}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

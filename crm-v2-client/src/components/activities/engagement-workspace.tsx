@@ -1,0 +1,687 @@
+/**
+ * Engagement workspace — the activity area that lives on every record
+ * detail page (lead / deal / school / contact).
+ *
+ *   ┌─ PLANNED ────────────────────────────────────────────────┐
+ *   │  Next planned activity card with subject, due, owner,    │
+ *   │  related context, and quick actions (complete / open).   │
+ *   │  Empty state prompts the rep to schedule the next move.  │
+ *   └──────────────────────────────────────────────────────────┘
+ *   ┌─ DONE ──────────────────────────────────────────────────┐
+ *   │  One unified filter row (Content · Type · Audit groups). │
+ *   │  Feed of completed history, ordered by completed_at.    │
+ *   └──────────────────────────────────────────────────────────┘
+ *
+ * Composed entirely from the activity-kit primitives so every record
+ * page (lead, deal, school, contact, …) and the global Activities
+ * page draw from the same visual + behavioural language.
+ */
+import { useEffect, useMemo, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { AlertTriangle, CalendarPlus, FileText, History, Loader2 } from "lucide-react";
+import {
+  useActivityList,
+  useUpdateActivityStatus,
+  type Activity,
+  type ActivityType,
+} from "~/api/activities";
+import { useEntityActivityLogs, type ActivityLog } from "~/api/activity-logs";
+import { useCurrency } from "~/hooks/use-currency";
+import {
+  extractTimelineChanges,
+  formatChangeValue,
+  type TimelineChange,
+} from "~/lib/activity-timeline";
+import { useActivityCompletionStore } from "~/stores/use-activity-completion-store";
+import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
+import { CreateActivityModal } from "~/components/activities/create-activity-modal";
+import {
+  ActivityComposer,
+  type ComposerType,
+} from "~/components/activities/activity-composer";
+import { ActivityInspectorSheet } from "~/components/activities/activity-inspector-sheet";
+import { FilesTab } from "~/components/deals/tabs/files-tab";
+import {
+  ActivityEmptyState,
+  CompletedActivityFeedItem,
+  TimelineChangeItem,
+  FeedFilterBar,
+  PlannedActivityCard,
+  activityIsOpen,
+  applyFeedFilter,
+  type FeedFilter,
+} from "~/components/activities/activity-kit";
+
+interface EngagementWorkspaceProps {
+  leadId?: string;
+  dealId?: string;
+  schoolId?: string;
+  contactId?: string;
+  scope: "lead" | "deal" | "school" | "contact";
+  isReadonly?: boolean;
+  /**
+   * Pre-filter the Done feed on mount. Used by record-page tabs that
+   * want to land users straight on a single activity type — e.g. the
+   * Notes / Emails / Calls tabs on lead/deal/school pages. The filter
+   * bar stays interactive; the prop just seeds its initial state.
+   */
+  initialFilter?: FeedFilter;
+  /**
+   * Hide the filter bar when the page has already constrained the
+   * feed to a single type (e.g. the "Calls" tab — showing the filter
+   * bar below it invites contradictory UI).
+   */
+  hideFilterBar?: boolean;
+  /**
+   * Open the inline composer on this type when the workspace mounts.
+   * The record page's Note / Call / Email tabs use this: they compose,
+   * they do NOT filter the log below.
+   */
+  composeType?: ComposerType | null;
+  /** Prefilled onto the composer from the record's primary contact. */
+  composeDefaultPhone?: string;
+  composeDefaultEmail?: string;
+  /** ASGN2: the record owner — new activities default their assignee here. */
+  defaultAssigneeId?: string | null;
+}
+
+/** One rail, two kinds of entry. */
+type TimelineItem =
+  | { kind: "activity"; key: string; at: string; activity: Activity }
+  | { kind: "change"; key: string; at: string; change: TimelineChange };
+
+const CHANGELOG_ENTITY_BY_SCOPE: Record<EngagementWorkspaceProps["scope"], string> = {
+  lead: "Lead",
+  deal: "deal",
+  school: "School",
+  contact: "Contact",
+};
+
+export function EngagementWorkspace({
+  leadId,
+  dealId,
+  schoolId,
+  contactId,
+  scope,
+  isReadonly,
+  initialFilter,
+  hideFilterBar,
+  composeType = null,
+  composeDefaultPhone,
+  composeDefaultEmail,
+  defaultAssigneeId,
+}: EngagementWorkspaceProps) {
+  const [composer, setComposer] = useState<ComposerType | null>(composeType);
+  useEffect(() => setComposer(composeType), [composeType]);
+  /** The activity currently expanded in the log (one at a time). */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { formatCurrency } = useCurrency();
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>(
+    initialFilter ?? { kind: "all" },
+  );
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDefaultType, setCreateDefaultType] = useState<ActivityType>(
+    "task",
+  );
+  const [inspectorActivity, setInspectorActivity] = useState<Activity | null>(
+    null,
+  );
+
+  // The workspace fetches everything through the existing /activities
+  // endpoint. school_id is an indirect filter — backend joins on
+  // lead.school_id so the rep on a school page sees every activity
+  // tied to any of the school's leads in one query.
+  const queryParent = useMemo(
+    () => ({
+      lead_id: leadId,
+      deal_id: dealId,
+      contact_id: contactId,
+      school_id: schoolId,
+    }),
+    [leadId, dealId, contactId, schoolId],
+  );
+  const hasParent = !!(leadId || dealId || contactId || schoolId);
+  /**
+   * Which record's changelog/files we're looking at.
+   *
+   * This used to prefer `leadId` unconditionally — but a deal page passes
+   * BOTH `dealId` and its originating `leadId`, so on every deal created
+   * from a lead we asked for `/activity-logs/entity/deal/<lead id>` and
+   * got nothing back. Deal stage and value history existed and was simply
+   * never shown. Resolve by scope instead of by whichever id is present.
+   */
+  const activeEntityId =
+    (scope === "deal" ? dealId : undefined) ??
+    (scope === "school" ? schoolId : undefined) ??
+    (scope === "contact" ? contactId : undefined) ??
+    leadId ??
+    dealId ??
+    schoolId ??
+    contactId ??
+    "";
+  const activePane =
+    feedFilter.kind === "content" && feedFilter.value === "files"
+      ? "files"
+      : feedFilter.kind === "changelog"
+        ? "changelog"
+        : "activities";
+
+  // Open / planned activities — small slice, ordered by due_at.
+  const {
+    data: openData,
+    isLoading: loadingOpen,
+    error: openError,
+  } = useActivityList({
+    ...queryParent,
+    open_only: true,
+    limit: 100,
+    page: 1,
+    include_details: true,
+    enabled: hasParent,
+  });
+
+  // Closed / done activities — larger slice for the history feed.
+  const {
+    data: doneData,
+    isLoading: loadingDone,
+    error: doneError,
+  } = useActivityList({
+    ...queryParent,
+    status: "completed",
+    limit: 100,
+    page: 1,
+    include_details: true,
+    enabled: hasParent,
+  });
+
+  // Cancelled activities stay in the log as history. Disqualifying a lead
+  // (or losing a deal) auto-cancels its open queue, and several of those
+  // rows carry real written accounts — hiding them would erase what the
+  // rep observed just because the record died.
+  const { data: cancelledData } = useActivityList({
+    ...queryParent,
+    status: "cancelled",
+    limit: 50,
+    page: 1,
+    include_details: true,
+    enabled: hasParent,
+  });
+
+  const updateStatus = useUpdateActivityStatus();
+
+  // The planned card surfaces the rep's NEXT actionable step. Notes
+  // are historical records (no due state, no follow-up owed), so they
+  // can never be a "planned next step" and are excluded here. Without
+  // this filter, a freshly-logged note with no due date would sort to
+  // the top of the open list and hijack the Planned slot — which is
+  // why users reported that "my note didn't show up": it was being
+  // rendered as the planned card (a slot that doesn't show note
+  // content) while the Done feed below already had the same note
+  // listed correctly. Now the Planned card stays null when only notes
+  // are open, and notes only live in the Done/history feed.
+  // NEXT4: a lead/deal can hold more than one open next step at a time, so
+  // the Planned section lists ALL open dated steps (soonest first), not just
+  // the single soonest — the rest used to be swept into the Activity log.
+  const plannedActivities = useMemo<Activity[]>(() => {
+    // The Planned cards are strictly the UPCOMING, dated steps. They must
+    // NOT fall back to "newest open regardless of date": logged calls and
+    // WhatsApps are saved with status "scheduled" and no due date, so the
+    // old fallback promoted a random logged interaction into the Planned
+    // slot AND — because the history feed only carried completed + notes —
+    // left every other undated interaction with nowhere to render. Reps
+    // saw a near-empty timeline (≈63% of all activity was invisible).
+    // With no dated next step, Planned is simply empty (prompt to schedule)
+    // and all logged interactions live in the Activity log below.
+    const dated = (openData?.data ?? [])
+      .filter((a) => a.type !== "note" && (a.due_at || a.scheduled_at))
+      .sort((a, b) => {
+        const ad = new Date(a.due_at ?? a.scheduled_at!).getTime();
+        const bd = new Date(b.due_at ?? b.scheduled_at!).getTime();
+        return ad - bd;
+      });
+    return dated;
+  }, [openData]);
+
+  // Open actionable items beyond the Planned cards (undated open items —
+  // they live in the feed below; this chip says how many).
+  const otherOpenCount = useMemo(() => {
+    const planned = new Set(plannedActivities.map((a) => a.id));
+    return (openData?.data ?? []).filter(
+      (a) => a.type !== "note" && !planned.has(a.id),
+    ).length;
+  }, [openData, plannedActivities]);
+
+  // The historical feed is every logged interaction EXCEPT the items shown
+  // as Planned cards above the feed (we keep ALL open dated steps as cards,
+  // not just the soonest — NEXT4). Completed + cancelled + undated open
+  // items all render here, de-duped by id.
+  const feedActivities = useMemo<Activity[]>(() => {
+    const done = doneData?.data ?? [];
+    const open = openData?.data ?? [];
+    const cancelled = cancelledData?.data ?? [];
+    //
+    // De-duplicate by id first. `done` (status=completed) and `open`
+    // (open_only) are two independent queries against the same /activities
+    // endpoint, so the SAME activity can arrive in both lists — e.g. on a deal
+    // page the backend widens its match when both deal_id and lead_id are
+    // supplied and returns open items under the "completed" query too, and
+    // there is also a brief window right after a status change while both
+    // cached lists are still warm. Concatenating blindly then rendered two
+    // <li>s with the same key={activity.id}, tripping React's "two children
+    // with the same key" warning and risking an activity being dropped from
+    // the feed. Collapsing on id keeps exactly one copy of every distinct
+    // activity, so the log stays complete and each key is unique.
+    const plannedIds = new Set(plannedActivities.map((a) => a.id));
+    const byId = new Map<string, Activity>();
+    for (const a of [...done, ...open, ...cancelled]) {
+      if (!byId.has(a.id)) byId.set(a.id, a);
+    }
+    const combined = [...byId.values()].filter((a) => !plannedIds.has(a.id));
+    return applyFeedFilter(combined, feedFilter).sort((a, b) => {
+      const at = new Date(
+        a.completed_at ?? a.scheduled_at ?? a.created_at,
+      ).getTime();
+      const bt = new Date(
+        b.completed_at ?? b.scheduled_at ?? b.created_at,
+      ).getTime();
+      return bt - at;
+    });
+  }, [doneData, openData, cancelledData, plannedActivities, feedFilter]);
+
+  /**
+   * Stage and value changes, woven into the same rail as the activities.
+   *
+   * The changelog was previously fetched only inside <ChangelogPanel>,
+   * which mounts when the "Changelog" chip is active — so in the default
+   * view no change data was loaded at all. Hoisting the query here lets a
+   * stage move sit chronologically between the call that caused it and
+   * the follow-up it triggered, which is the whole point.
+   */
+  const { data: changeLogs } = useEntityActivityLogs(
+    CHANGELOG_ENTITY_BY_SCOPE[scope],
+    activeEntityId,
+  );
+
+  const timelineChanges = useMemo(() => {
+    // Only woven into the unfiltered feed. Once a rep narrows to "Calls"
+    // or "Notes" they're looking for activities, and stage rows would be
+    // noise; the dedicated Changelog pane still shows everything.
+    if (feedFilter.kind !== "all") return [];
+    return extractTimelineChanges(changeLogs?.data);
+  }, [changeLogs, feedFilter]);
+
+  /**
+   * One chronological list of both kinds of entry. Sorting here (rather
+   * than rendering two lists) is what makes the rail read as a single
+   * thread.
+   */
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    const items: TimelineItem[] = [
+      ...feedActivities.map((activity) => ({
+        kind: "activity" as const,
+        key: activity.id,
+        at: activity.completed_at ?? activity.created_at,
+        activity,
+      })),
+      ...timelineChanges.map((change) => ({
+        kind: "change" as const,
+        key: change.id,
+        at: change.at,
+        change,
+      })),
+    ];
+    return items.sort(
+      (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
+    );
+  }, [feedActivities, timelineChanges]);
+
+  const requestCompletion = useActivityCompletionStore((s) => s.request);
+
+  async function toggleComplete(a: Activity) {
+    // Mark-done flow: route through the outcome-capture dialog. The
+    // dialog calls the real status mutation once the user picks an
+    // outcome, so the request is fire-and-forget from here.
+    if (activityIsOpen(a)) {
+      requestCompletion({ activity: a });
+      return;
+    }
+    // Reopen flow: no outcome needed — go straight to the mutation.
+    await updateStatus.mutateAsync({ id: a.id, status: "scheduled" });
+  }
+
+  /**
+   * Toggles the row open in place rather than floating an overlay over
+   * the log. Only one activity stays expanded at a time so the feed
+   * doesn't turn into a wall of open documents.
+   */
+  function openInspector(a: Activity) {
+    setExpandedId((current) => (current === a.id ? null : a.id));
+  }
+
+  // SCH-ACT1: activities belong to leads/deals. School (and contact)
+  // rollup pages get no inline composer — a composer there would create a
+  // parentless activity the rollup itself can never show (the feed joins
+  // through leads). Scheduling from a rollup goes through the modal, which
+  // makes the user pick one of the record's leads/deals first.
+  const canCompose = !isReadonly && !!(leadId || dealId);
+
+  return (
+    <div className="space-y-4">
+      {/* Inline composer — opened by the record page's Note / Call /
+          Email / … tabs, or by "Schedule next". Writing happens here in
+          place; the log below is never filtered by it. */}
+      {composer && canCompose && (
+        <div className="mb-4">
+          <ActivityComposer
+            leadId={leadId}
+            dealId={dealId}
+            schoolId={schoolId}
+            contactId={contactId}
+            type={composer}
+            onTypeChange={setComposer}
+            onClose={() => setComposer(null)}
+            defaultPhone={composeDefaultPhone}
+            defaultEmail={composeDefaultEmail}
+            defaultAssigneeId={defaultAssigneeId}
+          />
+        </div>
+      )}
+
+      {/* PLANNED section — the header uses a 3-column grid so the
+          section label (Planned pill + "Next step" title) sits in
+          the centre column while the Schedule-next action anchors
+          the right column. Previously the label flex-aligned to the
+          left and only read as "centred" by coincidence on narrow
+          panes. */}
+      <section aria-labelledby="planned-header">
+        <div className="mb-2 grid grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
+          <span className="hidden sm:block" aria-hidden />
+          <div className="flex items-center justify-center gap-2">
+            <Badge
+              variant="secondary"
+              className="rounded-full border bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900"
+            >
+              Planned
+            </Badge>
+            <h3 id="planned-header" className="text-sm font-semibold">
+              Next step
+            </h3>
+          </div>
+          {canCompose ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setComposer("task")}
+              className="justify-self-stretch sm:justify-self-end"
+            >
+              <CalendarPlus className="mr-1.5 h-3.5 w-3.5" />
+              Schedule next
+            </Button>
+          ) : (
+            <span className="hidden sm:block" aria-hidden />
+          )}
+        </div>
+
+        {loadingOpen ? (
+          <div className="flex items-center justify-center rounded-md border bg-background py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : openError ? (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">Next step could not be loaded</p>
+              <p className="text-xs text-muted-foreground">
+                Refresh this record after the API is reachable.
+              </p>
+            </div>
+          </div>
+        ) : plannedActivities.length > 0 ? (
+          <div className="space-y-2">
+            {plannedActivities.map((planned) => (
+              <PlannedActivityCard
+                key={planned.id}
+                activity={planned}
+                expanded={expandedId === planned.id}
+                onComplete={toggleComplete}
+                onOpen={openInspector}
+                disabled={isReadonly}
+              />
+            ))}
+            {/* Undated open items can't be a dated "next step" card —
+                name where they live so they never read as missing. */}
+            {otherOpenCount > 0 && (
+              <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                +{otherOpenCount} more open{" "}
+                {otherOpenCount === 1 ? "activity" : "activities"} without a
+                date on this record — find {otherOpenCount === 1 ? "it" : "them"}{" "}
+                in the log below.
+              </p>
+            )}
+          </div>
+        ) : (
+          <ActivityEmptyState
+            scope={scope}
+            disabled={isReadonly}
+            onSchedule={(type) => {
+              setCreateDefaultType(type);
+              setCreateOpen(true);
+            }}
+          />
+        )}
+      </section>
+
+      {/* Activity log section header — relabelled from "Done /
+          Completed history" because notes appear here too (they're
+          logged, not completed) and users reported assuming their
+          freshly-logged note "didn't save" because they expected it
+          in a section called Done. "Activity log" covers both
+          completed-and-filed actions and logged notes. */}
+      <div className="grid grid-cols-1 items-center gap-2 pt-2 sm:grid-cols-[1fr_auto_1fr]">
+        <span className="hidden sm:block" aria-hidden />
+        <div className="flex items-center justify-center gap-2">
+          <Badge
+            variant="secondary"
+            className="rounded-full border bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900"
+          >
+            Log
+          </Badge>
+          <h3 className="text-sm font-semibold">Activity log</h3>
+          <span className="text-xs text-muted-foreground">
+            {activePane === "files"
+              ? "Files"
+              : activePane === "changelog"
+                ? "Change history"
+                : `${feedActivities.length} item${feedActivities.length === 1 ? "" : "s"}`}
+          </span>
+        </div>
+        <span className="hidden sm:block" aria-hidden />
+      </div>
+
+      {/* Single unified filter row — suppressed when the host page
+          has already locked the feed to a specific type (e.g. Calls
+          tab); in that case the type tab IS the filter. */}
+      {!hideFilterBar && (
+        <FeedFilterBar value={feedFilter} onChange={setFeedFilter} />
+      )}
+
+      {activePane === "files" ? (
+        activeEntityId ? (
+          <FilesTab
+            entity={scope}
+            entityId={activeEntityId}
+            isReadonly={isReadonly}
+          />
+        ) : (
+          <div className="rounded-md border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
+            Files will appear once this record has been saved.
+          </div>
+        )
+      ) : activePane === "changelog" ? (
+        <ChangelogPanel scope={scope} entityId={activeEntityId} />
+      ) : (
+        <div className="rounded-md border bg-background">
+          {loadingDone ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+          ) : doneError ? (
+          <div className="flex items-start gap-2 px-4 py-6 text-sm text-destructive">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">Activity log could not be loaded</p>
+              <p className="text-xs text-muted-foreground">
+                Completed activities and notes will appear here once the
+                request succeeds.
+              </p>
+            </div>
+          </div>
+          ) : timelineItems.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+            No activity yet for this {scope}. Everything you log or schedule —
+            notes, calls, WhatsApps, tasks, meetings — shows up here.
+          </div>
+          ) : (
+          <ul className="divide-y">
+            {timelineItems.map((item) =>
+              item.kind === "activity" ? (
+                <CompletedActivityFeedItem
+                  key={item.key}
+                  activity={item.activity}
+                  expanded={expandedId === item.activity.id}
+                  onOpen={openInspector}
+                  onReopen={
+                    item.activity.status === "completed"
+                      ? () => toggleComplete(item.activity)
+                      : undefined
+                  }
+                />
+              ) : (
+                <TimelineChangeItem
+                  key={item.key}
+                  change={item.change}
+                  formatValue={(c) => formatChangeValue(c, formatCurrency)}
+                />
+              ),
+            )}
+          </ul>
+          )}
+        </div>
+      )}
+
+      <CreateActivityModal
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        leadId={leadId}
+        dealId={dealId}
+        defaultType={createDefaultType}
+      />
+
+      <ActivityInspectorSheet
+        activity={inspectorActivity}
+        open={!!inspectorActivity}
+        isReadonly={isReadonly}
+        onOpenChange={(open) => {
+          if (!open) setInspectorActivity(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function ChangelogPanel({
+  scope,
+  entityId,
+}: {
+  scope: EngagementWorkspaceProps["scope"];
+  entityId: string;
+}) {
+  const entity = CHANGELOG_ENTITY_BY_SCOPE[scope];
+  const { data, isLoading, error } = useEntityActivityLogs(entity, entityId);
+  const logs = data?.data ?? [];
+
+  if (!entityId) {
+    return (
+      <div className="rounded-md border bg-background px-4 py-10 text-center text-sm text-muted-foreground">
+        Changelog entries will appear once this record has been saved.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border bg-background">
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : error ? (
+        <div className="flex items-start gap-2 px-4 py-6 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Changelog could not be loaded</p>
+            <p className="text-xs text-muted-foreground">
+              Refresh this record after the API is reachable.
+            </p>
+          </div>
+        </div>
+      ) : logs.length === 0 ? (
+        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+          <History className="mx-auto mb-3 h-10 w-10 opacity-40" />
+          <p>No changelog entries yet</p>
+          <p className="text-xs">Updates, stage moves, uploads, and approvals will appear here.</p>
+        </div>
+      ) : (
+        <ul className="divide-y">
+          {logs.map((log) => (
+            <ChangelogItem key={log.id} log={log} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ChangelogItem({ log }: { log: ActivityLog }) {
+  const user = log.user ?? log.actioned_by_user;
+  const actor = user
+    ? [user.first_name, user.last_name].filter(Boolean).join(" ").trim() ||
+      user.email
+    : "System";
+
+  return (
+    <li className="flex gap-3 px-4 py-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        {log.action === "create" ? (
+          <FileText className="h-4 w-4" />
+        ) : (
+          <History className="h-4 w-4" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="capitalize">
+            {log.action.replace(/_/g, " ")}
+          </Badge>
+          <span className="text-xs text-muted-foreground">{actor}</span>
+          <span className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(log.created_at), {
+              addSuffix: true,
+            })}
+          </span>
+        </div>
+        <p className="text-sm font-medium">
+          {log.summary || `${log.entity} ${log.action}`}
+        </p>
+        {log.new_values && Object.keys(log.new_values).length > 0 && (
+          <p className="line-clamp-2 text-xs text-muted-foreground">
+            {Object.keys(log.new_values)
+              .slice(0, 5)
+              .map((key) => key.replace(/_/g, " "))
+              .join(", ")}
+          </p>
+        )}
+      </div>
+    </li>
+  );
+}

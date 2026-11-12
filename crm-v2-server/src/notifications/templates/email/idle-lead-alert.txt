@@ -1,0 +1,17 @@
+IDLE LEAD ALERT
+
+Hi {{name}},
+
+One of your assigned leads has had no activity for over {{idleHours}} hours and may need follow-up:
+
+Lead: {{leadName}}
+Current Status: {{status}}
+Idle Time: {{idleHours}}+ hours
+
+Please reach out to the lead or log an activity to keep the conversation going.
+
+View Lead: {{actionUrl}}
+
+---
+This is an automated alert from {{appName}}.
+(c) {{year}} {{appName}}. All rights reserved.

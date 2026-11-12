@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Idle Lead Alert</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .alert-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background-color: #f59e0b;
+            color: #ffffff;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .details {
+            background-color: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .details p {
+            margin: 8px 0;
+        }
+        .details strong {
+            color: #374151;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #f59e0b;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="alert-badge">IDLE LEAD</span>
+            <h2>Lead Needs Attention</h2>
+        </div>
+
+        <p>Hi {{name}},</p>
+
+        <p>One of your assigned leads has had no activity for over {{idleHours}} hours and may need follow-up:</p>
+
+        <div class="details">
+            <p><strong>Lead:</strong> {{leadName}}</p>
+            <p><strong>Current Status:</strong> {{status}}</p>
+            <p><strong>Idle Time:</strong> {{idleHours}}+ hours</p>
+        </div>
+
+        <p>Please reach out to the lead or log an activity to keep the conversation going.</p>
+
+        <p style="text-align: center;">
+            <a href="{{actionUrl}}" class="button">View Lead</a>
+        </p>
+
+        <div class="footer">
+            <p>This is an automated alert from {{appName}}.</p>
+            <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

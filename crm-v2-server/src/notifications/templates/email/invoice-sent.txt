@@ -1,0 +1,18 @@
+Dear {{clientName}},
+
+Please find attached invoice {{documentNumber}} for your reference.
+
+Invoice Number: {{documentNumber}}
+Amount Due: {{total}}
+{{#dueDate}}Due Date: {{dueDate}}{{/dueDate}}
+
+If you have any questions regarding this invoice, please don't hesitate to contact us.
+
+Thank you for your business.
+
+Kind regards,
+{{companyName}}
+
+---
+This is an automated message. The invoice document is attached to this email.
+(c) {{year}} {{companyName}}. All rights reserved.
